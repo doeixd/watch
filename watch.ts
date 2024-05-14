@@ -84,13 +84,13 @@ interface WatchOptions {
   wrapper: (fn: Function) => (args: WatchEventArgs) => SetupFn;
 }
 
-declare global {
+// declare global {
   interface Window {
     states: WeakMap<Element, any>;
     remove: WeakMap<Element, Function[]>;
     setups: WeakSet<Element>;
   }
-}
+// }
 
 /**
  * Watches for DOM elements matching the given selector and calls the setup function when they are added or removed.
@@ -326,7 +326,7 @@ export function JS(obj: object): string {
  * @param {Object} obj - The object to clone.
  * @returns {Object} The cloned object.
  */
-export function clone(obj: object) {
+export function clone<T extends object>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
@@ -384,7 +384,7 @@ export const find = (selector: string, parent?: Element | ParentNode): Element |
  * @param {HTMLElement | ParentNode | null} [parent] - The parent element to search within.
  * @returns {NodeListOf<Element> | NodeListOf<HTMLElementTagNameMap[K]> | NodeListOf<SVGElementTagNameMap[K]>} A {@link NodeList} of matching elements.
  */
-export const findAll = (selector: string | keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap, parent?: ParentNode | Element) => Array.from((parent || document).querySelectorAll(selector));
+export const findAll = <K extends Element>(selector: string | keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap, parent?: ParentNode | Element): Array<K> => Array.from((parent || document).querySelectorAll(selector));
 
 /**
  * Converts a color value to the specified color space.
@@ -392,7 +392,7 @@ export const findAll = (selector: string | keyof HTMLElementTagNameMap | keyof S
  * @param {string} toSpace - The color space to convert to (e.g., 'srgb', 'display-p3', 'a98-rgb', 'rec2020', 'prophoto-rgb').
  * @returns {string} The converted color value in the specified color space.
  */
-export function convertColor(color: string, toSpace: string) {
+export function convertColor(color: string, toSpace: string): string {
   let div = document.createElement('div');
   div.style.color = `color-mix(in ${toSpace}, ${color} 100%, transparent)`;
   div.style.display = 'none';
@@ -420,7 +420,7 @@ export function setQueryParam(key: string, value: string, type: 'hard' | 'soft' 
  * @param {string} key - The key of the query parameter.
  * @returns {string|null} The value of the query parameter, or null if it doesn't exist.
  */
-export function getQueryParam(key): string | null {
+export function getQueryParam(key: string): string | null {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(key);
 }
@@ -430,7 +430,7 @@ export function getQueryParam(key): string | null {
  * @param {string} key - The key of the query parameter.
  * @returns {string[]} An array of all values for the query parameter.
  */
-export function getAllQueryParam(key): string[] {
+export function getAllQueryParam(key: string): string[] {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.getAll(key);
 }

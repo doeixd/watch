@@ -3,7 +3,7 @@
    *
    * This module contains functions helpful functions for adding event listeners to the dom. An alternative to web components or selector-observer
    *
-   * ```js
+   * @example
    * import { watch } from "@doeixd/doeixd";
    *
    * watch('.say-hello', ({on, state}) => {
@@ -12,7 +12,7 @@
    *    alert(`Hello World${'!'.repeat(++state.count)}`)
    *  })
    * })
-   * ```
+   * 
 */
 
 /**

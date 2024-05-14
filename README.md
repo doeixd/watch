@@ -8,7 +8,7 @@ The module also has few helpers that I find to be the bare essentials when creat
 ## Example 
 
 ```js
-import { watch } from 'jsr:@doeixd/watch'
+import { watch } from 'https://esm.sh/watch-selector?exports=watch'
 
 watch('.say-hello', ({on, state}) => {
   state.count = 0

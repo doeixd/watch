@@ -36,13 +36,13 @@ interface WatchOptions {
   wrapper?: (fn: Function) => (args: WatchEventArgs) => SetupFn;
 }
 
-declare global {
-  interface Window {
-    states: WeakMap<HTMLElement, any>;
-    remove: WeakMap<HTMLElement, Function[]>;
-    setups: WeakSet<HTMLElement>;
-  }
-}
+// declare global {
+//   interface Window {
+//     states: WeakMap<HTMLElement, any>;
+//     remove: WeakMap<HTMLElement, Function[]>;
+//     setups: WeakSet<HTMLElement>;
+//   }
+// }
 
 export function watch(
   selector: string,

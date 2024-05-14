@@ -113,6 +113,11 @@ export function watch(selector, setup_fn, options = { parent: document, wrapper:
             if (typeof attrHandlerOptions == 'object' && handler) {
                 // @ts-expect-error
                 el.addEventListener(eventName, handler, attrHandlerOrOptions);
+                return;
+            }
+            if (handler) {
+                el.addEventListener(eventName, handler);
+                return;
             }
             return;
         }
@@ -164,9 +169,13 @@ export function watch(selector, setup_fn, options = { parent: document, wrapper:
                 re.push(handler);
             return;
         }
-        // @ts-expect-error
-        if (handler && typeof attrHandlerOptions == 'object')
+        if (handler && typeof attrHandlerOptions == 'object') {
+            // @ts-expect-error
             el?.addEventListener(eventName, handler, attrHandlerOrOptions);
+            return;
+        }
+        if (handler)
+            el?.addEventListener(eventName, handler);
     };
     document.querySelectorAll(selector).forEach((el, idx, arr) => {
         let state = states.has(el) ? states.get(el) : {};

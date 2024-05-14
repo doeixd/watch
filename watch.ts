@@ -5,7 +5,7 @@
    * This module contains functions helpful functions for adding event listeners to the dom. An alternative to web components or selector-observer
    *
    * @example
-   * import { watch } from "@doeixd/doeixd";
+   * import { watch } from "@doeixd/watch";
    *
    * watch('.say-hello', ({on, state}) => {
    *  state.count = 0
@@ -175,7 +175,17 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
             handler,
             attrHandlerOrOptions
           );
-      }
+          return 
+        }
+
+        if (handler) {
+          el.addEventListener(
+            eventName,
+            handler,
+          );
+          return 
+        }
+
         return;
       }
 
@@ -233,8 +243,13 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
         return
       }
       
-      // @ts-expect-error
-      if (handler && typeof attrHandlerOptions == 'object') el?.addEventListener(eventName, handler, attrHandlerOrOptions)
+      if (handler && typeof attrHandlerOptions == 'object') { 
+        // @ts-expect-error
+        el?.addEventListener(eventName, handler, attrHandlerOrOptions) 
+        return
+      }
+      if (handler) 
+        el?.addEventListener(eventName, handler) 
     };
 
   document.querySelectorAll(selector).forEach((el, idx, arr) => {

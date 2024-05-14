@@ -8,24 +8,25 @@ The module also has few helpers that I find to be the bare essentials when creat
 ## Example 
 
 ```js
-  import { watch } from '@doeixd/watch'
-  
-  watch('.say-hello', ({on, state}) => {
-    state.count = 0
+import { watch } from 'jsr:@doeixd/watch'
 
-    on('click', () => {
-      alert(`Hello World${'!'.repeat(++state.count)}`)
-    })
+watch('.say-hello', ({on, state}) => {
+  state.count = 0
+
+  on('click', () => {
+    alert(`Hello World${'!'.repeat(++state.count)}`)
+  })
+})
+
+watch('.turn-blue', ({on, style}) => {
+
+  on('click', () => {
+    style({
+      color: 'blue'
+    }).apply()
   })
 
-  watch('.turn-blue', ({on, style}) => {
-
-    on('click', () => {
-      style({
-        color: 'blue'
-      }).apply()
-    })
-  })
+})
 
 ```
 

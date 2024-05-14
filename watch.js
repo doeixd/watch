@@ -1,3 +1,4 @@
+///<reference path="watch.d.ts" />
   /**
    * @module
    *

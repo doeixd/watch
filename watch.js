@@ -37,7 +37,7 @@ export function createObserver(fn, options) {
  * @param {Function} fn - The function to run after the DOM is loaded.
  */
 export function ensureRunAfterDOM(fn) {
-  let handleDOMLoaded = Fn(fn);
+  let handleDOMLoaded = (fn);
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', handleDOMLoaded);
   } else {

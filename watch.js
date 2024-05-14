@@ -3,17 +3,18 @@
    *
    * This module contains functions helpful functions for adding event listeners to the dom. An alternative to web components or selector-observer
    *
-+  * ```js
-+  * import { watch } from "@luca/search";
-+  *
-+  * watch('.say-hello', ({on, state}) => {
+   * ```js
+   * import { watch } from "@doeixd/doeixd";
+   *
+   * watch('.say-hello', ({on, state}) => {
    *  state.count = 0
    *  on('click', () => {
    *    alert(`Hello World${'!'.repeat(++state.count)}`)
    *  })
    * })
-+  * ```
-   */
+   * ```
+*/
+
 /**
  * Creates a new MutationObserver instance and returns a function to observe an element.
  * @param {MutationCallback} fn - The callback function for the MutationObserver.

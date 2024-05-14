@@ -1,4 +1,4 @@
-///<reference path="watch.d.ts" />
+
   /**
    * @module
    *
@@ -20,14 +20,14 @@
  * Creates a new MutationObserver instance and returns a function to observe an element.
  * @param {MutationCallback} fn - The callback function for the MutationObserver.
  * @param {MutationObserverInit} options - The options for the MutationObserver.
- * @returns {(element: HTMLElement | string) => void} A function that takes an element (or selector) and observes it with the provided options.
+ * @returns {(element: Element | string) => void} A function that takes an element (or selector) and observes it with the provided options.
  */
-export function createObserver(fn, options) {
+export function createObserver(fn: MutationCallback, options: MutationObserverInit):(element: Node | string) => void  {
   const observer = new MutationObserver(fn);
   return function (element) {
-    if (typeof element == 'string') element = document.querySelector(element);
+    if (typeof element == 'string') element = document.querySelector(element) || '' as string;
     try {
-      observer.observe(element, options);
+      if (element instanceof Node) observer.observe(element, options);
     } catch (e) {}
   };
 }
@@ -36,12 +36,59 @@ export function createObserver(fn, options) {
  * Ensures that a function runs after the DOM is loaded.
  * @param {Function} fn - The function to run after the DOM is loaded.
  */
-export function ensureRunAfterDOM(fn) {
-  let handleDOMLoaded = (fn);
+export function ensureRunAfterDOM(fn: Function) {
+  let handleDOMLoaded = function() {
+    fn()
+  };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', handleDOMLoaded);
   } else {
     handleDOMLoaded();
+  }
+}
+
+interface AttributeHandlerArgs  {
+  el: Element,
+  selector: string,
+  record: MutationRecord
+}
+type AttributeHandler = (args: AttributeHandlerArgs) => void
+type EventHandler = EventListenerOrEventListenerObject | null;
+type EventHandlerOptions = AttributeHandler | AddEventListenerOptions;
+
+type OnFunction = (
+  el: Element
+) => (
+  eventName: keyof ElementEventMap,
+  handler: EventHandler,
+  attrHandlerOrOptions?: EventHandlerOptions,
+  attrHandlerOptions?: EventHandlerOptions
+) => void;
+
+interface WatchEventArgs {
+  el: Element;
+  selector: string;
+  record?: MutationRecord;
+  idx: number;
+  arr: NodeList | Element[];
+  state: unknown;
+  style: (styles: CSSStyleDeclaration) => { apply: (additionalStyles?: CSSStyleDeclaration) => void, revert: () => void }
+  cleanup: () => void;
+  on: ReturnType<OnFunction>;
+}
+
+type SetupFn = (args: WatchEventArgs) => void;
+
+interface WatchOptions {
+  parent?: Node;
+  wrapper: (fn: Function) => (args: WatchEventArgs) => SetupFn;
+}
+
+declare global {
+  interface Window {
+    states: WeakMap<Element, any>;
+    remove: WeakMap<Element, Function[]>;
+    setups: WeakSet<Element>;
   }
 }
 
@@ -51,7 +98,7 @@ export function ensureRunAfterDOM(fn) {
  * @param {SetupFn} setup_fn - The function to call when elements matching the selector are added or removed.
  * @param {WatchOptions} [options] - Options for the watch function.
  */
-export function watch(selector, setup_fn, options = {parent: document, wrapper: ((fn) => (args) => fn(args))}) {
+export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions = {parent: document, wrapper: ((fn) => (args) => fn(args))}) {
     var parent = options?.parent
     var wrapper = options?.wrapper
 
@@ -59,7 +106,7 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
      * A WeakMap to store state associated with DOM elements.
      * @type {WeakMap}
      */
-    var states = window?.states = new WeakMap();
+    var states = window?.states ?? new WeakMap();
 
     /**
      * A WeakMap to store cleanup functions associated with DOM elements.
@@ -73,22 +120,26 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
      */
     var setups = window?.setups ?? new WeakSet();
 
-    const setup = (args) => {
+    const setup = (args: Omit<WatchEventArgs, 'style' | 'state' | 'cleanup' | 'selector'> | WatchEventArgs) => {
 
       window.states ??= states;
       window.remove ??= remove;
       window.setups ??= setups;
 
       const cleanup = () => {
-        remove.get(args.el).forEach((fn) => fn(args));
+        if (remove.has(args.el)) {
+          let fns = remove.get(args.el)
+          if (fns) fns.forEach((fn) => fn?.(args)) 
+        }
         setups.delete(args.el);
         remove.delete(args.el);
         states.delete(args.el);
       };
-      args.style = applyInlineStylesToElement(args.el)
-      args.cleanup = cleanup;
+
+      if (args.el instanceof HTMLElement) {((args as WatchEventArgs).style = applyInlineStylesToElement(args.el))}
+      (args as WatchEventArgs).cleanup = cleanup;
       if (setups.has(args.el)) return;
-      wrapper(setup_fn)(args);
+      wrapper(setup_fn)(args as WatchEventArgs);
       setups.add(args.el);
   }
 
@@ -114,14 +165,17 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
     );
   };
   let on =
-    (el) => (eventName, handler, attrHandlerOrOptions, attrHandlerOptions) => {
-      eventName = eventName.trim().toLowerCase();
+    (el: Element) => (eventName: keyof ElementEventMap, handler: EventHandler, attrHandlerOrOptions?: EventHandlerOptions, attrHandlerOptions?: EventHandlerOptions) => {
+      // eventName = eventName.trim().toLowerCase();
       if (eventDoesExists(eventName)) {
-        el.addEventListener(
-          eventName.trim().toLowerCase(),
-          handler,
-          attrHandlerOrOptions
-        );
+        if (typeof attrHandlerOptions == 'object' && handler) {
+          // @ts-expect-error
+          el.addEventListener(
+            eventName,
+            handler,
+            attrHandlerOrOptions
+          );
+      }
         return;
       }
 
@@ -135,10 +189,10 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
                 if (mutation.attributeName == attr) shouldRun = true;
               }
               if (attr instanceof RegExp) {
-                if (attr.test(mutation.attributeName)) shouldRun = true;
+                if (attr.test(mutation?.attributeName || '')) shouldRun = true;
               }
 
-              if (shouldRun)
+              if (shouldRun && typeof attrHandlerOrOptions == 'function')
                 attrHandlerOrOptions({ el, selector, record: mutation });
             }
           },
@@ -153,12 +207,13 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
 
       if (['text', 'textChange', 'textChanged'].includes(eventName)) {
         Array.from(el.childNodes)
-          .filter((e) => e.nodeType === Node.TEXT_NODE && e.textContent.trim())
+          .filter((e) => e.nodeType === Node.TEXT_NODE && e?.textContent?.trim?.())
           .forEach((_el) => {
             createObserver(
               (mutations) => {
                 for (let mutation of mutations) {
-                  handler({ el: _el, selector, record: mutation });
+                  // @ts-expect-error
+                  if (typeof handler =='function') handler({ el: _el, selector, record: mutation });
                 }
               },
               {
@@ -173,24 +228,26 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
 
       if (['unmount', 'remove', 'dispose', 'cleanup'].includes(eventName)) {
         if (!remove.get(el)) remove.set(el, []);
-        remove.get(el).push(handler);
+        let re = remove.get(el)
+        if(re && typeof handler == 'function') re.push(handler);
         return
       }
       
-      el?.addEventListener(eventName, handler, attrHandlerOrOptions)
+      // @ts-expect-error
+      if (handler && typeof attrHandlerOptions == 'object') el?.addEventListener(eventName, handler, attrHandlerOrOptions)
     };
 
   document.querySelectorAll(selector).forEach((el, idx, arr) => {
     let state = states.has(el) ? states.get(el) : {};
     states.set(el, state);
-    setup({ on: on(el), state, el, idx, arr, record: {} });
+    setup({ on: on(el), state, el, idx, arr });
   });
 
   createObserver(
     (mutations) => {
       for (let mutation of mutations) {
-        if (!mutation.target instanceof Element) continue;
-        if (mutation.target?.matches(selector)) {
+        if (!((mutation.target as any) instanceof Element)) continue;
+        if (mutation.target instanceof Element && mutation.target?.matches?.(selector)) {
           let el = mutation.target;
           if (states.has(el)) continue;
           let state = states.has(el) ? states.get(el) : {};
@@ -203,7 +260,7 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
           for (let el of mutation.addedNodes) {
             idx += 1;
             if (!(mutation.target instanceof Element)) continue;
-            if (el?.matches?.(selector)) {
+            if (el instanceof Element && el?.matches?.(selector)) {
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
               setup({
@@ -216,6 +273,7 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
               });
             }
 
+            if (el instanceof Element)
             el?.querySelectorAll?.(selector).forEach((el, idx, arr) => {
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
@@ -227,7 +285,8 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
 
         if (mutation?.removedNodes?.length) {
           for (let el of mutation.removedNodes) {
-            if (!mutation.target instanceof Element) continue;
+            if (!(mutation.target as unknown) as any instanceof Element) continue;
+            if (el instanceof Element)
             el?.querySelectorAll?.(selector).forEach((el, idx, arr) => {
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
@@ -235,9 +294,8 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
               setup({ on: on(el), state, record: mutation, arr, idx, el });
 
               if (remove.has(el)) {
-                remove
-                  .get(el)
-                  .forEach((fn) =>
+                let r = remove.get(el)
+                if (r) r.forEach((fn) =>
                     fn({ on: on(el), state, record: mutation, arr, idx, el })
                   );
               }
@@ -251,7 +309,7 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
       childList: true,
       attributes: true,
     }
-  )(parent);
+  )(parent || document);
 }
 
 /**
@@ -259,7 +317,7 @@ export function watch(selector, setup_fn, options = {parent: document, wrapper: 
  * @param {Object|*} obj - The object or value to convert to JSON.
  * @returns {string} The JSON string representation of the input.
  */
-export function JS(obj) {
+export function JS(obj: object): string {
   return JSON.stringify(obj, null, 2);
 }
 
@@ -268,7 +326,7 @@ export function JS(obj) {
  * @param {Object} obj - The object to clone.
  * @returns {Object} The cloned object.
  */
-export function clone(obj) {
+export function clone(obj: object) {
   return JSON.parse(JSON.stringify(obj));
 }
 
@@ -277,7 +335,7 @@ export function clone(obj) {
  * @param {HTMLElement} element - The element to apply styles to.
  * @returns {(styles: CSSStyleDeclaration) => { apply: (additionalStyles?: CSSStyleDeclaration) => void, revert: () => void }} A function that takes a {@link CSSStyleDeclaration} object and returns an object with `apply` and `revert` methods for applying and reverting inline styles to the element.
  */
-export function applyInlineStylesToElement(element) {
+export function applyInlineStylesToElement(element: HTMLElement): (styles: CSSStyleDeclaration) => { apply: (additionalStyles?: CSSStyleDeclaration) => void, revert: () => void } {
     return function (styles) {
     const oldStyles = JSON.parse(JSON.stringify(element.style));
 
@@ -303,7 +361,7 @@ export function applyInlineStylesToElement(element) {
  * @param {string} html - The HTML string to convert.
  * @returns {unknown} The created HTMLElement.
  */
-export function html(html) {
+export function html(html: string): unknown {
   var template = document.createElement('template');
   html = html.trim();
   template.innerHTML = html;
@@ -318,14 +376,15 @@ export function html(html) {
  * @param {HTMLElement | ParentNode | null} [parent] - The parent element to search within.
  * @returns {HTMLElement | null} The first matching element, or null if none is found.
  */
-export const find = (...args) => document.querySelector(...args);
+export const find = (selector: string, parent?: Element | ParentNode): Element | null => (parent || document).querySelector(selector);
 
 /**
  * Finds all elements that match the given selector(s).
  * @param {string | keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap} selectors - The CSS selector(s) to match.
+ * @param {HTMLElement | ParentNode | null} [parent] - The parent element to search within.
  * @returns {NodeListOf<Element> | NodeListOf<HTMLElementTagNameMap[K]> | NodeListOf<SVGElementTagNameMap[K]>} A {@link NodeList} of matching elements.
  */
-export const findAll = (...args) => Array.from(document.querySelectorAll(...args));
+export const findAll = (selector: string | keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap, parent?: ParentNode | Element) => Array.from((parent || document).querySelectorAll(selector));
 
 /**
  * Converts a color value to the specified color space.
@@ -333,7 +392,7 @@ export const findAll = (...args) => Array.from(document.querySelectorAll(...args
  * @param {string} toSpace - The color space to convert to (e.g., 'srgb', 'display-p3', 'a98-rgb', 'rec2020', 'prophoto-rgb').
  * @returns {string} The converted color value in the specified color space.
  */
-export function convertColor(color, toSpace) {
+export function convertColor(color: string, toSpace: string) {
   let div = document.createElement('div');
   div.style.color = `color-mix(in ${toSpace}, ${color} 100%, transparent)`;
   div.style.display = 'none';
@@ -349,11 +408,11 @@ export function convertColor(color, toSpace) {
  * @param {string} value - The value of the query parameter.
  * @param {string} [type='soft'] - The type of URL update ('soft' for history state change, 'hard' for full page reload).
  */
-export function setQueryParam(key, value, type = 'soft') {
-  const url = new URL(window.location);
+export function setQueryParam(key: string, value: string, type: 'hard' | 'soft' = 'soft') {
+  const url = new URL(window.location.toString());
   url.searchParams.set(key, value);
   if (type == 'hard') window.location.search = url.href;
-  if (type == 'soft') history.pushState(urlParams, '', url.href);
+  if (type == 'soft') history.pushState(url.searchParams, '', url.href);
 }
 
 /**
@@ -361,10 +420,9 @@ export function setQueryParam(key, value, type = 'soft') {
  * @param {string} key - The key of the query parameter.
  * @returns {string|null} The value of the query parameter, or null if it doesn't exist.
  */
-export function getQueryParam(key) {
+export function getQueryParam(key): string | null {
   const urlParams = new URLSearchParams(window.location.search);
-  urlParams.get(key);
-  window.location.search = urlParams;
+  return urlParams.get(key);
 }
 
 /**
@@ -372,10 +430,9 @@ export function getQueryParam(key) {
  * @param {string} key - The key of the query parameter.
  * @returns {string[]} An array of all values for the query parameter.
  */
-export function getAllQueryParam(key) {
+export function getAllQueryParam(key): string[] {
   const urlParams = new URLSearchParams(window.location.search);
-  urlParams.getAll(key);
-  window.location.search = urlParams;
+  return urlParams.getAll(key);
 }
 
 /**
@@ -391,15 +448,14 @@ export const Params = {
   getAll: getAllQueryParam,
 };
 
-window.Params = Params;
 
 /**
  * Matches a regular expression against a value and returns the first match.
  * @param {RegExp} regex - The regular expression to match.
  * @param {string} value - The value to match against.
- * @returns {string|null} The first match, or null if no match is found.
+ * @returns {string|undefined} The first match, or null if no match is found.
  */
-export function match(regex, value) {
+export function match(regex: RegExp, value: string): string | undefined {
   return String(value).match(regex)?.[0];
 }
 
@@ -409,7 +465,7 @@ export function match(regex, value) {
  * @param {Function} fn - The function to execute after the wait.
  * @returns {Promise} A Promise that resolves with the result of the provided function.
  */
-export function wait(ms, fn) {
+export function wait<F extends (...args) => any>(ms: number, fn: F): Promise<ReturnType<F>> {
   return new Promise((resolve) => {
     setTimeout(() => resolve(fn().then((l) => l)), ms);
   });

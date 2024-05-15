@@ -48,34 +48,150 @@ export function ensureRunAfterDOM(fn: Function) {
   }
 }
 
-interface AttributeHandlerArgs  {
-  el: Element,
+interface GenericHandlerArgs<E extends Element  | Node = Element>  {
+  el: E,
   selector: string,
   record: MutationRecord
 }
-type AttributeHandler = (args: AttributeHandlerArgs) => void
-type EventHandler = EventListenerOrEventListenerObject | null;
-type EventHandlerOptions = AttributeHandler | AddEventListenerOptions;
+type GenericEventHandler<El extends Element = Element, Ev extends Event = Event> =  (this: El, e: Ev) => void
+type GenericHandler<E extends Element | Node = Element>  = (args: GenericHandlerArgs<E>) => void
+type AttributeFilter = RegExp | string
+type EventHandler = EventListenerOrEventListenerObject | AttributeFilter;
+type EventHandlerOptions = GenericHandler | AddEventListenerOptions;
+type AttributeString = 'attr' | 'attribute'
+type EventMapFor<T extends Element> = DocumentEventMap & HTMLElementEventMap;
+type UnmountString = 'unmount' | 'dispose' | 'cleanup';
+type TextString = 'text' | 'textChanged' | 'textChange'
 
-type OnFunction = (
-  el: Element
-) => (
-  eventName: keyof ElementEventMap,
-  handler: EventHandler,
-  attrHandlerOrOptions?: EventHandlerOptions,
-  attrHandlerOptions?: EventHandlerOptions
-) => void;
+function isPlatformEventHandler <El extends Element, E extends keyof EventMapFor<El>>(eventName: E, handler: unknown): handler is ((this: El, ev: EventMapFor<El>[E]) => void) {
+  if (typeof handler == 'function' && isEventName(eventName)) return true 
+  return false
+}
 
-interface WatchEventArgs {
-  el: Element;
+function isGenericEventHandler<El extends Element>(name, handler): handler is GenericEventHandler {
+  if (typeof handler == 'function' && (!isPlatformEventHandler<El, typeof name>(name, handler) || !isEventName(name)) && !isTestString(name) && !isUnmountString(name)) return true
+  return false
+}
+
+function isGenericHandler<El extends Element | Node, N extends string>(name: N, handler: unknown): handler is GenericHandler<El> {
+  if (!isEventName(name) && typeof handler == 'function') return true
+  return false
+}
+
+const isAttributeString = (arg: string): arg is AttributeString => /^attr/gi.test(arg.trim())
+const isTestString = (arg: string): arg is TextString => /^(?:text|textChange)/gi.test(arg.trim())
+const isUnmountString = (arg: string): arg is UnmountString => /^(?:unmount|dispose|cleanup)/gi.test(arg.trim())
+
+function isAttributeFilter (arg: unknown): arg is AttributeFilter {
+  if (typeof arg == 'string' || arg instanceof RegExp) return true
+  return false
+}
+// type ValidEventNames<T> = keyof EventMapFor<T>;
+
+
+// addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+// type CreateOnFunction<El extends Element = Element> = (
+//   el: El
+// ) => <E extends keyof EventMapFor<El>>(
+//   eventName: E,
+//   handler: ((this: El, ev: EventMapFor<El>[E]) => void) | AttributeFilter | GenericHandler<El> | GenericEventHandler<El>,
+//   attrHandlerOrOptions?: EventHandlerOptions,
+//   attrHandlerOptions?: EventHandlerOptions
+// ) => void;
+
+const eventNames = [
+  ...new Set(
+    [
+      ...Object.getOwnPropertyNames(document),
+      ...Object.getOwnPropertyNames(
+        Object.getPrototypeOf(Object.getPrototypeOf(document))
+      ),
+      ...Object.getOwnPropertyNames(Object.getPrototypeOf(window)),
+    ].filter(
+      (k) =>
+        k.startsWith('on') &&
+        (document[k] == null || typeof document[k] == 'function')
+    )
+  ),
+];
+
+const eventDoesExists = (name = '') => {
+  return eventNames.includes(
+    'on' + name.toLowerCase().trim().replace(/^on/i, '')
+  );
+};
+
+function isEventName <El extends Element = Element> (arg: string): arg is keyof EventMapFor<El> {
+  return eventDoesExists(arg)
+} 
+
+function isEventListenerOption (arg: unknown): arg is AddEventListenerOptions {
+  if (typeof arg == 'object') return true
+  return false
+}
+
+type CreateOnFunction<El1 extends Element = Element> = (
+  el: El1
+) => <El extends Element = El1, Type extends ((keyof EventMapFor<El> | TextString | AttributeString | UnmountString) | Event | string) = keyof EventMapFor<El> | AttributeString | UnmountString | TextString> (
+  type: Type extends keyof EventMapFor<El> 
+    ? Type
+    : Type extends string
+      ? Type extends AttributeString
+        ? AttributeString
+        : Type extends TextString
+          ? TextString 
+          : Type extends UnmountString
+            ? UnmountString
+            : string
+      : never, 
+  handlerOrAttributeFilter: Type extends keyof EventMapFor<El> 
+    ? (this: El, ev: EventMapFor<El>[Type]) => void
+    : Type extends string
+      ? Type extends AttributeString
+        ? AttributeFilter
+        : Type extends TextString
+          ? GenericHandler<CharacterData> 
+          : Type extends UnmountString
+            ? GenericHandler<El>
+            : (this: El, e: Event) => void
+      : Type extends Event
+        ? (this: El, e: Type) => void
+        : never, 
+  optionsOrAttributeHandler?: Type extends keyof EventMapFor<El>
+    ? AddEventListenerOptions
+    : Type extends string
+      ? Type extends AttributeString
+        ? GenericHandler<El1> 
+        : AddEventListenerOptions
+      : Type extends Event
+        ? AddEventListenerOptions
+        : never
+) => void 
+  // Type extends keyof EventMapFor<El> 
+  //   ? ( type: Type, 
+  //       listener: (this: El, ev: EventMapFor<El>[Type] ) => void, 
+  //       options?: AddEventListenerOptions
+  //     ) => void 
+  //   : Type extends string 
+  //     ? Lowercase<Type> extends AttributeString 
+  //       ? (type: AttributeString, attributeFilter: AttributeFilter, handler: (args: {el: El, record: MutationRecord, selector: string }) => void ) => void 
+  //       : Lowercase<Type> extends TextString
+  //         ? (type: TextString, handler: GenericHandler<CharacterData>) => void 
+  //         : Lowercase<Type> extends UnmountString
+  //           ? (type: UnmountString, handler: GenericHandler<El>) => void
+  //           :(type: Type, handler: GenericHandler<El>) => void
+  //     : (type: Type, handler: GenericHandler<El>) => void
+
+interface WatchEventArgs<El extends Element = Element> {
+  el: El;
   selector: string;
   record?: MutationRecord;
   idx: number;
-  arr: NodeList | Element[];
+  arr: NodeList | Element[] | El[];
   state: unknown;
   style: (styles: CSSStyleDeclaration) => { apply: (additionalStyles?: CSSStyleDeclaration) => void, revert: () => void }
   cleanup: () => void;
-  on: ReturnType<OnFunction>;
+  on: ReturnType<CreateOnFunction<El>>;
 }
 
 type SetupFn = (args: WatchEventArgs) => void;
@@ -99,7 +215,7 @@ interface WatchOptions {
  * @param {SetupFn} setup_fn - The function to call when elements matching the selector are added or removed.
  * @param {WatchOptions} [options] - Options for the watch function.
  */
-export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions = {parent: document, wrapper: ((fn) => (args) => fn(args))}) {
+export function watch<W_El extends Element = Element>(selector: string, setup_fn: SetupFn, options: WatchOptions = {parent: document, wrapper: ((fn) => (args) => fn(args))}) {
     var parent = options?.parent
     var wrapper = options?.wrapper
 
@@ -107,24 +223,30 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
      * A WeakMap to store state associated with DOM elements.
      * @type {WeakMap}
      */
+    //@ts-expect-error
     var states = window?.states ?? new WeakMap();
 
     /**
      * A WeakMap to store cleanup functions associated with DOM elements.
      * @type {WeakMap}
      */
+    //@ts-expect-error
     var remove = window?.remove ?? new WeakMap();
 
     /**
      * A WeakSet to track DOM elements that have been set up.
      * @type {WeakSet}
      */
+    //@ts-expect-error
     var setups = window?.setups ?? new WeakSet();
 
     const setup = (args: Omit<WatchEventArgs, 'style' | 'state' | 'cleanup' | 'selector'> | WatchEventArgs) => {
 
+    //@ts-expect-error
       window.states ??= states;
+    //@ts-expect-error
       window.remove ??= remove;
+    //@ts-expect-error
       window.setups ??= setups;
 
       const cleanup = () => {
@@ -144,45 +266,98 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
       setups.add(args.el);
   }
 
-  const eventNames = [
-    ...new Set(
-      [
-        ...Object.getOwnPropertyNames(document),
-        ...Object.getOwnPropertyNames(
-          Object.getPrototypeOf(Object.getPrototypeOf(document))
-        ),
-        ...Object.getOwnPropertyNames(Object.getPrototypeOf(window)),
-      ].filter(
-        (k) =>
-          k.startsWith('on') &&
-          (document[k] == null || typeof document[k] == 'function')
-      )
-    ),
-  ];
-
-  const eventDoesExists = (name = '') => {
-    return eventNames.includes(
-      'on' + name.toLowerCase().trim().replace(/^on/i, '')
-    );
-  };
-  let on =
-    (el: Element) => (eventName: keyof ElementEventMap, handler: EventHandler, attrHandlerOrOptions?: EventHandlerOptions, attrHandlerOptions?: EventHandlerOptions) => {
+/**
+ * Creates an "on" function for attaching event listeners to a specific element.
+ * 
+ * This function supports:
+ * - Standard DOM events (e.g., 'click', 'submit')
+ * - Attribute change observation ('attr' or 'attribute')
+ * - Text content changes ('text', 'textChanged', 'textChange')
+ * - Unmount/cleanup handlers ('unmount', 'dispose', 'cleanup')
+ * - Custom generic event handlers (functions not matching the above)
+ * 
+ * @template El1 The type of the element this function is created for.
+ * 
+ * @param el - The target element to attach events to.
+ * 
+ * @returns A function (`on`) for adding event listeners.
+ */
+  function createOnFunction<El1 extends Element = W_El> (el: El1) {
+/**
+ * Attaches an event listener to the element associated with the `createOnFunction` call.
+ *
+ * @template El  The base element type.
+ * @template Type  The type of event or action being handled.
+ *
+ * @param type - The type of event or action. Can be:
+ *   - A standard DOM event name (e.g., 'click', 'submit')
+ *   - 'attr' or 'attribute' to watch for attribute changes
+ *   - 'text', 'textChanged', or 'textChange' to watch for text content changes
+ *   - 'unmount', 'dispose', or 'cleanup' to register a cleanup handler
+ *   - A custom event name or any string to trigger a generic event handler
+ *
+ * @param handlerOrAttributeFilter - The event handler function or attribute filter:
+ *   - For DOM events: A function to be called when the event occurs.
+ *   - For attribute changes: A string (attribute name) or RegExp to filter attributes.
+ *   - For text changes: A generic handler function for character data changes.
+ *   - For unmount/cleanup: A generic handler function to be called on element removal.
+ *   - For custom or generic events: A function to handle the event.
+ *
+ * @param optionsOrAttributeHandler - (Optional)
+ *   - For DOM events: An `AddEventListenerOptions` object.
+ *   - For attribute changes: A generic handler function for attribute changes.
+ *   - For other types: Typically unused.
+ */
+    return function on<El extends Element = typeof el, Type extends ((keyof EventMapFor<El> | TextString | UnmountString | AttributeString) | Event | string) = keyof EventMapFor<El> | AttributeString | TextString | UnmountString> (
+  type: Type extends keyof EventMapFor<El> 
+    ? Type
+    : Type extends string
+      ? Type extends AttributeString
+        ? AttributeString
+        : Type extends TextString
+          ? TextString 
+          : Type extends UnmountString
+            ? UnmountString
+            : string
+      : never, 
+  handlerOrAttributeFilter: Type extends keyof EventMapFor<El> 
+    ? (this: El, ev: EventMapFor<El>[Type]) => void
+    : Type extends string
+      ? Type extends AttributeString
+        ? AttributeFilter
+        : Type extends TextString
+          ? GenericHandler<CharacterData> 
+          : Type extends UnmountString
+            ? GenericHandler<El>
+            : (this: El, e: Event) => void
+      : Type extends Event
+        ? (this: El, e: Type) => void
+        : never, 
+  optionsOrAttributeHandler?: Type extends keyof EventMapFor<El>
+    ? AddEventListenerOptions
+    : Type extends string
+      ? Type extends AttributeString
+        ? GenericHandler<El1> 
+        : AddEventListenerOptions
+      : Type extends Event
+        ? AddEventListenerOptions
+        : never
+): void {
       // eventName = eventName.trim().toLowerCase();
-      if (eventDoesExists(eventName)) {
-        if (typeof attrHandlerOptions == 'object' && handler) {
-          // @ts-expect-error
+      if (isEventName(type) && !isAttributeString(type) && typeof type === 'string') {
+        if (isEventListenerOption(optionsOrAttributeHandler) && !isAttributeFilter(handlerOrAttributeFilter) && isPlatformEventHandler<W_El, typeof type>(type, handlerOrAttributeFilter) && typeof type === 'string') {
           el.addEventListener(
-            eventName,
-            handler,
-            attrHandlerOrOptions
+            type,
+            handlerOrAttributeFilter,
+            optionsOrAttributeHandler
           );
           return 
         }
 
-        if (handler) {
+        if (handlerOrAttributeFilter && !isAttributeFilter(handlerOrAttributeFilter)  && isPlatformEventHandler<W_El, typeof type>(type, handlerOrAttributeFilter)) {
           el.addEventListener(
-            eventName,
-            handler,
+            type,
+            handlerOrAttributeFilter,
           );
           return 
         }
@@ -190,8 +365,8 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
         return;
       }
 
-      if (['attr', 'attribute'].includes(eventName)) {
-        let attr = handler;
+      if (isAttributeString(type) && isAttributeFilter(handlerOrAttributeFilter)) {
+        let attr = handlerOrAttributeFilter;
         createObserver(
           (mutations) => {
             for (let mutation of mutations) {
@@ -203,8 +378,8 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
                 if (attr.test(mutation?.attributeName || '')) shouldRun = true;
               }
 
-              if (shouldRun && typeof attrHandlerOrOptions == 'function')
-                attrHandlerOrOptions({ el, selector, record: mutation });
+              if (shouldRun && typeof optionsOrAttributeHandler == 'function')
+                optionsOrAttributeHandler({ el, selector, record: mutation });
             }
           },
           {
@@ -216,15 +391,15 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
         return;
       }
 
-      if (['text', 'textChange', 'textChanged'].includes(eventName)) {
+      // let t_event =eventName as AttributeString
+      if (isTestString(type) && isGenericHandler<CharacterData, TextString>(type, handlerOrAttributeFilter)) {
         Array.from(el.childNodes)
           .filter((e) => e.nodeType === Node.TEXT_NODE && e?.textContent?.trim?.())
           .forEach((_el) => {
             createObserver(
               (mutations) => {
                 for (let mutation of mutations) {
-                  // @ts-expect-error
-                  if (typeof handler =='function') handler({ el: _el, selector, record: mutation });
+                  if (typeof handlerOrAttributeFilter =='function') handlerOrAttributeFilter({ el: _el as CharacterData, selector, record: mutation });
                 }
               },
               {
@@ -237,26 +412,29 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
         return;
       }
 
-      if (['unmount', 'remove', 'dispose', 'cleanup'].includes(eventName)) {
+      if (['unmount', 'remove', 'dispose', 'cleanup'].includes(type)) {
         if (!remove.get(el)) remove.set(el, []);
         let re = remove.get(el)
-        if(re && typeof handler == 'function') re.push(handler);
+        if(re && typeof handlerOrAttributeFilter == 'function') re.push(handlerOrAttributeFilter);
         return
       }
       
-      if (handler && typeof attrHandlerOptions == 'object') { 
-        // @ts-expect-error
-        el?.addEventListener(eventName, handler, attrHandlerOrOptions) 
+      if (!isAttributeString(type) && isEventName(type) && isGenericEventHandler<W_El>(type, handlerOrAttributeFilter)) { 
+        if (isEventListenerOption(optionsOrAttributeHandler)) el?.addEventListener(type, handlerOrAttributeFilter, optionsOrAttributeHandler) 
         return
       }
-      if (handler) 
-        el?.addEventListener(eventName, handler) 
-    };
+      if (handlerOrAttributeFilter && isGenericEventHandler<W_El>(type, handlerOrAttributeFilter)) 
+        el?.addEventListener(type, handlerOrAttributeFilter) 
+
+
+
+    }
+  }
 
   document.querySelectorAll(selector).forEach((el, idx, arr) => {
     let state = states.has(el) ? states.get(el) : {};
     states.set(el, state);
-    setup({ on: on(el), state, el, idx, arr });
+    setup({ on: createOnFunction(el as W_El), state, el, idx, arr });
   });
 
   createObserver(
@@ -264,11 +442,11 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
       for (let mutation of mutations) {
         if (!((mutation.target as any) instanceof Element)) continue;
         if (mutation.target instanceof Element && mutation.target?.matches?.(selector)) {
-          let el = mutation.target;
+          let el = mutation.target as W_El;
           if (states.has(el)) continue;
           let state = states.has(el) ? states.get(el) : {};
           states.set(el, state);
-          setup({ on: on(el), state, record: mutation, arr: [el], idx: 0, el });
+          setup({ on: createOnFunction(el), state, record: mutation, arr: [el], idx: 0, el });
         }
 
         if (mutation?.addedNodes?.length) {
@@ -280,7 +458,7 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
               setup({
-                on: on(el),
+                on: createOnFunction(el as W_El),
                 state,
                 record: mutation,
                 arr: mutation?.addedNodes ?? [],
@@ -294,7 +472,7 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
 
-              setup({ on: on(el), state, record: mutation, arr, idx, el });
+              setup({ on: createOnFunction(el as W_El), state, record: mutation, arr, idx, el });
             });
           }
         }
@@ -307,12 +485,12 @@ export function watch(selector: string, setup_fn: SetupFn, options: WatchOptions
               let state = states.has(el) ? states.get(el) : {};
               states.set(el, state);
 
-              setup({ on: on(el), state, record: mutation, arr, idx, el });
+              setup({ on: createOnFunction(el as W_El), state, record: mutation, arr, idx, el });
 
               if (remove.has(el)) {
                 let r = remove.get(el)
                 if (r) r.forEach((fn) =>
-                    fn({ on: on(el), state, record: mutation, arr, idx, el })
+                    fn({ on: createOnFunction(el as W_El), state, record: mutation, arr, idx, el })
                   );
               }
             });

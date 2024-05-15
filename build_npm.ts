@@ -8,7 +8,7 @@ await build({
   outDir: "./npm",
   test: false,
   typeCheck: false,
-  declaration: false,
+  declaration: true,
   scriptModule: false,
   shims: {
     // see JS docs for overview and more options

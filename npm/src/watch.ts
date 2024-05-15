@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 
   /**
    * @module
@@ -486,4 +487,35 @@ export function wait<F extends (...args) => any>(ms: number, fn: F): Promise<Ret
   return new Promise((resolve) => {
     setTimeout(() => resolve(fn().then((l) => l)), ms);
   });
+}
+
+/**
+ * Creates a new `CustomEvent` object with optional data and initialization options.
+ * 
+ * @param name - The name of the event.
+ * @param data - (Optional) An object containing arbitrary data associated with the event.
+ * @param options - (Optional) An object containing options for event initialization (e.g., bubbles, cancelable).
+ * @returns A new `CustomEvent` object.
+ */
+export function createEvent(name: string, data?: object, options?: EventInit): Event {
+  if (typeof options === 'object') {
+    return new CustomEvent(name, {
+      detail: data,
+      ...options,
+    });
+  }
+
+  return new CustomEvent(name, {
+    detail: data,
+  });
+}
+
+/**
+ * Triggers a custom event on all elements matching a given selector.
+ *
+ * @param selector - A CSS selector to identify the target elements.
+ * @param event - A function that takes an element as input and returns the `Event` object to be dispatched.
+ */
+export function trigger(selector: string, event: (e: Element) => Event): void {
+  findAll(selector).forEach(el => el.dispatchEvent(event(el)));
 }

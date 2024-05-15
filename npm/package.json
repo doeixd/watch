@@ -1,6 +1,6 @@
 {
   "name": "watch-selector",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Runs a function when a selector is added to dom",
   "keywords": [
     "selector-observer",

@@ -5,28 +5,31 @@ export declare function createObserver(fn: MutationCallback, options: MutationOb
  * @param {Function} fn - The function to run after the DOM is loaded.
  */
 export declare function ensureRunAfterDOM(fn: Function): void;
-interface AttributeHandlerArgs {
-    el: Element;
+interface GenericHandlerArgs<E extends Element | Node = Element> {
+    el: E;
     selector: string;
     record: MutationRecord;
 }
-type AttributeHandler = (args: AttributeHandlerArgs) => void;
-type EventHandler = EventListenerOrEventListenerObject | null;
-type EventHandlerOptions = AttributeHandler | AddEventListenerOptions;
-type OnFunction = (el: Element) => (eventName: keyof ElementEventMap, handler: EventHandler, attrHandlerOrOptions?: EventHandlerOptions, attrHandlerOptions?: EventHandlerOptions) => void;
-interface WatchEventArgs {
-    el: Element;
+type GenericHandler<E extends Element | Node = Element> = (args: GenericHandlerArgs<E>) => void;
+type AttributeFilter = RegExp | string;
+type AttributeString = 'attr' | 'attribute';
+type EventMapFor<T extends Element> = DocumentEventMap & HTMLElementEventMap;
+type UnmountString = 'unmount' | 'dispose' | 'cleanup';
+type TextString = 'text' | 'textChanged' | 'textChange';
+type CreateOnFunction<El1 extends Element = Element> = (el: El1) => <El extends Element = El1, Type extends ((keyof EventMapFor<El> | TextString | AttributeString | UnmountString) | Event | string) = keyof EventMapFor<El> | AttributeString | UnmountString | TextString>(type: Type extends keyof EventMapFor<El> ? Type : Type extends string ? Type extends AttributeString ? AttributeString : Type extends TextString ? TextString : Type extends UnmountString ? UnmountString : string : never, handlerOrAttributeFilter: Type extends keyof EventMapFor<El> ? (this: El, ev: EventMapFor<El>[Type]) => void : Type extends string ? Type extends AttributeString ? AttributeFilter : Type extends TextString ? GenericHandler<CharacterData> : Type extends UnmountString ? GenericHandler<El> : (this: El, e: Event) => void : Type extends Event ? (this: El, e: Type) => void : never, optionsOrAttributeHandler?: Type extends keyof EventMapFor<El> ? AddEventListenerOptions : Type extends string ? Type extends AttributeString ? GenericHandler<El1> : AddEventListenerOptions : Type extends Event ? AddEventListenerOptions : never) => void;
+interface WatchEventArgs<El extends Element = Element> {
+    el: El;
     selector: string;
     record?: MutationRecord;
     idx: number;
-    arr: NodeList | Element[];
+    arr: NodeList | Element[] | El[];
     state: unknown;
     style: (styles: CSSStyleDeclaration) => {
         apply: (additionalStyles?: CSSStyleDeclaration) => void;
         revert: () => void;
     };
     cleanup: () => void;
-    on: ReturnType<OnFunction>;
+    on: ReturnType<CreateOnFunction<El>>;
 }
 type SetupFn = (args: WatchEventArgs) => void;
 interface WatchOptions {
@@ -39,7 +42,7 @@ interface WatchOptions {
  * @param {SetupFn} setup_fn - The function to call when elements matching the selector are added or removed.
  * @param {WatchOptions} [options] - Options for the watch function.
  */
-export declare function watch(selector: string, setup_fn: SetupFn, options?: WatchOptions): void;
+export declare function watch<W_El extends Element = Element>(selector: string, setup_fn: SetupFn, options?: WatchOptions): void;
 /**
  * Converts an object or value to a JSON string with indentation.
  * @param {Object|*} obj - The object or value to convert to JSON.

@@ -608,7 +608,7 @@ export function setQueryParam(key: string, value: string, type: 'hard' | 'soft' 
   const url = new URL(globalThis.location.toString());
   url.searchParams.set(key, value);
   if (type == 'hard') globalThis.location.search = url.href;
-  if (type == 'soft') history.pushState(url.searchParams, '', url.href);
+  if (type == 'soft') history.pushState(Object.fromEntries(url.searchParams.entries()), '', url.href);
 }
 
 /**

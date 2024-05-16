@@ -425,7 +425,7 @@ export function setQueryParam(key, value, type = 'soft') {
     if (type == 'hard')
         globalThis.location.search = url.href;
     if (type == 'soft')
-        history.pushState(url.searchParams, '', url.href);
+        history.pushState(Object.fromEntries(url.searchParams.entries()), '', url.href);
 }
 /**
  * Gets the value of a query parameter from the URL.

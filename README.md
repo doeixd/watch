@@ -1,4 +1,4 @@
-# watch
+# watch  🕶️
 Watch is a bare-bones web component alternative. It runs a function, and adds event listeners to elements that match a given selector. That's basically it. 
 
 Since each match of a given selector is given it's own state, it enables light-weight components for small bits of interactivity. A common use-case in server-driven websites, think Astro, e-commerce templates, blogs, htmx sites, etc...

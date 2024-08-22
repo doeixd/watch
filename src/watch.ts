@@ -1,4 +1,4 @@
-/// <reference lib="dom" />
+// <reference lib="dom" />
 
   /**
    * @module
@@ -53,8 +53,8 @@ interface GenericHandlerArgs<E extends Element  | Node = Element>  {
   selector: string,
   record: MutationRecord
 }
-type GenericEventHandler<El extends Element = Element, Ev extends Event = Event> =  (this: El, e: Ev) => void
-type GenericHandler<E extends Element | Node = Element>  = (args: GenericHandlerArgs<E>) => void
+type GenericEventHandler<El extends Element = Element, Ev extends Event = CustomEvent, Data = Ev extends { detail: infer Detail } ? Detail : unknown> =  (this: El, e: Ev, data?: Data) => void
+type GenericHandler<E extends Element | Node = Element>  = (args: GenericHandlerArgs<E>,  ...rest: unknown[]) => void
 type AttributeFilter = RegExp | string
 type EventHandler = EventListenerOrEventListenerObject | AttributeFilter;
 type EventHandlerOptions = GenericHandler | AddEventListenerOptions;
@@ -63,13 +63,14 @@ type EventMapFor<T extends Element> = DocumentEventMap & HTMLElementEventMap;
 type UnmountString = 'unmount' | 'dispose' | 'cleanup';
 type TextString = 'text' | 'textChanged' | 'textChange'
 
+
 function isPlatformEventHandler <El extends Element, E extends keyof EventMapFor<El>>(eventName: E, handler: unknown): handler is ((this: El, ev: EventMapFor<El>[E]) => void) {
   if (typeof handler == 'function' && isEventName(eventName)) return true 
   return false
 }
 
 function isGenericEventHandler<El extends Element>(name, handler): handler is GenericEventHandler {
-  if (typeof handler == 'function' && (!isPlatformEventHandler<El, typeof name>(name, handler) || !isEventName(name)) && !isTestString(name) && !isUnmountString(name)) return true
+  if (typeof handler == 'function' && (!isPlatformEventHandler<El, typeof name>(name, handler) || !isEventName(name)) && !isTextString(name) && !isUnmountString(name)) return true
   return false
 }
 
@@ -79,7 +80,7 @@ function isGenericHandler<El extends Element | Node, N extends string>(name: N, 
 }
 
 const isAttributeString = (arg: string): arg is AttributeString => /^attr/gi.test(arg.trim())
-const isTestString = (arg: string): arg is TextString => /^(?:text|textChange)/gi.test(arg.trim())
+const isTextString = (arg: string): arg is TextString => /^(?:text|textChange)/gi.test(arg.trim())
 const isUnmountString = (arg: string): arg is UnmountString => /^(?:unmount|dispose|cleanup)/gi.test(arg.trim())
 
 function isAttributeFilter (arg: unknown): arg is AttributeFilter {
@@ -194,7 +195,7 @@ interface WatchEventArgs<El extends Element = Element> {
   on: ReturnType<CreateOnFunction<El>>;
 }
 
-type SetupFn = (args: WatchEventArgs) => void;
+type SetupFn<Return= unknown> = (args: WatchEventArgs) => Return;
 
 interface WatchOptions {
   parent?: Node;
@@ -213,11 +214,12 @@ interface WatchOptions {
  * Watches for DOM elements matching the given selector and calls the setup function when they are added or removed.
  * @param {string} selector - The CSS selector to watch for.
  * @param {SetupFn} setup_fn - The function to call when elements matching the selector are added or removed.
- * @param {WatchOptions} [options] - Options for the watch function.
+ * @param {WatchOptions} [options] - Options for the watch function. 
+ * @param {Node} [options.parent=document] - The parent node to observe for changes.
+ * @returns {WatchReturnType} An array of results from the setup function, one for each matching element.
  */
-export function watch<W_El extends Element = Element>(selector: string, setup_fn: SetupFn, options: WatchOptions = {parent: document, wrapper: ((fn) => (args) => fn(args))}) {
+export function watch<W_El extends Element = Element, ReturnedType = unknown> (selector: string, setup_fn: SetupFn<ReturnedType>, options: WatchOptions = {parent: document, wrapper: ((fn) => (args) => fn(args))}): ReturnedType | undefined {
     var parent = options?.parent
-    var wrapper = options?.wrapper
 
     /**
      * A WeakMap to store state associated with DOM elements.
@@ -239,6 +241,8 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
      */
     //@ts-expect-error
     var setups = window?.setups ?? new WeakSet();
+
+    var result: ReturnedType | undefined;
 
     const setup = (args: Omit<WatchEventArgs, 'style' | 'state' | 'cleanup' | 'selector'> | WatchEventArgs) => {
 
@@ -262,10 +266,12 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
       if (args.el instanceof HTMLElement) {((args as WatchEventArgs).style = applyInlineStylesToElement(args.el))}
       (args as WatchEventArgs).cleanup = cleanup;
       if (setups.has(args.el)) return;
-      wrapper(setup_fn)(args as WatchEventArgs);
+      result = setup_fn(args as WatchEventArgs);
       setups.add(args.el);
   }
 
+  // type OnReturnedType<El extends Element, Type extends ((keyof EventMapFor<El> | TextString | UnmountString | AttributeString) | Event | string)> = Type extends (AttributeString | UnmountString | TextString) ? void : (() => void)
+  type OnReturnedType<Type> = Type extends (AttributeString | UnmountString | TextString) ? void : (() => unknown);
 /**
  * Creates an "on" function for attaching event listeners to a specific element.
  * 
@@ -308,7 +314,8 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
  *   - For attribute changes: A generic handler function for attribute changes.
  *   - For other types: Typically unused.
  */
-    return function on<El extends Element = typeof el, Type extends ((keyof EventMapFor<El> | TextString | UnmountString | AttributeString) | Event | string) = keyof EventMapFor<El> | AttributeString | TextString | UnmountString> (
+    return function on<El extends Element = typeof el, 
+      Type extends ((keyof EventMapFor<El> | TextString | UnmountString | AttributeString) | Event | string) = keyof EventMapFor<El> | AttributeString | TextString | UnmountString > (
   type: Type extends keyof EventMapFor<El> 
     ? Type
     : Type extends string
@@ -319,7 +326,9 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
           : Type extends UnmountString
             ? UnmountString
             : string
-      : never, 
+      : Type extends (Event | CustomEvent)
+        ? (Event | CustomEvent)
+        : never,
   handlerOrAttributeFilter: Type extends keyof EventMapFor<El> 
     ? (this: El, ev: EventMapFor<El>[Type]) => void
     : Type extends string
@@ -329,10 +338,13 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
           ? GenericHandler<CharacterData> 
           : Type extends UnmountString
             ? GenericHandler<El>
-            : (this: El, e: Event) => void
-      : Type extends Event
-        ? (this: El, e: Type) => void
-        : never, 
+            : ((this: El, e: Event) => unknown)
+      : Type extends (Event | CustomEvent)
+        ? (Event | CustomEvent)
+        // ? Type extends { detail: infer Detail } & CustomEvent
+        //   ? GenericEventHandler<El, Type, Detail>
+        //   : (this: El, e: Type) => unknown
+        : Type, 
   optionsOrAttributeHandler?: Type extends keyof EventMapFor<El>
     ? AddEventListenerOptions
     : Type extends string
@@ -342,24 +354,50 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
       : Type extends Event
         ? AddEventListenerOptions
         : never
-): void {
+): OnReturnedType<Type> {
+
       // eventName = eventName.trim().toLowerCase();
       if (isEventName(type) && !isAttributeString(type) && typeof type === 'string') {
+
         if (isEventListenerOption(optionsOrAttributeHandler) && !isAttributeFilter(handlerOrAttributeFilter) && isPlatformEventHandler<W_El, typeof type>(type, handlerOrAttributeFilter) && typeof type === 'string') {
+          const handler = (e) => {
+            const boundHandler = handlerOrAttributeFilter.bind(el);
+
+            if (e instanceof CustomEvent) { 
+              const detail = e?.detail ?? {};
+              boundHandler(e, detail);
+            } else { 
+              boundHandler(e)
+            }
+          }
+
           el.addEventListener(
             type,
-            handlerOrAttributeFilter,
+            handler,
             optionsOrAttributeHandler
           );
-          return 
+
+          return (() => el?.removeEventListener(type, handler)) as OnReturnedType<Type> 
         }
 
         if (handlerOrAttributeFilter && !isAttributeFilter(handlerOrAttributeFilter)  && isPlatformEventHandler<W_El, typeof type>(type, handlerOrAttributeFilter)) {
+          const handler = (e) => {
+            const boundHandler = handlerOrAttributeFilter.bind(el);
+
+            if (e instanceof CustomEvent) { 
+              const detail = e?.detail ?? {};
+              boundHandler(e, detail);
+            } else { 
+              boundHandler(e)
+            }
+          }
+
           el.addEventListener(
             type,
-            handlerOrAttributeFilter,
+            handler,
           );
-          return 
+
+          return  (() => el?.removeEventListener(type, handler)) as OnReturnedType<Type>
         }
 
         return;
@@ -392,7 +430,7 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
       }
 
       // let t_event =eventName as AttributeString
-      if (isTestString(type) && isGenericHandler<CharacterData, TextString>(type, handlerOrAttributeFilter)) {
+      if (isTextString(type) && isGenericHandler<CharacterData, TextString>(type, handlerOrAttributeFilter)) {
         Array.from(el.childNodes)
           .filter((e) => e.nodeType === Node.TEXT_NODE && e?.textContent?.trim?.())
           .forEach((_el) => {
@@ -420,14 +458,29 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
       }
       
       if (!isAttributeString(type) && isEventName(type) && isGenericEventHandler<W_El>(type, handlerOrAttributeFilter)) { 
-        if (isEventListenerOption(optionsOrAttributeHandler)) el?.addEventListener(type, handlerOrAttributeFilter, optionsOrAttributeHandler) 
-        return
+        var handler: GenericEventHandler<W_El> = (e) => {
+          const boundHandler = handlerOrAttributeFilter.bind(el);
+
+          if (e instanceof CustomEvent) { 
+            const detail = e?.detail ?? {};
+            boundHandler(e, detail);
+          } else { 
+            boundHandler(e)
+          }
+        }
+
+        if (isEventListenerOption(optionsOrAttributeHandler)) {
+          el?.addEventListener(type, handler, optionsOrAttributeHandler) 
+        }
+
+        return (() => el?.removeEventListener(type, handler)) as OnReturnedType<Type>
       }
-      if (handlerOrAttributeFilter && isGenericEventHandler<W_El>(type, handlerOrAttributeFilter)) 
-        el?.addEventListener(type, handlerOrAttributeFilter) 
 
+      if (handlerOrAttributeFilter && isGenericEventHandler<W_El>(type, handlerOrAttributeFilter)) {
+        el?.addEventListener(type, handler)
 
-
+        return (() => el?.removeEventListener(type, handler)) as OnReturnedType<Type>
+      }
     }
   }
 
@@ -504,6 +557,8 @@ export function watch<W_El extends Element = Element>(selector: string, setup_fn
       attributes: true,
     }
   )(parent || document);
+
+  return result
 }
 
 /**

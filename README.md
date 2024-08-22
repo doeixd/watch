@@ -38,7 +38,7 @@ Because `watch` has to check every single element to see if it matches the selec
 ### Examples
 
 #### Parent
-In this example, even though millions of elements are being added to the DOM `watch` will not cause any performace issues because it will only check added elements that are children of the provided parent element. 
+In this example, even though millions of elements are being added to the DOM `watch` will not cause any performance issues because it will only check added elements that are children of the provided parent element. 
 ```js
 watch('todo-item', ({on, el}) => {
   on('click', () => {

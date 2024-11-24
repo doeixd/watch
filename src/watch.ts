@@ -23,7 +23,7 @@
  * @param {MutationObserverInit} options - The options for the MutationObserver.
  * @returns {(element: Element | string) => void} A function that takes an element (or selector) and observes it with the provided options.
  */
-export function createObserver(fn: MutationCallback, options: MutationObserverInit):(element: Node | string) => void  {
+export function createObserver(fn: MutationCallback, options: MutationObserverInit):(element: Node | string | Element | Document | Window) => void  {
   const observer = new MutationObserver(fn);
   return function (element) {
     if (typeof element == 'string') element = document.querySelector(element) || '' as string;

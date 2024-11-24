@@ -1,7 +1,6 @@
-import { setupGlobals } from '../utils/setupGlobals'
+import { createWithGlobal } from "./createWithGlobal";
 
-export function withRegister(setupFn) {
-	return function (args) {
-		const globals = setupGlobals()
-	}
-}
+
+export const withRegister = createWithGlobal('setups', (last, args, setupFn) => {
+
+}, new WeakMap<>())

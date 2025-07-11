@@ -109,39 +109,41 @@ You're not creating new *kinds* of elements; you're creating new *behaviors* for
 - **Progressive Enhancement**: Start simple, add complexity only where needed
 - **Team Friendly**: Different teams can enhance the same elements without conflicts
 
-Compare this to Web Components, which require you to define custom elements, manage Shadow DOM, and convince your entire stack to adopt new HTML tags. Or framework approaches, which require you to abandon server-side rendering and commit to client-side architecture.
+Compare this to Web Components, which require you to define custom elements, manage Shadow DOM, and convince your entire stack to adopt new HTML tags. Or framework approaches, which require you to abandon server-side rendering and commit to client-side architecture. It’s like jQuery’s ethos, but with modern primitives and a real component model.
 
 <br />
 
 ## A System for Composition
 
-The real power emerges when you realize Watch isn't just for isolated behaviors—it's a system for composing them.
+Where most tools give you components that render DOM, Watch gives you behaviors that **attach** to it. That shift unlocks a surprising amount of composability.
 
-#### Starting Simple: Layering Behaviors
+### 🧱 Layering Behavior
 
-The most common pattern is layering—adding new behaviors to existing ones without touching the original code. This is perfect for separating concerns or A/B testing.
+Let’s say Team A owns cart logic, and Team B wants to track analytics. Watch lets both teams enhance the same element—no coordination required.
 
-```typescript
-// Core functionality (maintained by Team A)
+```ts
+// Cart logic
 const productCard = watch('.product-card', function* () {
   const inCart = createState('inCart', false);
   yield on('click', '.add-btn', () => inCart.set(true));
 });
 
-// Analytics layer (maintained by Team B)
+// Analytics logic
 productCard.layer(function* () {
   const productId = self().dataset.productId;
   yield onVisible(() => analytics.track('product-viewed', { id: productId }));
 });
 ```
-Two teams, two concerns, zero coupling. The analytics team doesn't need to know about cart logic, and the product team doesn't need to think about tracking.
 
-#### Building Up: Component Hierarchies
+✅ **Takeaway:** Layers let you stack behaviors like middleware—cleanly, safely, and independently.
 
-For more complex UIs, you need parent-child communication. Watch handles this through functional composition: child components can `return` an API that their parent can use.
 
-```typescript
-// Child: A counter widget with an API
+### 🌲 Parent-Child Composition
+
+Need interaction between components? Watch handles parent-child structure through **functional composition**, not global state or props.
+
+```ts
+// A reusable counter component
 function* counterWidget() {
   let count = 0;
   yield text(`Count: ${count}`);
@@ -149,7 +151,8 @@ function* counterWidget() {
     count++;
     yield text(`Count: ${count}`);
   });
-  return { // Return an API for the parent component
+
+  return {
     getCount: () => count,
     reset: () => {
       count = 0;
@@ -157,47 +160,40 @@ function* counterWidget() {
     }
   };
 }
+```
 
-// Parent: A dashboard that orchestrates its children
+In the parent:
+
+```ts
 watch('.dashboard', function* () {
   const counters = child('.counter', counterWidget);
+
   yield click('.reset-all', () => {
     for (const api of counters.values()) api.reset();
   });
 });
 ```
-This gives you real, type-safe component hierarchies that remain resilient to the server replacing parts of the DOM.
 
-#### The Ultimate Power: Composing Behaviors
+✅ **Takeaway:** Components don’t just render—they expose APIs. You get clean, scoped communication without a framework.
 
-This is where Watch transcends being a utility and becomes a micro-framework. Because component logic is defined in a generator function, you can create *higher-order functions* that wrap these generators to add cross-cutting concerns.
 
-Imagine you want to add robust error handling to a component. You can write a wrapper:
-```typescript
-// A higher-order function that adds an error boundary
-function withErrorBoundary(componentGenerator, fallbackUI) {
-  return function* () { // It returns a new generator
-    try {
-      yield* componentGenerator(); // Execute the original component's logic
-    } catch (error) {
-      console.error("Component failed:", error);
-      yield addClass('error-state'); // Display a safe fallback UI
-      yield html(fallbackUI);
-    }
-  };
-}
-```
-But what if you also want performance logging? And a feature flag? Nesting wrappers gets messy fast. This is where a simple `compose` utility shines, letting you build a clean, declarative pipeline for your component's behavior.
+### 🧩 Higher-Order Behavior
 
-```typescript
-// A highly-enhanced component, composed from wrappers
+Now imagine you want error handling, feature flags, and performance tracking—without jamming it into every component manually.
+
+Watch supports **behavior composition** out of the box:
+
+```ts
 const composedEnhancer = compose(
-  (gen) => withFeatureFlag('new-widget-ui', gen),
-  (gen) => withErrorBoundary(gen, '<p>Widget failed to load.</p>'),
-  (gen) => withPerformanceMonitoring('MySuperWidget', gen)
+  gen => withFeatureFlag('new-widget-ui', gen),
+  gen => withErrorBoundary(gen, '<p>Widget failed to load.</p>'),
+  gen => withPerformanceMonitoring('MySuperWidget', gen)
 );
+```
 
-// Our core logic remains pure and simple
+Your core logic stays focused:
+
+```ts
 const enhancedWidget = composedEnhancer(function* mySuperWidget() {
   const count = createState('count', 0);
   yield text(`Clicked ${count.get()} times`);
@@ -209,7 +205,9 @@ const enhancedWidget = composedEnhancer(function* mySuperWidget() {
 
 watch('.super-widget', enhancedWidget);
 ```
-Now, a single component is automatically equipped with a feature flag, an error boundary, and performance logging—all without cluttering the core business logic. This powerful pattern separates *what* a component does from *how* it behaves within the system.
+
+✅ **Takeaway:** `compose()` gives you declarative pipelines for UI behavior—just like middleware, but for components.
+
 
 <br />
 

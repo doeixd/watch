@@ -1,6 +1,6 @@
 # The JavaScript Library for the DOM You Don't Control
 
-I want you to think about a specific kind of web development. It’s not the pristine, greenfield world of a brand-new Next.js or SvelteKit application. It’s messier.
+I want you to think about a specific kind of web development. It’s not the controlled environment of greenfield projects where you're building a brand-new Next.js or SvelteKit application. It’s messier.
 
 I’m talking about adding features to a big, server-rendered Rails or Django app. I’m talking about writing a user script to enhance a third-party website. I’m talking about building a Chrome extension that needs to inject life into pages you have no control over. I'm talking about the world of HTMX, where the server sends you HTML and you just have to *deal with it*.
 
@@ -20,7 +20,7 @@ document.querySelectorAll('.product-card .add-to-cart').forEach(button => {
 
 For years, the solution was jQuery's magical `.live()` (and later, the more performant `.on()`). You could attach an event listener to elements that didn't exist yet. It was a game-changer. But it had its own problems: state management was a nightmare, and cleanup was a manual, leaky process.
 
-Today, I want to show you a library that feels like the spiritual successor to `.live()`, rebuilt for the modern era with components, state management, and type safety. It's called **Watch**, and it’s a functional and composable tool for the unruly DOM.
+Today, I want to show you a library that feels like the spiritual successor to `.live()`, rebuilt for the modern era with components, state management, and type safety. It's called **Watch** (available on npm as `watch-selector`), and it’s a functional and composable tool for the unruly DOM.
 
 ## The Ghost of `.live()` Past
 
@@ -53,15 +53,14 @@ Here is the Watch way:
 ```typescript
 // Each button gets its own persistent, isolated world.
 watch('.counter-btn', function* () {
-  let count = 0; // This state is scoped ONLY to this one button!
+  let count = 0; // State is scoped to this button only
 
   yield click(() => {
-    count++; // The state persists across clicks.
+    count++; // State persists across clicks
     yield text(`Clicked ${count} times`);
   });
 
-  // When the button is removed from the DOM, this entire context,
-  // including the state and event listener, is automatically garbage collected.
+  // Automatic cleanup when element is removed from DOM
 });
 ```
 
@@ -91,6 +90,8 @@ You're not creating new *kinds* of elements; you're creating new *behaviors* for
 
 > **How does this compare to Alpine.js?** Both libraries excel at enhancing server-rendered HTML. The key difference is where the logic lives: Alpine encourages you to place declarative logic and state inside your HTML (`<div x-data="...">`). Watch keeps all logic and state firmly in your JavaScript, using selectors to connect it to the HTML. Watch is a strong choice if you prefer a clean separation of concerns, the full power of TypeScript, and programmatic composition for more complex behaviors.
 
+The examples so far show isolated components—each button managing its own state. But real applications need components that work together, share concerns, and build upon each other. This is where Watch's composition system shines.
+
 ## More Than a Utility: A System for Composition
 
 Because Watch is functional at its core, it’s not just for simple event listeners. It's a complete system for building complex, decoupled components.
@@ -100,7 +101,6 @@ It starts with **layering**. Imagine you have a core product card component:
 ```typescript
 // --- Core product card functionality (product-card.ts) ---
 export const productController = watch('.product-card', function* () {
-  // Core logic: add to cart, manage quantity, etc.
   const inCart = createState('inCart', false);
   yield on('click', '.add-btn', () => inCart.set(true));
 });
@@ -131,19 +131,19 @@ Let's build an interactive dashboard with multiple counters. First, the child co
 // Child Component: a single counter button
 function* counterWidget() {
   let count = 0;
-  yield text(`Count: ${count}`); // Set initial text
+  yield text(`Count: ${count}`);
 
   yield click(() => {
     count++;
     yield text(`Count: ${count}`);
   });
 
-  // Expose a public API for the parent
+  // Public API for parent component
   return {
     getCount: () => count,
     reset: () => {
       count = 0;
-      yield text(`Count: ${count}`); // Yield still works inside API methods!
+      yield text(`Count: ${count}`);
     },
   };
 }
@@ -154,11 +154,9 @@ Now, the parent dashboard can find all its `counterWidget` children and manage t
 ```typescript
 // Parent Component: the dashboard
 watch('.counter-dashboard', function* () {
-  // `child` finds all matching elements and gives us a live Map of their APIs.
-  // This Map automatically updates as children are added or removed!
+  // Live Map of child APIs, auto-updates as children are added/removed
   const counterApis = child('.counter-widget', counterWidget);
 
-  // Now the parent can orchestrate its children
   yield click('.reset-all-btn', () => {
     for (const api of counterApis.values()) {
       api.reset();
@@ -193,3 +191,7 @@ It works well when you find yourself in these scenarios:
 Watch isn't here to replace React. It's here to solve a different class of problems—the ones that exist in the messy, unpredictable, and often uncontrollable reality of the web. It’s a reminder that sometimes the most elegant solution isn’t to replace the DOM, but simply to listen to it, and watch it come to life.
 
 > Sometimes the most elegant solution isn't to replace the DOM, but simply to listen to it, and watch it come to life.
+
+## Give it a Try
+
+If this sounds useful for your project, I'd love for you to check out [the README](../README.md) and let me know what you think. Watch is still evolving, and feedback from real-world usage helps make it better.

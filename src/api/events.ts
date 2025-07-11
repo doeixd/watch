@@ -425,7 +425,60 @@ export function triggerUnmountHandlers(element: HTMLElement): void {
   }
 }
 
-// COMMON EVENT SHORTCUTS
+/**
+ * # Event Shortcuts - Common Event Handlers
+ * 
+ * Convenient shortcuts for the most commonly used DOM events.
+ * These are equivalent to using `on()` with specific event types.
+ * 
+ * ## Available Shortcuts
+ * - `click()` - Mouse click events
+ * - `change()` - Form change events
+ * - `input()` - Form input events
+ * - `submit()` - Form submission events
+ * 
+ * ## Usage
+ * 
+ * ```typescript
+ * // These are equivalent:
+ * yield click(handler);
+ * yield on('click', handler);
+ * 
+ * // Direct usage
+ * const cleanup = click(button, handler);
+ * const cleanup = on(button, 'click', handler);
+ * ```
+ */
+
+/**
+ * # click() - Click Event Shortcut
+ * 
+ * Convenient shortcut for handling click events with full type safety.
+ * 
+ * ## Usage
+ * 
+ * ```typescript
+ * // Generator usage
+ * watch('button', function* () {
+ *   yield click((event, button) => {
+ *     console.log('Button clicked!', button.textContent);
+ *   });
+ * });
+ * 
+ * // Direct usage
+ * const cleanup = click(button, (event, button) => {
+ *   console.log('Clicked!');
+ * });
+ * 
+ * // With options
+ * yield click(handler, { once: true });
+ * ```
+ * 
+ * @param element - Element to add click listener to (direct mode)
+ * @param handler - Click event handler
+ * @param options - AddEventListener options
+ * @returns Cleanup function (direct mode) or ElementFn (generator mode)
+ */
 export function click<El extends HTMLElement>(
   element: El,
   handler: ElementEventHandler<El, 'click'>,

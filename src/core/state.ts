@@ -48,7 +48,45 @@ export function deleteState(key: string): void {
   delete state[key];
 }
 
-// Create typed state management
+/**
+ * # createTypedState() - Create a Typed State Manager
+ * 
+ * Create a typed state manager that provides a clean API for managing
+ * a specific state key with full type safety.
+ * 
+ * ## Usage
+ * 
+ * ```typescript
+ * watch('.counter', function* () {
+ *   // Create typed state managers
+ *   const count = createTypedState<number>('count');
+ *   const items = createTypedState<string[]>('items');
+ *   
+ *   // Initialize if needed
+ *   count.init(0);
+ *   items.init([]);
+ *   
+ *   // Use the state
+ *   yield text(`Count: ${count.get()}`);
+ *   
+ *   yield click(() => {
+ *     count.update(n => n + 1);
+ *     yield text(`Count: ${count.get()}`);
+ *   });
+ * });
+ * ```
+ * 
+ * ## Benefits
+ * 
+ * - **Type Safety**: Full TypeScript support with generics
+ * - **Clean API**: Methods instead of separate function calls
+ * - **Encapsulation**: State key is encapsulated within the manager
+ * - **Consistency**: Uniform interface for all state operations
+ * 
+ * @param key - State key to manage
+ * @param initialValue - Optional initial value
+ * @returns Typed state manager object
+ */
 export function createTypedState<T>(key: string, initialValue?: T): TypedState<T> {
   return {
     get(): T {
@@ -76,7 +114,45 @@ export function createTypedState<T>(key: string, initialValue?: T): TypedState<T
   };
 }
 
-// Create state that auto-initializes
+/**
+ * # createState() - Create an Auto-Initialized State Manager
+ * 
+ * Create a typed state manager that automatically initializes with a default value.
+ * This is a convenience function that combines `createTypedState` with automatic
+ * initialization.
+ * 
+ * ## Usage
+ * 
+ * ```typescript
+ * watch('.todo-list', function* () {
+ *   // Auto-initialized state managers
+ *   const todos = createState<Todo[]>('todos', []);
+ *   const filter = createState<string>('filter', 'all');
+ *   const editingId = createState<string | null>('editingId', null);
+ *   
+ *   // State is already initialized, ready to use
+ *   const currentTodos = todos.get();
+ *   const currentFilter = filter.get();
+ *   
+ *   yield renderTodos(currentTodos, currentFilter);
+ * });
+ * ```
+ * 
+ * ## Comparison with createTypedState
+ * 
+ * ```typescript
+ * // With createTypedState (manual initialization)
+ * const count = createTypedState<number>('count');
+ * count.init(0);
+ * 
+ * // With createState (auto-initialization)
+ * const count = createState<number>('count', 0);
+ * ```
+ * 
+ * @param key - State key to manage
+ * @param initialValue - Initial value for the state
+ * @returns Typed state manager object with initialized state
+ */
 export function createState<T>(key: string, initialValue: T): TypedState<T> {
   const typedState = createTypedState<T>(key);
   

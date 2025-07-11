@@ -152,7 +152,82 @@ export function hasClass(...args: any[]): any {
   }
 }
 
-// STYLE MANIPULATION - Enhanced with object support
+/**
+ * # style() - CSS Style Manipulation
+ * 
+ * Manipulate CSS styles on elements with full type safety and dual API support.
+ * Supports both individual property setting and bulk style objects.
+ * 
+ * ## Usage
+ * 
+ * ### Direct Usage
+ * ```typescript
+ * // Set individual style property
+ * style(myElement, 'color', 'red');
+ * style('.my-element', 'backgroundColor', 'blue');
+ * 
+ * // Set multiple styles with object
+ * style(myElement, {
+ *   color: 'red',
+ *   backgroundColor: 'blue',
+ *   padding: '10px',
+ *   borderRadius: '4px'
+ * });
+ * ```
+ * 
+ * ### Generator Usage
+ * ```typescript
+ * watch('button', function* () {
+ *   yield style({
+ *     padding: '10px 20px',
+ *     borderRadius: '4px',
+ *     backgroundColor: '#007bff',
+ *     color: 'white'
+ *   });
+ *   
+ *   yield on('hover', () => {
+ *     yield style('backgroundColor', '#0056b3');
+ *   });
+ * });
+ * 
+ * // Dynamic styles based on state
+ * watch('.progress-bar', function* () {
+ *   const progress = getState('progress');
+ *   yield style('width', `${progress}%`);
+ * });
+ * ```
+ * 
+ * ## Style Object Support
+ * 
+ * You can pass a style object for bulk updates:
+ * 
+ * ```typescript
+ * const buttonStyles = {
+ *   padding: '12px 24px',
+ *   fontSize: '16px',
+ *   fontWeight: 'bold',
+ *   border: 'none',
+ *   borderRadius: '6px',
+ *   cursor: 'pointer'
+ * };
+ * 
+ * style(element, buttonStyles);
+ * ```
+ * 
+ * ## CSS Property Names
+ * 
+ * Use camelCase for CSS properties (backgroundColor, fontSize, etc.):
+ * 
+ * ```typescript
+ * style(element, 'backgroundColor', 'red');  // ✅ Correct
+ * style(element, 'background-color', 'red'); // ❌ Won't work
+ * ```
+ * 
+ * @param element - Element or selector
+ * @param styles - Style object or property name
+ * @param value - Property value (when setting individual property)
+ * @returns void for direct usage, ElementFn for generators
+ */
 export function style(element: HTMLElement, styles: Partial<CSSStyleDeclaration>): void;
 export function style(element: HTMLElement, property: string, value: string): void;
 export function style(selector: string, styles: Partial<CSSStyleDeclaration>): void;

@@ -4,6 +4,8 @@ Your JavaScript breaks every Tuesday. Not because you wrote bad code, but becaus
 
 This is the reality of building for the DOM you don't control—the world of server-rendered Rails apps, Chrome extensions, userscripts, and HTMX applications. It's messy, unpredictable, and surprisingly common. Yet most JavaScript frameworks pretend this world doesn't exist.
 
+<br />
+
 ## The Problem with "Just Use React"
 
 Here's what happens when you try to solve this with traditional approaches:
@@ -24,9 +26,20 @@ The fundamental issue is that most JavaScript assumes a stable DOM. Components m
 
 You could reach for a full framework like React, but then you're committed to client-side rendering, build tools, and explaining to your team why a simple form enhancement now requires a complete architectural overhaul.
 
+For years, jQuery offered a elegant solution to this exact problem with `.live()`. You could attach event listeners to elements that didn't exist yet:
+
+```javascript
+// jQuery's magical .live() - worked on future elements
+$('.add-to-cart').live('click', handleAddToCart);
+```
+
+It was brilliant. No matter when those `.add-to-cart` buttons appeared in the DOM, they would automatically have click handlers. But `.live()` had its own problems: state management was a nightmare, cleanup was manual and error-prone, and performance suffered as the DOM grew larger.
+
+<br />
+
 ## Enter Watch
 
-Watch is a JavaScript library that embraces DOM chaos rather than fighting it. It's built on a simple premise: you declare behaviors for CSS selectors, and those behaviors persist no matter what the server throws at you.
+Watch is a JavaScript library that embraces DOM chaos rather than fighting it. It's the spiritual successor to jQuery's `.live()`, rebuilt for the modern era with components, state management, and automatic cleanup. Watch is built on a simple premise: you declare behaviors for CSS selectors, and those behaviors persist no matter what the server throws at you.
 
 ```javascript
 import { watch } from 'watch-selector';
@@ -39,7 +52,9 @@ watch('.product-card .add-to-cart', function* () {
 
 When elements matching your selector are added to the DOM, Watch automatically applies your behavior. When they're removed, it cleans up. When they're replaced, it starts over. Your code becomes resilient to the chaos of dynamic content.
 
-## The Generator Revolution
+<br />
+
+## The Generator
 
 Watch's secret weapon is generators—JavaScript's most underutilized feature. Instead of callbacks or classes, Watch uses generator functions to create persistent, isolated contexts for each DOM element.
 
@@ -79,6 +94,8 @@ The generator function creates a persistent execution context for each matching 
 3. **Automatic Cleanup**: When an element is removed, its generator is garbage collected
 
 This isn't just cleaner code—it's a fundamentally different approach to DOM interaction that makes complex behaviors simple and reliable.
+
+<br />
 
 ## Beyond Basic Behaviors
 
@@ -159,6 +176,8 @@ watch('.dashboard', function* () {
 
 This gives you real component hierarchies with type-safe communication, all while staying resilient to DOM changes.
 
+<br />
+
 ## The Philosophy: Enhancement Over Replacement
 
 Watch represents a fundamentally different philosophy from Web Components or framework-based approaches. Instead of replacing HTML with custom elements, Watch enhances existing HTML with rich behavior.
@@ -175,12 +194,50 @@ Compare this to Web Components, which require you to define custom elements, man
 
 Watch meets you where you are. It works with your existing HTML, your existing CSS, and your existing deployment process.
 
+<br />
+
+## Why Not Alpine.js or Web Components?
+
+These are valid alternatives, and we considered them carefully when building Watch. Here's why we chose a different path:
+
+**Alpine.js** is excellent for declarative interactions. The key difference is architectural: Alpine encourages you to place logic and state directly in your HTML (`<div x-data="{ count: 0 }" x-on:click="count++">`), while Watch keeps all logic in JavaScript using selectors to connect it to the DOM.
+
+```html
+<!-- Alpine approach -->
+<div x-data="{ count: 0 }" x-on:click="count++">
+  <span x-text="count"></span>
+</div>
+```
+
+```javascript
+// Watch approach
+watch('[data-counter]', function* () {
+  let count = 0;
+  yield text(count);
+  yield on('click', () => {
+    count++;
+    yield text(count);
+  });
+});
+```
+
+Watch is a better fit if you prefer clean separation of concerns, want the full power of TypeScript, or need complex programmatic composition patterns.
+
+**Web Components** work well when you control the entire application, but they're a non-starter for our use cases. You can't get third-party sites to adopt your `<my-awesome-button>` custom elements. Watch enhances existing HTML instead of requiring custom tags.
+
+More importantly, Web Components come with significant overhead:
+- Shadow DOM isolation fights with existing CSS
+- Custom element registration requires polyfills in older browsers  
+- The imperative lifecycle API (`connectedCallback`, `disconnectedCallback`) is verbose compared to Watch's declarative approach
+
+Watch sidesteps these issues by working with standard HTML and CSS, making it perfect for browser extensions, userscripts, and server-rendered applications.
+
+<br />
+
 ## When Watch Shines (And When It Doesn't)
 
 Watch excels in specific scenarios:
-
 **Perfect for:**
-- **Server-rendered apps** that need rich client-side interactions
 - **Browser extensions** that enhance third-party sites
 - **Userscripts** that add functionality to existing pages
 - **HTMX applications** where the server controls rendering
@@ -193,6 +250,8 @@ Watch excels in specific scenarios:
 - **Simple sites** that don't need complex interactions
 
 Watch isn't trying to replace React. It's solving a different class of problems—the ones that exist in the messy, unpredictable reality of web development where you don't control everything.
+
+<br />
 
 ## The Bigger Picture
 

@@ -4,27 +4,54 @@
 
 # Watch 🕶️
 
-**A type-safe, performant DOM observation library with dual APIs and generator composition.**
-Watch is a bare-bones web component alternative. It runs a function, and adds event listeners to elements that match a given selector. That's basically it. 
+**A type-safe DOM observation library that keeps your JavaScript working when the HTML changes.**
 
-Since each match of a given selector is given it's own state, it enables light-weight components for small bits of interactivity. A common use-case in server-driven websites, user-scripts, or Chrome Extensions, basically anywhere where you don't control the markup think Astro, e-commerce templates, blogs, htmx sites, etc...
+Ever tried adding interactivity to a server-rendered site? You write event listeners, but then the DOM updates and your JavaScript stops working. Or you need different behavior for each instance of an element, but managing that state gets messy fast.
+
+Watch solves this by letting you attach persistent behaviors to CSS selectors. When new elements match your selector, they automatically get the behavior. When they're removed, everything cleans up automatically.
+
+**Perfect for:** Server-rendered sites, Chrome extensions, e-commerce templates, htmx apps, and anywhere you don't control the markup.
+
+## The Problem Watch Solves
+
+Traditional DOM manipulation breaks when content changes:
+
+```typescript
+// ❌ This stops working when buttons are re-rendered
+document.querySelectorAll('button').forEach(btn => {
+  let clicks = 0;
+  btn.addEventListener('click', () => {
+    clicks++; // State is lost if button is removed/added
+    btn.textContent = `Clicked ${clicks} times`;
+  });
+});
+```
+
+Server-rendered sites, Chrome extensions, and dynamic content make this worse. You need:
+- **Persistent behavior** that survives DOM changes
+- **Instance-specific state** for each element
+- **Automatic cleanup** to prevent memory leaks
+- **Type safety** so you know what elements you're working with
+
+Watch handles all of this automatically.
+
+<br>
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [Why Watch?](#why-watch)
-- [Design Philosophy: Why These Choices Matter](#design-philosophy-why-these-choices-matter)
-- [Core Concepts](#core-concepts)
-- [Advanced Composition: Controllers & Behavior Layering](#advanced-composition-controllers--behavior-layering)
-- [Component Composition: Building Hierarchies](#component-composition-building-hierarchies)
-- [Building Higher-Level Abstractions](#building-higher-level-abstractions)
-- [Frequently Asked Questions](#frequently-asked-questions)
-- [Complete API Reference](#complete-api-reference)
-- [Examples](#examples)
+- [Why Choose Watch?](#why-choose-watch)
 - [Installation](#installation)
-- [Browser Support](#browser-support)
-- [Performance](#performance)
-- [Gotchas & Performance Considerations](#gotchas--performance-considerations)
+- [Core Concepts](#core-concepts)
+- [Real-World Examples](#real-world-examples)
+- [Advanced Features](#advanced-features)
+  - [Advanced Composition: Controllers & Behavior Layering](#advanced-composition-controllers--behavior-layering)
+  - [Component Composition: Building Hierarchies](#component-composition-building-hierarchies)
+  - [Building Higher-Level Abstractions](#building-higher-level-abstractions)
+  - [Scoped Watch: Isolated DOM Observation](#scoped-watch-isolated-dom-observation)
+- [Complete API Reference](#complete-api-reference)
+- [Performance & Browser Support](#performance--browser-support)
+- [Frequently Asked Questions](#frequently-asked-questions)
 - [License](#license)
 
 <br>
@@ -32,466 +59,164 @@ Since each match of a given selector is given it's own state, it enables light-w
 ## Quick Start
 
 ```typescript
-import { watch, text, addClass, click } from 'watch-selector';
+import { watch, click, text } from 'watch-selector';
 
-// Watch buttons and make them interactive
-const buttonController = watch('button', function* () {
-  yield addClass('interactive');
-  yield click((e, el) => {
-    text(el, 'Clicked!');
+// Make all buttons interactive
+watch('button', function* () {
+  yield click(() => {
+    yield text('Button clicked!');
   });
 });
 
-// Advanced: Layer additional behaviors
-buttonController.layer(function* () {
-  yield addClass('enhanced');
-  yield click(() => console.log('Enhanced click!'));
+// Each button gets its own click counter
+watch('.counter-btn', function* () {
+  let count = 0;
+  yield click(() => {
+    count++;
+    yield text(`Clicked ${count} times`);
+  });
 });
-
-// Advanced: Inspect managed instances
-console.log(`Managing ${buttonController.getInstances().size} buttons`);
 ```
+
+That's it! Watch handles all the DOM observation, state management, and cleanup automatically.
 
 <br>
 
-## Why Watch?
+## Why Choose Watch?
+
+### 🔍 **Persistent Element Behavior**
+Your code keeps working even when the DOM changes:
+```typescript
+// Traditional approach breaks when elements are added/removed
+document.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', handler); // Lost if button is re-rendered
+});
+
+// Watch approach persists automatically
+watch('button', function* () {
+  yield click(handler); // Works for all buttons, present and future
+});
+```
 
 ### 🎯 **Type-Safe by Design**
-Automatic element type inference from selectors:
+TypeScript knows what element you're working with:
 ```typescript
 watch('input[type="email"]', function* () {
   // TypeScript knows this is HTMLInputElement
-  const email = self(); // HTMLInputElement
-  yield on('blur', (e, el) => {
-    if (!el.value.includes('@')) { // ✅ .value is typed
+  yield on('blur', () => {
+    if (!self().value.includes('@')) { // .value is typed
       yield addClass('error');
     }
   });
 });
 ```
 
-### 🔄 **Dual API Pattern** 
-Every function works both directly and in generators:
+### 🧠 **Element-Scoped State**
+Each element gets its own isolated state:
+```typescript
+watch('.counter', function* () {
+  let count = 0; // This variable is unique to each counter element
+  yield click(() => {
+    count++; // Each counter maintains its own count
+    yield text(`Count: ${count}`);
+  });
+});
+```
+
+### 🔄 **Works Both Ways**
+Functions work directly on elements and in generators:
 ```typescript
 // Direct usage
-text(element, 'Hello');
-addClass(element, 'active');
+const button = document.querySelector('button');
+text(button, 'Hello');
 
-// Generator usage  
-watch('.button', function* () {
+// Generator usage
+watch('button', function* () {
   yield text('Hello');
-  yield addClass('active');
 });
-
-// Even with selectors
-text('.button', 'Hello');  // Works on first match
-addClass('.buttons', 'active'); // Works on first match
 ```
 
 ### ⚡ **High Performance**
-- **Single global observer** for the entire application
-- **Efficient batch processing** of DOM changes
-- **Minimal memory footprint** with WeakMap storage
-- **Automatic cleanup** prevents memory leaks
-
-### 🧩 **Composable & Extensible**
-```typescript
-// Create reusable contexts
-const saveButton = withDebounce(
-  withData(
-    button('.save'),
-    { saved: false }
-  ),
-  300
-);
-
-// Apply execution helpers
-watch('.expensive-operation', function* () {
-  yield safely(expensiveFunction);
-  yield throttle(1000, updateUI);
-  yield once(initializeComponent);
-});
-```
+- Single global observer for the entire application
+- Efficient batch processing of DOM changes
+- Automatic cleanup prevents memory leaks
+- Minimal memory footprint with WeakMap storage
 
 <br>
 
-## Design Philosophy: Why These Choices Matter
+## Installation
 
-Understanding Watch's design decisions helps you build better, more maintainable applications. Every choice was made to solve real problems developers face when building interactive UIs.
+### npm/pnpm/yarn
 
-### Why Generators? The Context Revolution
-
-**The Problem**: Traditional event handlers lose context and become difficult to compose:
-
-```typescript
-// ❌ Traditional approach - context is lost, hard to compose
-document.querySelectorAll('button').forEach(button => {
-  let clickCount = 0; // Where does this live? How do you clean it up?
-  
-  button.addEventListener('click', () => {
-    clickCount++; // What if the button is removed from DOM?
-    button.textContent = `Clicked ${clickCount} times`;
-  });
-  
-  // How do you add more behavior? How do you ensure proper cleanup?
-  // How do you share state between different event handlers?
-});
+```bash
+npm install watch-selector
 ```
 
-**The Solution**: Generators provide persistent, composable context:
+### ESM CDN (no build required)
 
 ```typescript
-// ✅ Watch approach - context is preserved, behavior is composable
+import { watch } from 'https://esm.sh/watch-selector';
+
+// Start using immediately
 watch('button', function* () {
-  let clickCount = 0; // Scoped to this specific button
-  
-  yield text(`Clicked ${clickCount} times`);
-  
-  yield click(() => {
-    clickCount++; // Context persists across events
-    yield text(`Clicked ${clickCount} times`);
-  });
-  
-  // More behavior can be added naturally
-  yield onVisible(() => console.log('Button is visible'));
-  yield onMount(() => console.log('Button mounted'));
-  
-  // Cleanup happens automatically when element is removed
+  yield click(() => console.log('Hello from CDN!'));
 });
 ```
-
-**How Generators Work Here**:
-
-1. **Persistent Execution Context**: The generator function's scope stays alive for the lifetime of the element
-2. **Yield Points**: Each `yield` is a declarative statement about what the element should do
-3. **Composable Behavior**: You can yield different types of functions to build complex behaviors
-4. **Automatic Cleanup**: When the element is removed, the generator's context is automatically cleaned up
-
-### Why `yield`? Making Behavior Declarative
-
-**The Problem**: Imperative code becomes hard to reason about:
-
-```typescript
-// ❌ Imperative - order matters, side effects are hidden
-function setupButton(button) {
-  button.classList.add('interactive');
-  button.style.cursor = 'pointer';
-  button.addEventListener('click', handleClick);
-  button.addEventListener('focus', handleFocus);
-  // What happens if this throws? What if the element is removed?
-}
-```
-
-**The Solution**: `yield` makes behavior declarative and composable:
-
-```typescript
-// ✅ Declarative - each yield is a clear statement of intent
-function* buttonBehavior() {
-  yield addClass('interactive');    // "This button should have this class"
-  yield style('cursor', 'pointer'); // "This button should look clickable"
-  yield click(handleClick);         // "This button should respond to clicks"
-  yield focus(handleFocus);         // "This button should respond to focus"
-  
-  // Order doesn't matter for most operations
-  // Each yield is isolated and safe
-  // TypeScript knows exactly what each yield does
-}
-```
-
-**How `yield` Provides Type Safety**:
-
-```typescript
-watch('input[type="email"]', function* () {
-  // TypeScript infers this is HTMLInputElement from the selector
-  const emailInput = self(); // Type: HTMLInputElement
-  
-  yield on('blur', (event, element) => {
-    // Both event and element are properly typed
-    // element is HTMLInputElement, so .value is available
-    if (!element.value.includes('@')) {
-      yield addClass('error'); // This yield knows it's working on HTMLInputElement
-    }
-  });
-  
-  // Every yield gets the correct element type automatically
-  yield value('user@example.com'); // ✅ Valid for input elements
-  // yield value would error on a div element
-});
-```
-
-### Why Element-Scoped State? Solving the Instance Problem
-
-**The Problem**: Managing state for multiple instances is complex:
-
-```typescript
-// ❌ Global state doesn't work for multiple instances
-let buttonClickCount = 0; // This is shared across ALL buttons!
-
-document.querySelectorAll('.counter-button').forEach(button => {
-  button.addEventListener('click', () => {
-    buttonClickCount++; // All buttons share the same counter
-    button.textContent = `Count: ${buttonClickCount}`;
-  });
-});
-```
-
-**The Solution**: Each element gets its own isolated state:
-
-```typescript
-// ✅ Each button gets its own state automatically
-watch('.counter-button', function* () {
-  let clickCount = 0; // This variable is scoped to THIS specific button
-  
-  yield click(() => {
-    clickCount++; // Each button maintains its own count
-    yield text(`Count: ${clickCount}`);
-  });
-  
-  // Or use the state API for more advanced features
-  const count = createState('count', 0);
-  const doubled = createComputed(() => count.get() * 2, ['count']);
-});
-```
-
-**How This Works**:
-- Each time `watch` matches an element, it creates a new generator instance
-- Each generator has its own scope and variables
-- Variables and state are automatically isolated per element
-- Cleanup happens automatically when elements are removed
-
-### Why Dual APIs? Developer Experience at Scale
-
-**The Problem**: Different use cases need different APIs:
-
-```typescript
-// Sometimes you want to work directly with elements
-const button = document.getElementById('myButton');
-button.textContent = 'Click me';
-
-// Sometimes you want declarative, reactive behavior
-// How do you use the same functions in both contexts?
-```
-
-**The Solution**: Functions work both directly and in generators:
-
-```typescript
-// ✅ Direct usage when you have an element reference
-const button = document.getElementById('myButton');
-text(button, 'Click me');
-addClass(button, 'primary');
-
-// ✅ Generator usage for reactive behavior
-watch('button', function* () {
-  yield text('Click me');
-  yield addClass('primary');
-});
-
-// ✅ Even with selectors for one-off operations
-text('.status', 'Ready');
-addClass('.buttons', 'loaded');
-```
-
-**How This Provides Type Safety**:
-
-```typescript
-// TypeScript tracks context automatically
-watch('input[type="email"]', function* () {
-  // Inside a generator, functions know the current element type
-  yield value('test@example.com'); // ✅ TypeScript knows this is valid
-  
-  const currentValue = yield (() => value()); // Gets value, returns string
-  // TypeScript knows currentValue is string
-});
-
-// Outside generators, you specify the element
-const input = document.querySelector('input[type="email"]') as HTMLInputElement;
-value(input, 'test@example.com'); // ✅ TypeScript validates the element type
-```
-
-### Why Component Composition? Solving the Hierarchy Problem
-
-**The Problem**: Building component hierarchies is hard:
-
-```typescript
-// ❌ No clear parent-child relationship
-let parentState = { children: [] };
-
-document.querySelectorAll('.child').forEach(child => {
-  // How does the child communicate with the parent?
-  // How does the parent manage multiple children?
-  // How do you ensure type safety across the boundary?
-});
-```
-
-**The Solution**: Explicit parent-child APIs:
-
-```typescript
-// ✅ Clear, type-safe parent-child relationships
-watch('.parent', function* () {
-  // Type-safe collection of child APIs
-  const children = child('.child-button', function* () {
-    let count = 0;
-    yield click(() => count++);
-    
-    // Child exposes a typed API
-    return {
-      getCount: () => count,
-      reset: () => { count = 0; yield text(`Count: 0`); }
-    };
-  });
-  
-  // Parent can coordinate children with full type safety
-  yield click('.reset-all', () => {
-    children.forEach(api => api.reset()); // TypeScript knows these methods exist
-  });
-  
-  // Parent can also expose an API
-  return {
-    getTotalCount: () => Array.from(children.values()).reduce((sum, api) => sum + api.getCount(), 0)
-  };
-});
-```
-
-**How This Builds Intuition**:
-
-1. **Clear Ownership**: Parents own and manage their children
-2. **Explicit APIs**: What a component exposes is clearly defined in its return value
-3. **Type Safety**: TypeScript ensures API contracts are maintained
-4. **Reactive Updates**: The `child()` function returns a live Map that updates automatically
-5. **Scoped Observation**: Each parent only watches for changes within its own scope
-
-### Why This Architecture? The Bigger Picture
-
-This design solves several fundamental problems in web development:
-
-1. **Context Loss**: Traditional event handlers lose context when elements are removed/added
-2. **State Management**: No clear way to manage state per element instance
-3. **Composition**: Difficult to build reusable, composable behaviors
-4. **Type Safety**: Runtime errors from incorrect element assumptions
-5. **Performance**: Many global event listeners and observers hurt performance
-6. **Memory Leaks**: Forgotten event listeners and observers accumulate over time
-
-Watch's generator-based approach with `yield` provides:
-
-- **Persistent Context**: Generator scope lives with the element
-- **Declarative Behavior**: Each `yield` states what should happen
-- **Automatic Cleanup**: Generators are cleaned up when elements are removed
-- **Type Safety**: Element types are inferred and maintained throughout
-- **Performance**: Single global observer with scoped component watchers
-- **Composability**: Behaviors can be mixed, matched, and reused
-
-This creates a development experience that's both powerful and intuitive, letting you focus on what your components should do rather than how to manage their lifecycle.
 
 <br>
 
 ## Core Concepts
 
-### **Watchers**
-Observe DOM elements and run generators when they appear, returning a controller:
+### Watchers
+Observe DOM elements and run generators when they appear:
 ```typescript
 const controller = watch('selector', function* () {
-  // Generator runs for each matching element
+  // This runs for each matching element
   yield elementFunction;
 });
-
-// Controllers provide advanced management capabilities
-controller.layer(additionalBehavior);
-controller.getInstances(); // Introspection
-controller.destroy(); // Cleanup
 ```
 
-### **Generators**
-Composable functions that describe element behavior:
+### Generators & Yield
+Generators create persistent contexts that survive DOM changes:
 ```typescript
-function* makeInteractive() {
-  yield addClass('interactive');
-  yield click(handleClick);
-  yield onVisible(trackView);
-}
-
-watch('.component', makeInteractive);
-```
-
-### **Advanced Generator Patterns**
-Watch supports advanced generator features for sophisticated composition:
-
-```typescript
-// Async generators for data fetching
-watch('.user-profile', async function* () {
-  yield text('Loading...');
+watch('.component', function* () {
+  let state = 0; // Persists for each element's lifetime
   
-  const response = await fetch('/api/user');
-  const user = await response.json();
-  
-  yield text(`Welcome, ${user.name}!`);
-  yield template('<img src="{{avatar}}" />', user);
-});
-
-// Generator delegation with yield*
-function* clickBehavior() {
-  yield click(() => console.log('Clicked!'));
-}
-
-function* hoverBehavior() {
-  yield on('hover', () => console.log('Hovered!'));
-}
-
-watch('button', function* () {
-  yield* clickBehavior();  // Delegate to another generator
-  yield* hoverBehavior();  // Compose multiple behaviors
-  
-  // Mix with regular yields
-  yield addClass('interactive');
-});
-
-// Promise-based operations
-watch('.async-button', function* () {
-  yield click(async () => {
-    // Return promises from yields - they'll be awaited
-    yield new Promise(resolve => {
-      setTimeout(() => {
-        yield text('Delayed update!');
-        resolve();
-      }, 1000);
-    });
+  yield click(() => {
+    state++; // State is maintained across events
+    yield text(`State: ${state}`);
   });
-});
-
-// Nested generator composition
-function* withLogging(innerGenerator) {
-  console.log('Starting component...');
-  yield* innerGenerator();
-  console.log('Component initialized!');
-}
-
-watch('.logged-component', function* () {
-  yield* withLogging(function* () {
-    yield text('This component is logged');
-    yield click(() => console.log('Logged click'));
-  });
+  
+  // Cleanup happens automatically when element is removed
 });
 ```
 
-### **Context Functions**
-Access current element and state within generators:
+**Why generators?** They provide:
+- **Persistent execution context** that lives with the element
+- **Declarative behavior** through yield statements
+- **Automatic cleanup** when elements are removed
+- **Composable patterns** for building complex behaviors
+
+### Element Context
+Access the current element and its state:
 ```typescript
 watch('.counter', function* () {
   const counter = createState('count', 0);
+  const element = self(); // Get current element
   
-  yield click((e, el) => {
+  yield click(() => {
     counter.update(c => c + 1);
-    text(self(), `Count: ${counter.get()}`);
+    yield text(`Count: ${counter.get()}`);
   });
 });
 ```
 
-### **State Management**
-Type-safe, element-scoped state:
+### State Management
+Type-safe, element-scoped reactive state:
 ```typescript
 const counter = createState('count', 0);
 const doubled = createComputed(() => counter.get() * 2, ['count']);
 
-// Reactive updates
 watchState('count', (newVal, oldVal) => {
   console.log(`${oldVal} → ${newVal}`);
 });
@@ -499,9 +224,62 @@ watchState('count', (newVal, oldVal) => {
 
 <br>
 
-## Advanced Composition: Controllers & Behavior Layering
+## Real-World Examples
 
-Watch v5 introduces **WatchController** objects that transform the traditional fire-and-forget watch operations into managed, extensible systems. Controllers enable **Behavior Layering** - the ability to add multiple independent behaviors to the same set of elements.
+### E-commerce Product Cards
+```typescript
+watch('.product-card', function* () {
+  const inCart = createState('inCart', false);
+  
+  yield click('.add-to-cart', () => {
+    inCart.set(true);
+    yield text('.add-to-cart', 'Added to Cart!');
+    yield addClass('in-cart');
+  });
+  
+  yield click('.remove-from-cart', () => {
+    inCart.set(false);
+    yield text('.add-to-cart', 'Add to Cart');
+    yield removeClass('in-cart');
+  });
+});
+```
+
+### Form Validation
+```typescript
+watch('input[required]', function* () {
+  yield on('blur', () => {
+    if (!self().value.trim()) {
+      yield addClass('error');
+      yield text('.error-message', 'This field is required');
+    } else {
+      yield removeClass('error');
+      yield text('.error-message', '');
+    }
+  });
+});
+```
+
+### Dynamic Content Loading
+```typescript
+watch('.lazy-content', async function* () {
+  yield text('Loading...');
+  
+  yield onVisible(async () => {
+    const response = await fetch(self().dataset.url);
+    const html = await response.text();
+    yield html(html);
+  });
+});
+```
+
+<br>
+
+## Advanced Features
+
+### Advanced Composition: Controllers & Behavior Layering
+
+Watch v1 introduces **WatchController** objects that transform the traditional fire-and-forget watch operations into managed, extensible systems. Controllers enable **Behavior Layering** - the ability to add multiple independent behaviors to the same set of elements.
 
 ### **WatchController Fundamentals**
 
@@ -752,9 +530,9 @@ console.log(`Managing ${scopedInstances.size} widgets in container`);
 
 <br>
 
-## Component Composition: Building Hierarchies
+### Component Composition: Building Hierarchies
 
-Watch v5 supports full parent-child component communication, allowing you to build complex, nested, and encapsulated UIs with reactive relationships.
+Watch supports full parent-child component communication, allowing you to build complex, nested, and encapsulated UIs with reactive relationships.
 
 ### Child-to-Parent: Exposing APIs with `createChildWatcher`
 
@@ -927,7 +705,7 @@ watch('.dashboard', counterDashboard);
 
 <br>
 
-## Building Higher-Level Abstractions
+### Building Higher-Level Abstractions
 
 Watch's primitive functions are designed to be composable building blocks for more sophisticated abstractions. You can integrate templating engines, routing libraries, state management solutions, and domain-specific tools while maintaining Watch's ergonomic patterns.
 
@@ -2086,7 +1864,7 @@ watch('.auto-counter', counterComponent);
 
 <br>
 
-## Scoped Watch: Isolated DOM Observation
+### Scoped Watch: Isolated DOM Observation
 
 When you need precise control over DOM observation scope, **scoped watch** creates isolated observers for specific parent elements without event delegation.
 
@@ -2463,7 +2241,7 @@ Many teams use Watch successfully in production applications with hundreds of co
 
 ### Does Watch support async generators and yield*?
 
-**Yes!** Watch v5+ has full support for advanced generator patterns:
+**Yes!** Watch v1+ has full support for advanced generator patterns:
 
 ```typescript
 // ✅ Async generators
@@ -2596,18 +2374,28 @@ function* withErrorHandling(innerGen) {
 | `all` | `(selector) => Element[]` | Query all within current element |
 | `cleanup` | `(fn) => void` | Register cleanup function |
 | `ctx` | `() => WatchContext` | Get full context object |
+| `getCurrentElement` | `() => Element \| null` | Get current element (low-level) |
+| `getCurrentContext` | `() => WatchContext \| null` | Get current context (low-level) |
 
 ### State Management
 
 | Function | Type | Description |
 |----------|------|-------------|
 | `createState` | `(key, initial) => TypedState` | Create element-scoped state |
+| `createTypedState` | `(key, initial) => TypedState` | Create typed element-scoped state |
 | `createComputed` | `(fn, deps) => () => T` | Create computed value |
 | `getState` | `(key) => T` | Get state value |
 | `setState` | `(key, val) => void` | Set state value |
 | `updateState` | `(key, fn) => void` | Update state value |
+| `hasState` | `(key) => boolean` | Check if state exists |
+| `deleteState` | `(key) => void` | Delete state value |
 | `watchState` | `(key, handler) => CleanupFn` | Watch state changes |
+| `setStateReactive` | `(key, val) => void` | Set state with automatic reactivity |
+| `batchStateUpdates` | `(fn) => void` | Batch multiple state updates |
 | `createPersistedState` | `(key, initial, storageKey?) => TypedState` | Create localStorage-backed state |
+| `clearAllState` | `() => void` | Clear all state for element |
+| `debugState` | `() => void` | Debug state for current element |
+| `logState` | `() => void` | Log state for current element |
 
 ### Execution Helpers
 
@@ -2622,12 +2410,18 @@ function* withErrorHandling(innerGen) {
 | `batch` | `(...fns) => ElementFn` | Batch multiple operations |
 | `retry` | `(fn, attempts?, backoff?) => ElementFn` | Retry with exponential backoff |
 | `memoize` | `(fn, keyFn?) => ElementFn` | Memoize function results |
+| `rateLimit` | `(fn, windowMs, maxCalls) => ElementFn` | Rate limit function calls |
+| `timeout` | `(ms, fn) => ElementFn` | Execute with timeout |
+| `compose` | `(...fns) => ElementFn` | Compose multiple functions |
+| `unless` | `(condition, fn) => ElementFn` | Execute unless condition is true |
+| `async` | `(fn) => ElementFn` | Execute async function |
 
 ### Context Factories
 
 | Function | Type | Description |
 |----------|------|-------------|
 | `context` | `(selector, options?) => PreDefinedWatchContext` | Create watch context |
+| `contextFor` | `(selector, options?) => PreDefinedWatchContext` | Create context for specific selector |
 | `button` | `(selector, options?) => PreDefinedWatchContext` | Button context |
 | `input` | `(selector, options?) => PreDefinedWatchContext` | Input context |
 | `form` | `(selector, options?) => PreDefinedWatchContext` | Form context |
@@ -2651,6 +2445,11 @@ function* withErrorHandling(innerGen) {
 | `createGenerator` | `(fn) => GeneratorFn` | Create typed generator |
 | `gen` | `(fn) => GeneratorFn` | Generator alias |
 | `watchGenerator` | `(selector, fn) => GeneratorFn` | Create selector-specific generator |
+| `debounceGenerator` | `(ms, gen) => GeneratorFn` | Create debounced generator |
+| `throttleGenerator` | `(ms, gen) => GeneratorFn` | Create throttled generator |
+| `onceGenerator` | `(gen) => GeneratorFn` | Create once-only generator |
+| `delayGenerator` | `(ms, gen) => GeneratorFn` | Create delayed generator |
+| `batchGenerator` | `(...gens) => GeneratorFn` | Create batched generator |
 
 ### Utilities
 
@@ -2660,6 +2459,9 @@ function* withErrorHandling(innerGen) {
 | `isElementLike` | `(value) => boolean` | Check if value is element or selector |
 | `resolveElement` | `(elementLike) => Element \| null` | Resolve element from selector |
 | `batchAll` | `(elements, ...fns) => void` | Apply functions to multiple elements |
+| `elDOM` | `(selector) => Element \| null` | Alias for DOM query |
+| `allDOM` | `(selector) => Element[]` | Alias for DOM queryAll |
+| `$` | `(selector) => Element \| null` | Convenience alias for `el` |
 
 ### Component Composition
 
@@ -2693,6 +2495,19 @@ interface ManagedInstance {
 | `scopedWatchWithController` | `(parent, selector, generator, options?) => ScopedWatcher & { controller: WatchController }` | Create scoped watcher with controller |
 | `scopedWatchBatch` | `(parent, watchers[]) => ScopedWatcher[]` | Create multiple scoped watchers |
 | `scopedWatchBatchWithController` | `(parent, watchers[]) => ScopedWatcher[]` | Create multiple scoped watchers with controllers |
+| `scopedWatchTimeout` | `(parent, selector, generator, timeout, options?) => ScopedWatcher` | Create scoped watcher with timeout |
+| `scopedWatchOnce` | `(parent, selector, generator, options?) => ScopedWatcher` | Create scoped watcher that runs once |
+| `createScopedWatcher` | `(parent, options?) => ScopedWatcher` | Create scoped watcher instance |
+| `disconnectScopedWatchers` | `(parent) => void` | Disconnect all scoped watchers for parent |
+| `getScopedWatchers` | `(parent) => ScopedWatcher[]` | Get all scoped watchers for parent |
+
+### Observer Utilities
+
+| Function | Type | Description |
+|----------|------|-------------|
+| `register` | `(element, generator) => void` | Register element with observer |
+| `getObserverStatus` | `() => ObserverStatus` | Get current observer status |
+| `cleanupObserver` | `() => void` | Cleanup observer resources |
 
 ### Enhanced Event Options
 
@@ -3136,41 +2951,19 @@ watch('.counter', function* () {
 
 <br>
 
-## Installation
+## Performance & Browser Support
 
-### npm/pnpm/yarn
-
-```bash
-npm install watch-selector
-```
-
-### ESM CDN (no build required)
-
-```typescript
-import { watch } from 'https://esm.sh/watch-selector';
-
-// Start using immediately
-watch('button', function* () {
-  yield click(() => console.log('Hello from CDN!'));
-});
-```
-
-<br>
-
-## Browser Support
-
-Watch v5 supports all modern browsers with:
+### Browser Support
+Watch supports all modern browsers with:
 - MutationObserver
 - IntersectionObserver  
 - ResizeObserver
 - Proxy
 - WeakMap/WeakSet
 
-<br>
+### Performance
 
-## Performance
-
-Watch v5 is designed for maximum performance with several key optimizations:
+Watch is designed for maximum performance with several key optimizations:
 
 - **Single global observer**: One MutationObserver handles all DOM changes
 - **Efficient batching**: DOM changes processed in batches to minimize layout thrashing

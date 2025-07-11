@@ -145,7 +145,7 @@
  * });
  * ```
  * 
- * @version 5.0.0
+ * @version 1.0.0
  * @author Patrick Glenn
  * @license MIT
  */
@@ -394,7 +394,7 @@ export {
 export { el as $ } from './core/generator';
 
 // Version info
-export const VERSION = '5.0.0-alpha.1';
+// export const VERSION = '5.0.0-alpha.1';
 
 // Default export is the watch function
 export { watch as default } from './watch';

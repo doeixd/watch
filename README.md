@@ -570,6 +570,1163 @@ function* counterDashboard() {
 watch('.dashboard', counterDashboard);
 ```
 
+## Building Higher-Level Abstractions
+
+Watch's primitive functions are designed to be composable building blocks for more sophisticated abstractions. You can integrate templating engines, routing libraries, state management solutions, and domain-specific tools while maintaining Watch's ergonomic patterns.
+
+### Writing Custom Abstractions
+
+The key to building great abstractions with Watch is following the established patterns:
+
+#### 1. Dual API Pattern
+
+Make your functions work both directly and in generators:
+
+```typescript
+// Custom templating integration
+export function template(templateOrElement: string | HTMLElement, data?: any): any {
+  // Direct usage
+  if (arguments.length === 2 && (typeof templateOrElement === 'string' || templateOrElement instanceof HTMLElement)) {
+    const element = resolveElement(templateOrElement);
+    if (element) {
+      element.innerHTML = renderTemplate(templateOrElement as string, data);
+    }
+    return;
+  }
+  
+  // Generator usage
+  if (arguments.length === 1) {
+    const templateStr = templateOrElement as string;
+    return ((element: HTMLElement) => {
+      element.innerHTML = renderTemplate(templateStr, data || {});
+    }) as ElementFn<HTMLElement>;
+  }
+  
+  // Selector + data usage
+  const [templateStr, templateData] = arguments;
+  return ((element: HTMLElement) => {
+    element.innerHTML = renderTemplate(templateStr, templateData);
+  }) as ElementFn<HTMLElement>;
+}
+
+// Usage examples
+const element = document.querySelector('.content');
+template(element, '<h1>{{title}}</h1>', { title: 'Hello' });
+
+// Or in generators
+watch('.dynamic-content', function* () {
+  yield template('<div>{{message}}</div>', { message: 'Dynamic!' });
+});
+```
+
+#### 2. Context-Aware Functions
+
+Create functions that understand the current element context:
+
+```typescript
+// Custom router integration
+export function route(pattern: string, handler: () => void): ElementFn<HTMLElement> {
+  return (element: HTMLElement) => {
+    const currentPath = window.location.pathname;
+    const matches = matchRoute(pattern, currentPath);
+    
+    if (matches) {
+      // Store route params in element context
+      if (!element.dataset.routeParams) {
+        element.dataset.routeParams = JSON.stringify(matches.params);
+      }
+      handler();
+    }
+  };
+}
+
+// Route parameters helper
+export function routeParams<T = Record<string, string>>(): T {
+  const element = self();
+  const params = element.dataset.routeParams;
+  return params ? JSON.parse(params) : {};
+}
+
+// Usage
+watch('[data-route]', function* () {
+  yield route('/users/:id', () => {
+    const { id } = routeParams<{ id: string }>();
+    yield template('<div>User ID: {{id}}</div>', { id });
+  });
+});
+```
+
+#### 3. State Integration
+
+Build abstractions that work with Watch's state system:
+
+```typescript
+// Custom form validation abstraction
+export function validateForm(schema: ValidationSchema): ElementFn<HTMLFormElement> {
+  return (form: HTMLFormElement) => {
+    const errors = createState('validation-errors', {});
+    const isValid = createComputed(() => Object.keys(errors.get()).length === 0, ['validation-errors']);
+    
+    // Validate on input changes
+    const inputs = form.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+      input.addEventListener('blur', () => {
+        const fieldErrors = validateField(input.name, input.value, schema);
+        errors.update(current => ({
+          ...current,
+          [input.name]: fieldErrors
+        }));
+      });
+    });
+    
+    // Expose validation state
+    form.dataset.valid = isValid().toString();
+  };
+}
+
+// Usage
+watch('form.needs-validation', function* () {
+  yield validateForm({
+    email: { required: true, email: true },
+    password: { required: true, minLength: 8 }
+  });
+  
+  yield submit((e) => {
+    const isValid = getState('validation-errors');
+    if (Object.keys(isValid).length > 0) {
+      e.preventDefault();
+    }
+  });
+});
+```
+
+### Templating Engine Integration
+
+Here's how to integrate popular templating engines:
+
+#### Handlebars Integration
+
+```typescript
+import Handlebars from 'handlebars';
+
+// Create a templating abstraction
+export function handlebars(templateSource: string, data?: any): ElementFn<HTMLElement>;
+export function handlebars(element: HTMLElement, templateSource: string, data: any): void;
+export function handlebars(...args: any[]): any {
+  if (args.length === 3) {
+    // Direct usage: handlebars(element, template, data)
+    const [element, templateSource, data] = args;
+    const template = Handlebars.compile(templateSource);
+    element.innerHTML = template(data);
+    return;
+  }
+  
+  if (args.length === 2) {
+    // Generator usage: yield handlebars(template, data)
+    const [templateSource, data] = args;
+    return (element: HTMLElement) => {
+      const template = Handlebars.compile(templateSource);
+      element.innerHTML = template(data);
+    };
+  }
+  
+  // Template only - data from state
+  const [templateSource] = args;
+  return (element: HTMLElement) => {
+    const template = Handlebars.compile(templateSource);
+    const data = getAllState(); // Get all state as template context
+    element.innerHTML = template(data);
+  };
+}
+
+// Helper for reactive templates
+export function reactiveTemplate(templateSource: string, dependencies: string[]): ElementFn<HTMLElement> {
+  return (element: HTMLElement) => {
+    const template = Handlebars.compile(templateSource);
+    
+    const render = () => {
+      const data = getAllState();
+      element.innerHTML = template(data);
+    };
+    
+    // Re-render when dependencies change
+    dependencies.forEach(dep => {
+      watchState(dep, render);
+    });
+    
+    // Initial render
+    render();
+  };
+}
+
+// Usage
+watch('.user-profile', function* () {
+  const user = createState('user', { name: 'John', email: 'john@example.com' });
+  
+  // Template updates automatically when user state changes
+  yield reactiveTemplate(`
+    <h2>{{user.name}}</h2>
+    <p>{{user.email}}</p>
+  `, ['user']);
+  
+  yield click('.edit-btn', () => {
+    user.update(u => ({ ...u, name: 'Jane' }));
+  });
+});
+```
+
+#### Lit-html Integration
+
+```typescript
+import { html, render } from 'lit-html';
+
+export function litTemplate(template: TemplateResult): ElementFn<HTMLElement>;
+export function litTemplate(element: HTMLElement, template: TemplateResult): void;
+export function litTemplate(...args: any[]): any {
+  if (args.length === 2) {
+    const [element, template] = args;
+    render(template, element);
+    return;
+  }
+  
+  const [template] = args;
+  return (element: HTMLElement) => {
+    render(template, element);
+  };
+}
+
+// Usage with reactive updates
+watch('.todo-list', function* () {
+  const todos = createState('todos', [
+    { id: 1, text: 'Learn Watch', done: false },
+    { id: 2, text: 'Build something awesome', done: false }
+  ]);
+  
+  // Template function that uses current state
+  const todoTemplate = () => html`
+    <ul>
+      ${todos.get().map(todo => html`
+        <li class="${todo.done ? 'done' : ''}">
+          <input type="checkbox" .checked=${todo.done} 
+                 @change=${() => toggleTodo(todo.id)}>
+          ${todo.text}
+        </li>
+      `)}
+    </ul>
+  `;
+  
+  // Re-render when todos change
+  watchState('todos', () => {
+    yield litTemplate(todoTemplate());
+  });
+  
+  // Initial render
+  yield litTemplate(todoTemplate());
+});
+```
+
+### Router Integration
+
+Create routing abstractions that work seamlessly with Watch:
+
+```typescript
+// Simple router abstraction
+class WatchRouter {
+  private routes = new Map<string, RouteHandler>();
+  
+  route(pattern: string, handler: RouteHandler): ElementFn<HTMLElement> {
+    this.routes.set(pattern, handler);
+    
+    return (element: HTMLElement) => {
+      const checkRoute = () => {
+        const path = window.location.pathname;
+        const match = this.matchRoute(pattern, path);
+        
+        if (match) {
+          // Store route context
+          element.dataset.routeParams = JSON.stringify(match.params);
+          element.dataset.routeQuery = JSON.stringify(match.query);
+          
+          // Execute handler with route context
+          handler(match);
+        }
+      };
+      
+      // Check on load and route changes
+      checkRoute();
+      window.addEventListener('popstate', checkRoute);
+      
+      // Cleanup
+      cleanup(() => {
+        window.removeEventListener('popstate', checkRoute);
+      });
+    };
+  }
+  
+  private matchRoute(pattern: string, path: string) {
+    // Route matching logic...
+    return { params: {}, query: {} };
+  }
+}
+
+const router = new WatchRouter();
+
+// Route-aware helper functions
+export function routeParams<T = Record<string, any>>(): T {
+  const element = self();
+  const params = element.dataset.routeParams;
+  return params ? JSON.parse(params) : {};
+}
+
+export function routeQuery<T = Record<string, any>>(): T {
+  const element = self();
+  const query = element.dataset.routeQuery;
+  return query ? JSON.parse(query) : {};
+}
+
+export const route = router.route.bind(router);
+
+// Usage
+watch('[data-route="/users/:id"]', function* () {
+  yield route('/users/:id', ({ params }) => {
+    const userId = params.id;
+    
+    // Load user data
+    const user = createState('user', null);
+    
+    fetch(`/api/users/${userId}`)
+      .then(r => r.json())
+      .then(userData => user.set(userData));
+    
+    // Reactive template
+    watchState('user', (userData) => {
+      if (userData) {
+        yield handlebars(`
+          <div class="user-profile">
+            <h1>{{name}}</h1>
+            <p>{{email}}</p>
+          </div>
+        `, userData);
+      }
+    });
+  });
+});
+```
+
+### State Management Integration
+
+Integrate with external state management libraries:
+
+```typescript
+// Redux integration
+import { Store } from 'redux';
+
+export function connectRedux<T>(
+  store: Store<T>, 
+  selector: (state: T) => any,
+  mapDispatchToProps?: any
+): ElementFn<HTMLElement> {
+  return (element: HTMLElement) => {
+    let currentValue = selector(store.getState());
+    
+    const handleChange = () => {
+      const newValue = selector(store.getState());
+      if (newValue !== currentValue) {
+        currentValue = newValue;
+        // Update element state
+        setState('redux-state', newValue);
+      }
+    };
+    
+    const unsubscribe = store.subscribe(handleChange);
+    
+    // Initial state
+    setState('redux-state', currentValue);
+    
+    // Provide dispatch function
+    if (mapDispatchToProps) {
+      const dispatchers = mapDispatchToProps(store.dispatch);
+      setState('redux-dispatch', dispatchers);
+    }
+    
+    cleanup(() => unsubscribe());
+  };
+}
+
+// Usage
+watch('.connected-component', function* () {
+  yield connectRedux(
+    store,
+    state => state.user,
+    dispatch => ({
+      updateUser: (user) => dispatch({ type: 'UPDATE_USER', user })
+    })
+  );
+  
+  // Use Redux state in templates
+  watchState('redux-state', (user) => {
+    yield template('<div>Hello {{name}}</div>', user);
+  });
+  
+  yield click('.update-btn', () => {
+    const { updateUser } = getState('redux-dispatch');
+    updateUser({ name: 'New Name' });
+  });
+});
+```
+
+### Domain-Specific Abstractions
+
+Create specialized tools for specific use cases:
+
+```typescript
+// E-commerce specific abstractions
+export function cart(): ElementFn<HTMLElement> {
+  return (element: HTMLElement) => {
+    const items = createState('cart-items', []);
+    const total = createComputed(
+      () => items.get().reduce((sum, item) => sum + item.price * item.quantity, 0),
+      ['cart-items']
+    );
+    
+    // Expose cart API globally
+    window.cart = {
+      add: (item) => items.update(current => [...current, item]),
+      remove: (id) => items.update(current => current.filter(i => i.id !== id)),
+      getTotal: () => total()
+    };
+  };
+}
+
+export function addToCart(productId: string, price: number): ElementFn<HTMLButtonElement> {
+  return (button: HTMLButtonElement) => {
+    button.addEventListener('click', () => {
+      window.cart.add({ id: productId, price, quantity: 1 });
+      
+      // Visual feedback
+      addClass(button, 'added');
+      setTimeout(() => removeClass(button, 'added'), 1000);
+    });
+  };
+}
+
+// Data fetching abstraction
+export function fetchData<T>(
+  url: string, 
+  options?: RequestInit
+): ElementFn<HTMLElement> {
+  return (element: HTMLElement) => {
+    const data = createState<T | null>('fetch-data', null);
+    const loading = createState('fetch-loading', true);
+    const error = createState<Error | null>('fetch-error', null);
+    
+    fetch(url, options)
+      .then(response => response.json())
+      .then(result => {
+        data.set(result);
+        loading.set(false);
+      })
+      .catch(err => {
+        error.set(err);
+        loading.set(false);
+      });
+  };
+}
+
+// Usage of domain abstractions
+watch('.product-page', function* () {
+  // Initialize cart
+  yield cart();
+  
+  // Fetch product data
+  yield fetchData('/api/products/123');
+  
+  // Reactive content based on loading state
+  watchState('fetch-loading', (isLoading) => {
+    if (isLoading) {
+      yield template('<div class="loading">Loading...</div>');
+    }
+  });
+  
+  // Reactive content based on data
+  watchState('fetch-data', (product) => {
+    if (product) {
+      yield template(`
+        <div class="product">
+          <h1>{{name}}</h1>
+          <p>{{description}}</p>
+          <span class="price">${{price}}</span>
+          <button class="add-to-cart">Add to Cart</button>
+        </div>
+      `, product);
+    }
+  });
+  
+  // Add to cart functionality
+  yield click('.add-to-cart', () => {
+    const product = getState('fetch-data');
+    yield addToCart(product.id, product.price);
+  });
+});
+```
+
+### Creating Reusable Component Libraries
+
+Build component libraries that follow Watch's patterns:
+
+```typescript
+// UI Component library built on Watch
+export const UI = {
+  // Modal component
+  modal(options: { title?: string, closable?: boolean } = {}): ElementFn<HTMLElement> {
+    return (element: HTMLElement) => {
+      const isOpen = createState('modal-open', false);
+      
+      // Setup modal structure
+      yield template(`
+        <div class="modal-backdrop" style="display: none;">
+          <div class="modal-content">
+            ${options.title ? `<h2>${options.title}</h2>` : ''}
+            <div class="modal-body"></div>
+            ${options.closable ? '<button class="modal-close">×</button>' : ''}
+          </div>
+        </div>
+      `);
+      
+      // Show/hide logic
+      watchState('modal-open', (open) => {
+        const backdrop = el('.modal-backdrop');
+        if (backdrop) {
+          backdrop.style.display = open ? 'flex' : 'none';
+        }
+      });
+      
+      if (options.closable) {
+        yield click('.modal-close', () => {
+          isOpen.set(false);
+        });
+      }
+      
+      // Expose modal API
+      return {
+        open: () => isOpen.set(true),
+        close: () => isOpen.set(false),
+        toggle: () => isOpen.update(current => !current)
+      };
+    };
+  },
+  
+  // Tabs component
+  tabs(): ElementFn<HTMLElement> {
+    return (element: HTMLElement) => {
+      const activeTab = createState('active-tab', 0);
+      
+      // Setup tab navigation
+      const tabButtons = all('.tab-button');
+      const tabPanels = all('.tab-panel');
+      
+      tabButtons.forEach((button, index) => {
+        button.addEventListener('click', () => {
+          activeTab.set(index);
+        });
+      });
+      
+      // Show/hide panels based on active tab
+      watchState('active-tab', (active) => {
+        tabPanels.forEach((panel, index) => {
+          panel.style.display = index === active ? 'block' : 'none';
+        });
+        
+        tabButtons.forEach((button, index) => {
+          button.classList.toggle('active', index === active);
+        });
+      });
+    };
+  }
+};
+
+// Usage
+watch('.my-modal', function* () {
+  const modalApi = yield UI.modal({ title: 'Settings', closable: true });
+  
+  yield click('.open-modal', () => {
+    modalApi.open();
+  });
+});
+
+watch('.tab-container', function* () {
+  yield UI.tabs();
+});
+```
+
+### Best Practices for Abstractions
+
+1. **Follow the Dual API Pattern**: Make functions work both directly and in generators
+2. **Use Element-Scoped State**: Keep component state isolated per element instance
+3. **Provide Type Safety**: Use TypeScript generics and proper typing
+4. **Compose with Existing Functions**: Build on Watch's primitive functions
+5. **Handle Cleanup**: Always clean up external resources
+6. **Maintain Context**: Use `self()`, `el()`, and context functions appropriately
+7. **Return APIs**: Let components expose public interfaces through return values
+
+This approach lets you build powerful, domain-specific libraries while maintaining Watch's ergonomic patterns and type safety guarantees.
+
+### Generator Abstractions: When to Wrap the Generator Itself
+
+Sometimes you need to wrap or transform the generator pattern itself, not just individual functions. This is useful for cross-cutting concerns, meta-functionality, and standardizing behaviors across components.
+
+#### When to Use Generator Abstractions vs Function Abstractions
+
+**Use Function Abstractions When:**
+- Adding specific functionality (templating, validation, etc.)
+- Building domain-specific operations
+- Creating reusable behaviors
+- Extending the dual API pattern
+
+**Use Generator Abstractions When:**
+- Adding cross-cutting concerns (logging, performance, error handling)
+- Standardizing component patterns across teams
+- Injecting behavior into ALL components
+- Creating meta-frameworks or higher-level patterns
+- Managing component lifecycles uniformly
+
+#### Performance Monitoring Generator
+
+```typescript
+// Wraps any generator to add performance monitoring
+export function withPerformanceMonitoring<T extends HTMLElement>(
+  name: string,
+  generator: () => Generator<ElementFn<T>, any, unknown>
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    const startTime = performance.now();
+    console.log(`🚀 Component "${name}" starting...`);
+    
+    try {
+      // Execute the original generator
+      const originalGen = generator();
+      let result = originalGen.next();
+      
+      while (!result.done) {
+        // Time each yielded operation
+        const opStart = performance.now();
+        yield result.value;
+        const opEnd = performance.now();
+        
+        // Log slow operations
+        if (opEnd - opStart > 10) {
+          console.warn(`⚠️ Slow operation in "${name}": ${opEnd - opStart}ms`);
+        }
+        
+        result = originalGen.next();
+      }
+      
+      const endTime = performance.now();
+      console.log(`✅ Component "${name}" initialized in ${endTime - startTime}ms`);
+      
+      return result.value; // Return the original generator's return value
+    } catch (error) {
+      const endTime = performance.now();
+      console.error(`❌ Component "${name}" failed after ${endTime - startTime}ms:`, error);
+      throw error;
+    }
+  };
+}
+
+// Usage
+const monitoredButton = withPerformanceMonitoring('InteractiveButton', function* () {
+  yield addClass('interactive');
+  yield click(() => console.log('Clicked!'));
+  
+  return {
+    disable: () => yield addClass('disabled')
+  };
+});
+
+watch('button', monitoredButton);
+```
+
+#### Error Boundary Generator
+
+```typescript
+// Wraps generators with error handling and fallback UI
+export function withErrorBoundary<T extends HTMLElement>(
+  generator: () => Generator<ElementFn<T>, any, unknown>,
+  fallbackContent?: string,
+  onError?: (error: Error, element: T) => void
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    try {
+      yield* generator();
+    } catch (error) {
+      console.error('Component error:', error);
+      
+      // Show fallback UI
+      if (fallbackContent) {
+        yield text(fallbackContent);
+        yield addClass('error-state');
+      }
+      
+      // Call custom error handler
+      if (onError) {
+        const element = self() as T;
+        onError(error as Error, element);
+      }
+      
+      // Return safe fallback API
+      return {
+        hasError: true,
+        retry: () => {
+          // Could implement retry logic here
+          window.location.reload();
+        }
+      };
+    }
+  };
+}
+
+// Usage
+const safeComponent = withErrorBoundary(
+  function* () {
+    // This might throw an error
+    const data = JSON.parse(self().dataset.config || '');
+    yield template('<div>{{message}}</div>', data);
+    
+    throw new Error('Something went wrong!'); // Simulated error
+  },
+  'Something went wrong. Please try again.',
+  (error, element) => {
+    // Send error to logging service
+    console.error('Logging error for element:', element.id, error);
+  }
+);
+
+watch('.risky-component', safeComponent);
+```
+
+#### Feature Flag Generator
+
+```typescript
+// Wraps generators with feature flag checks
+export function withFeatureFlag<T extends HTMLElement>(
+  flagName: string,
+  generator: () => Generator<ElementFn<T>, any, unknown>,
+  fallbackGenerator?: () => Generator<ElementFn<T>, any, unknown>
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    const isEnabled = await checkFeatureFlag(flagName);
+    
+    if (isEnabled) {
+      console.log(`🎯 Feature "${flagName}" enabled`);
+      yield* generator();
+    } else if (fallbackGenerator) {
+      console.log(`🚫 Feature "${flagName}" disabled, using fallback`);
+      yield* fallbackGenerator();
+    } else {
+      console.log(`🚫 Feature "${flagName}" disabled, no fallback`);
+      // Component does nothing
+    }
+  };
+}
+
+// Usage
+const newButtonBehavior = withFeatureFlag(
+  'enhanced-buttons',
+  function* () {
+    // New enhanced behavior
+    yield addClass('enhanced');
+    yield style({ 
+      background: 'linear-gradient(45deg, #007bff, #0056b3)',
+      transition: 'all 0.3s ease'
+    });
+    yield click(() => {
+      yield addClass('clicked');
+      setTimeout(() => yield removeClass('clicked'), 300);
+    });
+  },
+  function* () {
+    // Fallback to old behavior
+    yield addClass('basic');
+    yield click(() => console.log('Basic click'));
+  }
+);
+
+watch('button.enhanced', newButtonBehavior);
+```
+
+#### Lifecycle Management Generator
+
+```typescript
+// Adds standardized lifecycle hooks to any generator
+export function withLifecycle<T extends HTMLElement, R = any>(
+  generator: () => Generator<ElementFn<T>, R, unknown>,
+  options: {
+    onMount?: (element: T) => void;
+    onUnmount?: (element: T) => void;
+    onUpdate?: (element: T) => void;
+    enableDebug?: boolean;
+  } = {}
+): () => Generator<ElementFn<T>, R, unknown> {
+  return function* () {
+    const element = self() as T;
+    const componentName = element.className || element.tagName.toLowerCase();
+    
+    // Mount lifecycle
+    if (options.onMount) {
+      options.onMount(element);
+    }
+    
+    if (options.enableDebug) {
+      console.log(`🔧 Mounting component: ${componentName}`);
+    }
+    
+    // Setup unmount cleanup
+    if (options.onUnmount) {
+      cleanup(() => {
+        if (options.enableDebug) {
+          console.log(`🗑️ Unmounting component: ${componentName}`);
+        }
+        options.onUnmount!(element);
+      });
+    }
+    
+    // Track updates if enabled
+    if (options.onUpdate) {
+      const observer = new MutationObserver(() => {
+        options.onUpdate!(element);
+      });
+      
+      observer.observe(element, {
+        attributes: true,
+        childList: true,
+        subtree: true
+      });
+      
+      cleanup(() => observer.disconnect());
+    }
+    
+    // Execute the wrapped generator
+    const result = yield* generator();
+    
+    if (options.enableDebug) {
+      console.log(`✅ Component initialized: ${componentName}`);
+    }
+    
+    return result;
+  };
+}
+
+// Usage
+const lifecycleComponent = withLifecycle(
+  function* () {
+    const clickCount = createState('clicks', 0);
+    
+    yield click(() => {
+      clickCount.update(c => c + 1);
+      yield text(`Clicked ${clickCount.get()} times`);
+    });
+    
+    return {
+      getClicks: () => clickCount.get()
+    };
+  },
+  {
+    onMount: (el) => console.log(`Component mounted on:`, el),
+    onUnmount: (el) => console.log(`Component unmounted from:`, el),
+    onUpdate: (el) => console.log(`Component updated:`, el),
+    enableDebug: true
+  }
+);
+
+watch('.lifecycle-component', lifecycleComponent);
+```
+
+#### A/B Testing Generator
+
+```typescript
+// Enables A/B testing at the component level
+export function withABTest<T extends HTMLElement>(
+  testName: string,
+  variants: Record<string, () => Generator<ElementFn<T>, any, unknown>>,
+  options: {
+    userIdGetter?: () => string;
+    onVariantShown?: (variant: string, userId: string) => void;
+  } = {}
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    const userId = options.userIdGetter?.() || 'anonymous';
+    const variant = selectVariant(testName, userId, Object.keys(variants));
+    
+    // Track which variant was shown
+    if (options.onVariantShown) {
+      options.onVariantShown(variant, userId);
+    }
+    
+    // Store variant info on element for debugging
+    const element = self() as T;
+    element.dataset.abTest = testName;
+    element.dataset.abVariant = variant;
+    
+    console.log(`🧪 A/B Test "${testName}": showing variant "${variant}" to user ${userId}`);
+    
+    // Execute the selected variant
+    const selectedGenerator = variants[variant];
+    if (selectedGenerator) {
+      yield* selectedGenerator();
+    } else {
+      console.warn(`⚠️ A/B Test "${testName}": variant "${variant}" not found`);
+    }
+  };
+}
+
+// Usage
+const abTestButton = withABTest(
+  'button-style-test',
+  {
+    control: function* () {
+      yield addClass('btn-primary');
+      yield text('Click Me');
+      yield click(() => console.log('Control clicked'));
+    },
+    
+    variant_a: function* () {
+      yield addClass('btn-success');
+      yield text('Take Action!');
+      yield style({ fontSize: '18px', fontWeight: 'bold' });
+      yield click(() => console.log('Variant A clicked'));
+    },
+    
+    variant_b: function* () {
+      yield addClass('btn-warning');
+      yield text('Get Started');
+      yield style({ borderRadius: '25px' });
+      yield click(() => console.log('Variant B clicked'));
+    }
+  },
+  {
+    userIdGetter: () => getCurrentUserId(),
+    onVariantShown: (variant, userId) => {
+      analytics.track('ab_test_variant_shown', {
+        test: 'button-style-test',
+        variant,
+        userId
+      });
+    }
+  }
+);
+
+watch('.ab-test-button', abTestButton);
+```
+
+#### Permission-Based Generator
+
+```typescript
+// Wraps generators with permission checks
+export function withPermissions<T extends HTMLElement>(
+  requiredPermissions: string[],
+  generator: () => Generator<ElementFn<T>, any, unknown>,
+  unauthorizedGenerator?: () => Generator<ElementFn<T>, any, unknown>
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    const hasPermission = await checkPermissions(requiredPermissions);
+    
+    if (hasPermission) {
+      yield* generator();
+    } else {
+      console.log(`🔒 Access denied. Required permissions: ${requiredPermissions.join(', ')}`);
+      
+      if (unauthorizedGenerator) {
+        yield* unauthorizedGenerator();
+      } else {
+        // Default unauthorized behavior
+        yield addClass('unauthorized');
+        yield text('Access Denied');
+        yield click(() => {
+          alert('You do not have permission to use this feature.');
+        });
+      }
+    }
+  };
+}
+
+// Usage
+const adminButton = withPermissions(
+  ['admin', 'user_management'],
+  function* () {
+    yield text('Delete User');
+    yield addClass('btn-danger');
+    yield click(() => {
+      if (confirm('Are you sure?')) {
+        deleteUser();
+      }
+    });
+  },
+  function* () {
+    yield text('Contact Admin');
+    yield addClass('btn-secondary');
+    yield click(() => {
+      window.location.href = 'mailto:admin@company.com';
+    });
+  }
+);
+
+watch('.admin-action', adminButton);
+```
+
+#### Higher-Order Generator Composition
+
+```typescript
+// Combine multiple generator wrappers
+export function compose<T extends HTMLElement>(
+  ...wrappers: Array<(gen: () => Generator<ElementFn<T>, any, unknown>) => () => Generator<ElementFn<T>, any, unknown>>
+) {
+  return (generator: () => Generator<ElementFn<T>, any, unknown>) => {
+    return wrappers.reduceRight((acc, wrapper) => wrapper(acc), generator);
+  };
+}
+
+// Usage - apply multiple concerns to a component
+const enhancedComponent = compose(
+  // Applied in reverse order (inside-out)
+  gen => withPerformanceMonitoring('MyComponent', gen),
+  gen => withErrorBoundary(gen, 'Component failed to load'),
+  gen => withLifecycle(gen, { enableDebug: true }),
+  gen => withFeatureFlag('new-ui', gen, () => function* () {
+    yield text('Feature disabled');
+  })
+)(function* () {
+  // The actual component logic
+  const count = createState('count', 0);
+  
+  yield click(() => {
+    count.update(c => c + 1);
+    yield text(`Count: ${count.get()}`);
+  });
+  
+  return {
+    getCount: () => count.get()
+  };
+});
+
+watch('.enhanced-component', enhancedComponent);
+```
+
+#### Component Factory Generator
+
+```typescript
+// Creates standardized component patterns
+export function createComponent<T extends HTMLElement>(
+  name: string,
+  config: {
+    template?: string;
+    styles?: Record<string, string>;
+    state?: Record<string, any>;
+    methods?: Record<string, (...args: any[]) => any>;
+    lifecycle?: {
+      onMount?: (element: T) => void;
+      onUnmount?: (element: T) => void;
+    };
+  }
+): () => Generator<ElementFn<T>, any, unknown> {
+  return function* () {
+    const element = self() as T;
+    
+    // Apply template
+    if (config.template) {
+      yield html(config.template);
+    }
+    
+    // Apply styles
+    if (config.styles) {
+      yield style(config.styles);
+    }
+    
+    // Initialize state
+    const componentState: Record<string, any> = {};
+    if (config.state) {
+      Object.entries(config.state).forEach(([key, initialValue]) => {
+        componentState[key] = createState(key, initialValue);
+      });
+    }
+    
+    // Lifecycle hooks
+    if (config.lifecycle?.onMount) {
+      config.lifecycle.onMount(element);
+    }
+    
+    if (config.lifecycle?.onUnmount) {
+      cleanup(() => config.lifecycle!.onUnmount!(element));
+    }
+    
+    // Create public API
+    const api: Record<string, any> = {};
+    if (config.methods) {
+      Object.entries(config.methods).forEach(([methodName, method]) => {
+        api[methodName] = (...args: any[]) => {
+          return method.call({ element, state: componentState }, ...args);
+        };
+      });
+    }
+    
+    // Add state getters
+    Object.keys(componentState).forEach(key => {
+      api[`get${key.charAt(0).toUpperCase() + key.slice(1)}`] = () => {
+        return componentState[key].get();
+      };
+    });
+    
+    console.log(`🏗️ Component "${name}" created with API:`, Object.keys(api));
+    
+    return api;
+  };
+}
+
+// Usage - declarative component creation
+const counterComponent = createComponent('Counter', {
+  template: '<div class="counter">Count: 0</div>',
+  styles: {
+    padding: '10px',
+    border: '1px solid #ccc',
+    borderRadius: '4px'
+  },
+  state: {
+    count: 0
+  },
+  methods: {
+    increment() {
+      this.state.count.update(c => c + 1);
+      this.element.textContent = `Count: ${this.state.count.get()}`;
+    },
+    
+    reset() {
+      this.state.count.set(0);
+      this.element.textContent = 'Count: 0';
+    }
+  },
+  lifecycle: {
+    onMount: (el) => {
+      el.addEventListener('click', () => {
+        // Access the component API through return value
+      });
+    }
+  }
+});
+
+watch('.auto-counter', counterComponent);
+```
+
+### When NOT to Use Generator Abstractions
+
+**Avoid generator wrapping when:**
+
+1. **Simple functionality** - Use function abstractions instead
+2. **One-off behaviors** - Don't abstract what you won't reuse
+3. **Performance critical** - Each wrapper adds overhead
+4. **Team confusion** - If it makes code harder to understand
+5. **Over-engineering** - Start simple, abstract when patterns emerge
+
+**Rule of thumb:** If you find yourself copying the same generator patterns across multiple components, consider a generator abstraction. If you're just adding functionality to elements, use function abstractions.
+
 ## Complete API Reference
 
 ### Core Functions

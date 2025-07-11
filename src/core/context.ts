@@ -113,14 +113,21 @@ export function createWatchContext<El extends HTMLElement>(
   index: number,
   array: readonly El[]
 ): WatchContext<El> {
+  const observers = new Set<MutationObserver | IntersectionObserver | ResizeObserver>();
+  
   return {
     element,
     selector,
     index,
     array,
+    state: {},
+    observers,
     el: createElementProxy(element),
     self: createSelfFunction(element),
-    cleanup: createCleanupFunction(element)
+    cleanup: createCleanupFunction(element),
+    addObserver: (observer: MutationObserver | IntersectionObserver | ResizeObserver) => {
+      observers.add(observer);
+    }
   };
 }
 
@@ -132,7 +139,7 @@ export async function executeGenerator<El extends HTMLElement, T = any>(
   array: readonly El[],
   generatorFn: () => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>
 ): Promise<T | undefined> {
-  const watchContext = createWatchContext(element, selector, index, array);
+  createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
     element,
     selector,

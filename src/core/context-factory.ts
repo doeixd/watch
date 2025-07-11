@@ -125,7 +125,7 @@ export function contextFor<
   Options extends WatchContextOptions = WatchContextOptions
 >(
   selector: S,
-  elementType: new() => El,
+  _elementType: new() => El,
   options: Options = {} as Options
 ): PreDefinedWatchContext<S, El, Options> {
   return {

@@ -1,7 +1,7 @@
 // Enhanced state management for Watch v5
 
-import type { TypedState, CleanupFunction } from '../types.ts';
-import { getCurrentContext } from './context.ts';
+import type { TypedState, CleanupFunction } from '../types';
+import { getCurrentContext } from './context';
 
 // Global state storage per element
 const elementStates = new WeakMap<HTMLElement, Record<string, any>>();
@@ -87,7 +87,7 @@ export function deleteState(key: string): void {
  * @param initialValue - Optional initial value
  * @returns Typed state manager object
  */
-export function createTypedState<T>(key: string, initialValue?: T): TypedState<T> {
+export function createTypedState<T>(key: string, _initialValue?: T): TypedState<T> {
   return {
     get(): T {
       const state = getElementState();

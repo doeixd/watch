@@ -2,9 +2,6 @@
 
 import type { 
   ElementFn, 
-  CSSPropertyName, 
-  AttributeName,
-  DataAttributeKey,
   FormElement,
   ElementFromSelector,
   GeneratorFunction
@@ -526,11 +523,11 @@ export function query<T extends HTMLElement = HTMLElement>(selector: string): El
 export function query<T extends HTMLElement = HTMLElement>(...args: any[]): any {
   if (args.length === 2) {
     const [element, selector] = args;
-    return element.querySelector<T>(selector);
+    return element.querySelector(selector) as T | null;
   } else {
     const [selector] = args;
     return ((element: HTMLElement) => {
-      return element.querySelector<T>(selector);
+      return element.querySelector(selector) as T | null;
     }) as ElementFn<HTMLElement, T | null>;
   }
 }
@@ -540,11 +537,11 @@ export function queryAll<T extends HTMLElement = HTMLElement>(selector: string):
 export function queryAll<T extends HTMLElement = HTMLElement>(...args: any[]): any {
   if (args.length === 2) {
     const [element, selector] = args;
-    return Array.from(element.querySelectorAll<T>(selector));
+    return Array.from(element.querySelectorAll(selector)) as T[];
   } else {
     const [selector] = args;
     return ((element: HTMLElement) => {
-      return Array.from(element.querySelectorAll<T>(selector));
+      return Array.from(element.querySelectorAll(selector)) as T[];
     }) as ElementFn<HTMLElement, T[]>;
   }
 }
@@ -661,16 +658,16 @@ export function createChildWatcher<
   // 2. Scoped MutationObserver to watch for dynamic changes
   const scopedObserver = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
+      for (const node of Array.from(mutation.addedNodes)) {
         if (node instanceof HTMLElement) {
           if (node.matches(childSelector)) setupChild(node as ChildEl);
-          node.querySelectorAll<ChildEl>(childSelector).forEach(setupChild);
+          Array.from(node.querySelectorAll(childSelector)).forEach(el => setupChild(el as ChildEl));
         }
       }
-      for (const node of mutation.removedNodes) {
+      for (const node of Array.from(mutation.removedNodes)) {
         if (node instanceof HTMLElement) {
           if (node.matches(childSelector)) teardownChild(node as ChildEl);
-          node.querySelectorAll<ChildEl>(childSelector).forEach(teardownChild);
+          Array.from(node.querySelectorAll(childSelector)).forEach(el => teardownChild(el as ChildEl));
         }
       }
     }

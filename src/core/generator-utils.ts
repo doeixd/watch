@@ -31,7 +31,7 @@ export function debounceGenerator<El extends HTMLElement>(
           timers.delete(element);
         }, delay);
         
-        timers.set(element, timer);
+        timers.set(element, timer as unknown as number);
       };
       
       yield debouncedFn;

@@ -210,7 +210,7 @@ export function gen<El extends HTMLElement = HTMLElement>(
 
 // Type-safe watch generator that provides typed context
 export function watchGenerator<S extends string>(
-  selector: S,
+  _selector: S,
   generatorFn: (ctx: TypedGeneratorContext<ElementFromSelector<S>>) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
 ): () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown> {
   return function* () {

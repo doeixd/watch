@@ -1,8 +1,8 @@
 // Execution helpers for Watch v5 - inspired by the reference implementation
 
-import type { ElementFn, CleanupFunction } from '../types.ts';
-import { getState, setState, createState } from './state.ts';
-import { getCurrentContext } from './context.ts';
+import type { ElementFn } from '../types';
+import { getState, setState } from './state';
+import { getCurrentContext } from './context';
 
 // Counter for generating stable keys
 let executionCounter = 0;

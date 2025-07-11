@@ -1,8 +1,8 @@
 // Global Observer System for Watch v5
 
-import type { ElementHandler, SelectorRegistry, UnmountRegistry, UnmountHandler, WatchController, ManagedInstance, WatchTarget, ElementFn } from '../types.ts';
-import { getElementStateSnapshot } from './state.ts';
-import { executeGenerator } from './context.ts';
+import type { ElementHandler, SelectorRegistry, UnmountRegistry, UnmountHandler, WatchController, ManagedInstance, WatchTarget, ElementMatcher } from '../types';
+import { getElementStateSnapshot } from './state';
+import { executeGenerator } from './context';
 
 // Global state
 let globalObserver: MutationObserver | null = null;
@@ -113,7 +113,7 @@ function processElements(elements: Set<HTMLElement>): void {
   // Group elements by selector for efficiency
   const selectorMatches = new Map<string, Set<HTMLElement>>();
   
-  selectorHandlers.forEach((handlers, selector) => {
+  selectorHandlers.forEach((_handlers, selector) => {
     const matches = new Set<HTMLElement>();
     
     elements.forEach(element => {
@@ -287,7 +287,7 @@ export function getOrCreateController<El extends HTMLElement>(
     {
       subject: target,
       getInstances: () => instances,
-      layer: (generator) => {
+      layer: (generator: () => Generator<any, void, unknown>) => {
         const cleanup = registerBehavior(target, generator, instances);
         behaviorCleanupFns.add(cleanup);
       },

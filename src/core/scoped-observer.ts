@@ -314,13 +314,13 @@ export function createScopedWatcherWithController<S extends string>(
   // Create a scoped target identifier using the parent element and selector/matcher
   const scopedTarget = isSelector ? 
     { parent, selector } :
-    { parent, matcher };
+    { parent, matcher: matcher || ((_element: HTMLElement): _element is HTMLElement => false) };
   
   // Get or create controller for this scoped target
   const controller = getOrCreateController(scopedTarget);
   
   // Add the generator as a layer to the controller
-  controller.layer(generator);
+  controller.layer(generator as () => Generator<any, any, unknown>);
   
   // Default options
   const observerOptions = {

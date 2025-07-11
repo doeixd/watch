@@ -212,7 +212,6 @@ async function handleQueuedExecution<El extends HTMLElement>(
     if (!queue.current) {
       queue.current = (async () => {
         while (queue.latest) {
-          const currentEvent = queue.latest;
           queue.latest = null;
           
           try {
@@ -587,7 +586,7 @@ export function createEventBehavior<K extends keyof HTMLElementEventMap>(
 export function composeEventHandlers<K extends keyof HTMLElementEventMap>(
   ...handlers: HybridEventHandler<HTMLElement, K>[]
 ): HybridEventHandler<HTMLElement, K> {
-  return async function* (event, element?) {
+  return async function* (event: HTMLElementEventMap[K], element?: HTMLElement) {
     for (const handler of handlers) {
       // Check handler arity for backward compatibility
       const result = handler.length >= 2 ? handler(event, element) : handler(event);
@@ -1011,10 +1010,10 @@ export function onUnmount<El extends HTMLElement>(...args: any[]): any {
     if (!unmountHandlers.has(element)) {
       unmountHandlers.set(element, new Set());
     }
-    unmountHandlers.get(element)!.add(handler);
+    unmountHandlers.get(element)!.add(handler as (element: HTMLElement) => void);
     
     return () => {
-      unmountHandlers.get(element)?.delete(handler);
+      unmountHandlers.get(element)?.delete(handler as (element: HTMLElement) => void);
     };
   } else {
     const [handler] = args as [(element: El) => void];
@@ -1023,10 +1022,10 @@ export function onUnmount<El extends HTMLElement>(...args: any[]): any {
       if (!unmountHandlers.has(element)) {
         unmountHandlers.set(element, new Set());
       }
-      unmountHandlers.get(element)!.add(handler);
+      unmountHandlers.get(element)!.add(handler as (element: HTMLElement) => void);
       
       return () => {
-        unmountHandlers.get(element)?.delete(handler);
+        unmountHandlers.get(element)?.delete(handler as (element: HTMLElement) => void);
       };
     }) as ElementFn<El, CleanupFunction>;
   }

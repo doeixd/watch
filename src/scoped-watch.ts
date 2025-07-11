@@ -296,14 +296,25 @@ export function scopedWatchOnce(
   
   const wrappedGenerator = () => {
     const gen = generator();
-    return (function* () {
-      yield* gen;
-      matchCount++;
-      if (matchCount >= maxMatches) {
-        // Use setTimeout to disconnect after current execution
-        setTimeout(() => watcher.disconnect(), 0);
-      }
-    })();
+    if (Symbol.iterator in gen) {
+      return (function* () {
+        yield* gen as Generator<any, any, unknown>;
+        matchCount++;
+        if (matchCount >= maxMatches) {
+          // Use setTimeout to disconnect after current execution
+          setTimeout(() => watcher.disconnect(), 0);
+        }
+      })();
+    } else {
+      return (async function* () {
+        yield* gen as AsyncGenerator<any, any, unknown>;
+        matchCount++;
+        if (matchCount >= maxMatches) {
+          // Use setTimeout to disconnect after current execution
+          setTimeout(() => watcher.disconnect(), 0);
+        }
+      })();
+    }
   };
   
   const watcher = createScopedWatcher(parent, selector, wrappedGenerator, options);
@@ -338,9 +349,7 @@ export function scopedWatchWithController<S extends string>(
   selector: S,
   generator: () => Generator<ElementFn<ElementFromSelector<S>>, any, unknown>,
   options?: ScopedWatchOptions
-): ScopedWatcher & { controller: WatchController<ElementFromSelector<S>> } {
-  return createScopedWatcherWithController(parent, selector, generator, options);
-}
+): ScopedWatcher & { controller: WatchController<ElementFromSelector<S>> };
 
 /**
  * Creates a scoped watcher with controller support and async generator.
@@ -350,9 +359,7 @@ export function scopedWatchWithController<S extends string>(
   selector: S,
   generator: () => AsyncGenerator<ElementFn<ElementFromSelector<S>>, any, unknown>,
   options?: ScopedWatchOptions
-): ScopedWatcher & { controller: WatchController<ElementFromSelector<S>> } {
-  return createScopedWatcherWithController(parent, selector, generator, options);
-}
+): ScopedWatcher & { controller: WatchController<ElementFromSelector<S>> };
 
 /**
  * Creates a scoped watcher with controller support using a matcher function.
@@ -361,6 +368,16 @@ export function scopedWatchWithController<El extends HTMLElement>(
   parent: HTMLElement,
   matcher: ElementMatcher<El>,
   generator: () => Generator<ElementFn<El>, any, unknown>,
+  options?: ScopedWatchOptions
+): ScopedWatcher & { controller: WatchController<El> };
+
+/**
+ * Creates a scoped watcher with controller support using a matcher function and async generator.
+ */
+export function scopedWatchWithController<El extends HTMLElement>(
+  parent: HTMLElement,
+  matcher: ElementMatcher<El>,
+  generator: () => AsyncGenerator<ElementFn<El>, any, unknown>,
   options?: ScopedWatchOptions
 ): ScopedWatcher & { controller: WatchController<El> };
 

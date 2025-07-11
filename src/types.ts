@@ -141,7 +141,7 @@ export interface PreDefinedWatchContext<
 }
 
 // Options for creating watch contexts
-export interface WatchContextOptions {
+export interface WatchContextOptions extends Record<string, unknown> {
   // Debounce setup function calls
   debounce?: number;
   
@@ -280,7 +280,7 @@ export type AttributeName = string;
 export type DataAttributeKey = string;
 
 // Event name type
-export type EventName<El extends HTMLElement = HTMLElement> = keyof HTMLElementEventMap;
+export type EventName<_El extends HTMLElement = HTMLElement> = keyof HTMLElementEventMap;
 
 // Matcher function type
 export type ElementMatcher<El extends HTMLElement = HTMLElement> = (element: HTMLElement) => element is El;

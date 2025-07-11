@@ -93,9 +93,9 @@ You're not creating new *kinds* of elements; you're creating new *behaviors* for
 
 ## More Than a Utility: A System for Composition
 
-Because Watch is functional at its core, it’s not just for simple event listeners. It's a complete system for building complex, decoupled components.
+Because Watch is functional at its core, it’s not just for simple event listeners. It's a complete system for building complex, decoupled behaviors.
 
-It starts with **layering**. Imagine you have a core product card component:
+It starts with **layering**. Imagine you have a core product card behavior:
 
 ```typescript
 // --- Core product card functionality (product-card.ts) ---
@@ -119,16 +119,16 @@ productController.layer(function* () {
 });
 ```
 
-These two pieces of logic can live in different files, be maintained by different teams, and are completely decoupled. The analytics team can add their tracking layer without ever touching the core component code.
+These two pieces of logic can live in different files, be maintained by different teams, and are completely decoupled. The analytics team can add their tracking layer without ever touching the core behavior's code.
 
-This is powerful **separation of concerns**. But layering is just the beginning. The system naturally scales up to full **component hierarchies**, where parents can orchestrate their children.
+This is powerful **separation of concerns**. But this is just one form of composition. The system also allows for **functional composition**, where a container behavior can aggregate and coordinate the behaviors of the elements within it.
 
-This is accomplished by having a child component `return` an API from its generator.
+This is achieved using a classic functional pattern: a function that returns other functions. The generator for an inner behavior can `return` a contract—a set of functions that control its internal state.
 
-Let's build an interactive dashboard with multiple counters. First, the child component:
+Let's build an interactive dashboard with multiple counters. First, the behavior for a single counter item:
 
 ```typescript
-// Child Component: a single counter button
+// Inner Behavior: a single counter widget
 function* counterWidget() {
   let count = 0;
   yield text(`Count: ${count}`); // Set initial text
@@ -138,42 +138,43 @@ function* counterWidget() {
     yield text(`Count: ${count}`);
   });
 
-  // Expose a public API for the parent
+  // Return a "contract" of functions for a consumer to use.
   return {
     getCount: () => count,
     reset: () => {
       count = 0;
-      yield text(`Count: ${count}`); // Yield still works inside API methods!
+      yield text(`Count: ${count}`); // Yield still works inside these functions!
     },
   };
 }
 ```
 
-Now, the parent dashboard can find all its `counterWidget` children and manage them:
+Now, the container—the dashboard—can instantiate this behavior on all its inner elements and compose their returned functions:
 
 ```typescript
-// Parent Component: the dashboard
+// Container Behavior: the dashboard
 watch('.counter-dashboard', function* () {
-  // `child` finds all matching elements and gives us a live Map of their APIs.
-  // This Map automatically updates as children are added or removed!
-  const counterApis = child('.counter-widget', counterWidget);
+  // `child` instantiates `counterWidget` on each matching element
+  // and returns a live Map of their resulting "contracts".
+  // This Map automatically updates as elements are added or removed!
+  const counterContracts = child('.counter-widget', counterWidget);
 
-  // Now the parent can orchestrate its children
+  // Now the container can use the contracts to coordinate the inner widgets.
   yield click('.reset-all-btn', () => {
-    for (const api of counterApis.values()) {
-      api.reset();
+    for (const contract of counterContracts.values()) {
+      contract.reset();
     }
   });
 
   yield click('.show-total-btn', () => {
-    const total = Array.from(counterApis.values())
-                      .reduce((sum, api) => sum + api.getCount(), 0);
+    const total = Array.from(counterContracts.values())
+                      .reduce((sum, contract) => sum + contract.getCount(), 0);
     alert(`Total across all counters: ${total}`);
   });
 });
 ```
 
-This is a true component hierarchy. The parent has a clean, type-safe way to interact with its children, all without a virtual DOM and while remaining resilient to the server swapping out the HTML.
+This is true functional composition, applied directly to the DOM. The container behavior isn't tightly coupled to the inner behavior; it just consumes the contract it returns. This creates a clean, decoupled system where complex UIs are built by composing smaller, independent functions, all without a virtual DOM and while remaining resilient to the server swapping out the HTML.
 
 This is the ultimate expression of the library's philosophy: it provides a powerful, unopinionated foundation that lets you build the exact abstractions your project needs.
 

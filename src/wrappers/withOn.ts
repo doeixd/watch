@@ -1,6 +1,6 @@
 
 import { SetupFn } from '../watch2';
-import { createWrapper } from './createWrapper';
+import { createWrapper } from "./createWrapper";
 
 
 export const withOn = createWrapper((args) => {
@@ -9,7 +9,6 @@ export const withOn = createWrapper((args) => {
     on: createOn(args.el),
   }
 })
-
 
 
 export function createOn (el: Element) {

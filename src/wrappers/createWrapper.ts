@@ -75,7 +75,8 @@ type Prettify<T> = {
  * 
  * // Use the enhanced setup function
  * enhancedSetup({ el: document.body, selector: '.my-element' });
- */export function createWrapper<
+ */
+export function createWrapper<
   TEnhancerFn extends (a: BasicArgs) => any,
   Enhanced extends ReturnType<TEnhancerFn>
 >(enhancer: TEnhancerFn, hooks?: {
@@ -103,7 +104,31 @@ type Prettify<T> = {
     };
   };
 }
-
-
 // Create wrapper takes a enhancer function, and returns a wrapper function. The wrapper function will take a setup fn, and return a 
 // new setupfn thatll call the enhancer fnction on the args
+
+
+type Wrapper = (...args: any[]) => (...args: any[]) => any
+type After<T extends Wrapper> = Parameters<ReturnType<T>>[0]
+
+
+export const use = <S extends SetupFn, W extends Wrapper>(initialSetupFn: S, wrapper: W) => {
+  let w = wrapper(initialSetupFn)
+  
+  return ((args) => {
+    return w(args)
+  }) as typeof w
+}
+
+// const use = (initialSetupFn: SetupFn, ...wrappers: Wrapper[]): 
+//   typeof wrappers[0] extends Wrapper 
+//     ? 
+
+// =>  {
+
+	
+// }
+
+
+
+type InferWrappedReturn<T> = T extends (...args: any[]) => infer R ? R : never;

@@ -1,0 +1,19 @@
+{
+  "name": "@doeixd/watch-v5",
+  "version": "5.0.0-alpha.1",
+  "exports": "./mod.ts",
+  "tasks": {
+    "dev": "deno run --watch --allow-all dev.ts",
+    "test": "deno test --allow-all",
+    "check": "deno check mod.ts",
+    "bench": "deno bench --allow-all"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"]
+  }
+}

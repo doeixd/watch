@@ -1,4 +1,5 @@
 import { createWithGlobal } from "./createWithGlobal";
+import { BasicArgs } from "../watch2";
 
 type ArgsWithState = {
   state: object
@@ -12,7 +13,7 @@ type ArgsWithOnCleanup = {
   on: OnFunctionWith<{cleanup: Function}>
 }
 
-export const withState = createWithGlobal<(args: {el: Element} & ArgsWithOnCleanup ) => unknown, {el: Element} & ArgsWithOnCleanup, WeakMap<Element, object>>('states', (last, args, setupFn) => {
+export const withState = createWithGlobal<{el: Element} & ArgsWithOnCleanup &  ArgsWithState , WeakMap<Element, object>>('states', (last, args, setupFn) => {
   const states = last
 
   let state = states.get(args.el)
@@ -29,3 +30,4 @@ export const withState = createWithGlobal<(args: {el: Element} & ArgsWithOnClean
 
   return states
 },  new WeakMap<Element, object>())
+

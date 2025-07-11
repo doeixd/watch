@@ -1,22 +1,43 @@
 import { addDefaultBehaviorsWrapper, watch, SetupFn } from '../src/watch2'
 import { withOn, withState, withStyle } from '../src/wrappers'
+import { use } from '../src/wrappers/createWrapper'
 
-// watch<HTMLInputElement>('input', ({on}) => {
-//   on('booby', (e, detail) => {
+watch('input', <HTMLInputElement>({on}) => {
+  on('click', (e, detail) => {
 
-//   })
-// })
+  })
+})
 
-const button = watch('button')
+
+
+const button = watch('button', withOn(a => {
+
+}))
 
 button.on('click')
 
-let o = withOn(a => {
-	return a
+let p = withState(a => {
+	a
 })
 
-watch('button', withOn(a => a)((a) => 
-	
+
+let i: SetupFn = a => a
+let o = withOn(i)
+
+watch('button', o(l => {
+	console.log(l)
+}))
+const j = use(i, withOn)
+
+// const use = <F extends Function>(fn: F) => {
+// 	return ((arg: F) => {
+
+// 	})
+// }
+
+
+watch('button', withOn(a => a)((a) =>
+
 }))
 
 

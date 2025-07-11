@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch v5 - Development</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 2rem;
+            background: #f8f9fa;
+            color: #212529;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #0d6efd;
+            margin-bottom: 1rem;
+        }
+        
+        .status {
+            background: #e7f3ff;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #0d6efd;
+        }
+        
+        button {
+            background: #0d6efd;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #0b5ed7;
+            transform: translateY(-1px);
+        }
+        
+        button.test-class {
+            background: #198754;
+        }
+        
+        button.dynamic-active {
+            background: #dc3545;
+        }
+        
+        button.clicked {
+            background: #6f42c1;
+            transform: scale(0.95);
+        }
+        
+        input {
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin: 0.5rem;
+            width: 200px;
+        }
+        
+        .test-container {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        
+        .log {
+            background: #212529;
+            color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .demo-section {
+            margin: 2rem 0;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        
+        .demo-section h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Watch v5: The Elegant Kernel</h1>
+        
+        <div class="status">
+            <strong>Status:</strong> Development Mode - Check console for detailed logs
+        </div>
+        
+        <div class="demo-section">
+            <h3>Live Demo</h3>
+            <p>The following elements will be enhanced by Watch v5:</p>
+            
+            <div id="demo-buttons">
+                <!-- Buttons will be created dynamically -->
+            </div>
+            
+            <div id="demo-inputs">
+                <!-- Inputs will be created dynamically -->
+            </div>
+            
+            <div id="demo-container">
+                <!-- Container will be created dynamically -->
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h3>Console Output</h3>
+            <div class="log" id="console-log">
+                Initializing Watch v5...<br>
+                Open browser console for detailed output.
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h3>Manual Tests</h3>
+            <button onclick="createTestElement()">Create New Element</button>
+            <button onclick="removeTestElement()">Remove Element</button>
+            <button onclick="showObserverStatus()">Show Observer Status</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Override console.log to also show in page
+        const originalLog = console.log;
+        const logDiv = document.getElementById('console-log');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            logDiv.innerHTML += message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+        
+        // Global test functions
+        window.createTestElement = function() {
+            const btn = document.createElement('button');
+            btn.textContent = 'New Test Button';
+            btn.className = 'manual-test';
+            document.getElementById('demo-buttons').appendChild(btn);
+            console.log('Manual test button created');
+        };
+        
+        window.removeTestElement = function() {
+            const btn = document.querySelector('.manual-test');
+            if (btn) {
+                btn.remove();
+                console.log('Manual test button removed');
+            }
+        };
+        
+        window.showObserverStatus = async function() {
+            const { getObserverStatus } = await import('./src/core/observer.ts');
+            const status = getObserverStatus();
+            console.log('Current observer status:', status);
+        };
+        
+        // Import and run dev tests
+        import('./dev.ts').then(() => {
+            console.log('✅ Watch v5 loaded successfully');
+        }).catch(err => {
+            console.error('❌ Error loading Watch v5:', err);
+        });
+    </script>
+</body>
+</html>

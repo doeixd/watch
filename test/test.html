@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent-Child Component Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .parent-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .counter-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .counter-btn:hover {
+            background: #0056b3;
+        }
+        .reset-all-btn, .sum-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .reset-all-btn:hover, .sum-btn:hover {
+            background: #218838;
+        }
+        .child-with-parent {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .child-with-parent:hover {
+            background: #e0a800;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .test-section {
+            margin-bottom: 30px;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-section">
+        <h1>Watch v5 - Parent-Child Component Test</h1>
+        <p class="description">This test demonstrates the new parent-child component composition features:</p>
+        <ul>
+            <li><strong>Child-to-Parent:</strong> Counter buttons expose APIs that the parent can call</li>
+            <li><strong>Parent-to-Child:</strong> Child components can access parent context</li>
+        </ul>
+    </div>
+
+    <div class="parent-container">
+        <h2>Parent Component with Child Watchers</h2>
+        <p class="description">Click the counter buttons to increment. Use "Reset All" to reset all counters. Use "Show Total" to sum all counters.</p>
+        
+        <button class="counter-btn" id="btn1">Counter 1: 0</button>
+        <button class="counter-btn" id="btn2">Counter 2: 0</button>
+        <button class="counter-btn" id="btn3">Counter 3: 0</button>
+        
+        <div style="margin-top: 15px;">
+            <button class="reset-all-btn">Reset All</button>
+            <button class="sum-btn">Show Total</button>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <button class="child-with-parent">Child with Parent Access</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Implementation Details</h2>
+        <p class="description">The implementation includes:</p>
+        <ul>
+            <li><code>createChildWatcher()</code> - Creates a live Map of child APIs</li>
+            <li><code>getParentContext()</code> - Allows children to access parent context</li>
+            <li><code>runOn()</code> - Now captures and stores generator return values</li>
+            <li>Generator return values are stored as public APIs</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        // Simple inline test since we can't easily import the full module
+        console.log('Test page loaded. In a real implementation, you would import the watch library and use:');
+        console.log('import { watch, createChildWatcher, getParentContext } from "@doeixd/watch";');
+        
+        // Mock implementation for demonstration
+        const mockParentChild = {
+            childApis: new Map(),
+            
+            // Simulate child button behavior
+            setupCounterButton(element) {
+                let count = 0;
+                element.textContent = `${element.textContent.split(':')[0]}: ${count}`;
+                
+                element.addEventListener('click', () => {
+                    count++;
+                    element.textContent = `${element.textContent.split(':')[0]}: ${count}`;
+                });
+                
+                // Store API
+                this.childApis.set(element, {
+                    getCount: () => count,
+                    reset: () => {
+                        count = 0;
+                        element.textContent = `${element.textContent.split(':')[0]}: ${count}`;
+                        console.log(`Button ${element.id} was reset.`);
+                    }
+                });
+            },
+            
+            // Setup all counter buttons
+            setupAllCounters() {
+                const buttons = document.querySelectorAll('.counter-btn');
+                buttons.forEach(btn => this.setupCounterButton(btn));
+            },
+            
+            // Setup parent actions
+            setupParentActions() {
+                const resetAllBtn = document.querySelector('.reset-all-btn');
+                const sumBtn = document.querySelector('.sum-btn');
+                
+                resetAllBtn.addEventListener('click', () => {
+                    console.log('Resetting all child buttons...');
+                    this.childApis.forEach(api => api.reset());
+                });
+                
+                sumBtn.addEventListener('click', () => {
+                    const total = Array.from(this.childApis.values()).reduce((sum, api) => sum + api.getCount(), 0);
+                    console.log(`Total count across all buttons: ${total}`);
+                    alert(`Total count: ${total}`);
+                });
+            },
+            
+            // Setup child with parent access
+            setupChildWithParent() {
+                const childBtn = document.querySelector('.child-with-parent');
+                childBtn.addEventListener('click', () => {
+                    const total = Array.from(this.childApis.values()).reduce((sum, api) => sum + api.getCount(), 0);
+                    console.log(`Child accessing parent: Total count is ${total}`);
+                    alert(`Child sees parent total: ${total}`);
+                });
+            }
+        };
+        
+        // Initialize the mock test
+        mockParentChild.setupAllCounters();
+        mockParentChild.setupParentActions();
+        mockParentChild.setupChildWithParent();
+        
+        console.log('Mock parent-child test initialized');
+        console.log('Child APIs:', mockParentChild.childApis);
+    </script>
+</body>
+</html>

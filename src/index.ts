@@ -2,7 +2,7 @@
 // Main module exports
 
 // Core watch function
-export { watch, run, runOn } from './src/watch.ts';
+export { watch, run, runOn } from './watch';
 
 // Core types for advanced usage
 export type {
@@ -22,8 +22,9 @@ export type {
   MountHandler,
   UnmountHandler,
   WatchTarget,
-  ElementMatcher
-} from './src/types.ts';
+  ElementMatcher,
+  ParentContext
+} from './types';
 
 // DOM manipulation functions (comprehensive dual API)
 export {
@@ -82,8 +83,12 @@ export {
   
   // Aliases
   el,
-  all
-} from './src/api/dom.ts';
+  all,
+  
+  // Component composition
+  createChildWatcher,
+  child
+} from './api/dom';
 
 // Event handling functions (dual API)
 export {
@@ -106,7 +111,7 @@ export {
   change,
   input,
   submit
-} from './src/api/events.ts';
+} from './api/events';
 
 // Context functions for use within generators
 export {
@@ -117,8 +122,9 @@ export {
   ctx,
   createGenerator,
   gen,
-  watchGenerator
-} from './src/core/generator.ts';
+  watchGenerator,
+  getParentContext
+} from './core/generator';
 
 // Context factory functions
 export {
@@ -134,7 +140,7 @@ export {
   withThrottle,
   once,
   withFilter
-} from './src/core/context-factory.ts';
+} from './core/context-factory';
 
 // Generator utilities
 export {
@@ -143,7 +149,7 @@ export {
   onceGenerator,
   delayGenerator,
   batchGenerator
-} from './src/core/generator-utils.ts';
+} from './core/generator-utils';
 
 // Enhanced state management
 export {
@@ -162,7 +168,7 @@ export {
   clearAllState,
   debugState,
   logState
-} from './src/core/state.ts';
+} from './core/state';
 
 // Execution helpers
 export {
@@ -180,7 +186,7 @@ export {
   compose,
   unless,
   async
-} from './src/core/execution-helpers.ts';
+} from './core/execution-helpers';
 
 
 
@@ -188,20 +194,20 @@ export {
 export {
   getCurrentElement,
   getCurrentContext
-} from './src/core/context.ts';
+} from './core/context';
 
 // Observer utilities
 export {
   register,
   getObserverStatus,
   cleanup as cleanupObserver
-} from './src/core/observer.ts';
+} from './core/observer';
 
 // Re-export for convenience
-export { el as $ } from './src/core/context.ts';
+export { el as $ } from './core/context';
 
 // Version info
 export const VERSION = '5.0.0-alpha.1';
 
 // Default export is the watch function
-export { watch as default } from './src/watch.ts';
+export { watch as default } from './watch';

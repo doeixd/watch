@@ -6,10 +6,14 @@ import type {
   SelfFunction, 
   CleanupFunction,
   GeneratorContext
-} from '../types.ts';
+} from '../types';
 
 // Global context stack for tracking current element during generator execution
 const contextStack: GeneratorContext[] = [];
+
+// Global registry to link a child element to its parent watcher's element.
+// This is the backbone of the getParentContext() functionality.
+export const parentContextRegistry = new WeakMap<HTMLElement, HTMLElement>();
 
 // Get the current context
 export function getCurrentContext<El extends HTMLElement = HTMLElement>(): GeneratorContext<El> | null {
@@ -120,13 +124,13 @@ export function createWatchContext<El extends HTMLElement>(
 }
 
 // Execute a generator function with proper context and type safety
-export function executeGenerator<El extends HTMLElement>(
+export function executeGenerator<El extends HTMLElement, T = any>(
   element: El,
   selector: string,
   index: number,
   array: readonly El[],
-  generatorFn: () => Generator<any, void, unknown>
-): void {
+  generatorFn: () => Generator<any, T, unknown>
+): T | undefined {
   const watchContext = createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
     element,
@@ -137,6 +141,8 @@ export function executeGenerator<El extends HTMLElement>(
   
   // Push context onto stack
   pushContext(generatorContext);
+  
+  let returnValue: T | undefined;
   
   try {
     // Execute generator in typed context
@@ -157,12 +163,17 @@ export function executeGenerator<El extends HTMLElement>(
       
       result = generator.next();
     }
+    
+    // When the generator is done, capture its return value
+    returnValue = result.value;
   } catch (e) {
     console.error('Error in generator execution:', e);
   } finally {
     // Pop context from stack
     popContext();
   }
+  
+  return returnValue;
 }
 
 // Global proxy for accessing current element when not in generator context
@@ -229,6 +240,15 @@ export function ctx<El extends HTMLElement = HTMLElement>(): WatchContext<El> {
   );
   
   return watchContext;
+}
+
+// These helpers are used by createChildWatcher to manage the hierarchy.
+export function registerParentContext(child: HTMLElement, parent: HTMLElement): void {
+  parentContextRegistry.set(child, parent);
+}
+
+export function unregisterParentContext(child: HTMLElement): void {
+  parentContextRegistry.delete(child);
 }
 
 // Clear all contexts (for testing)

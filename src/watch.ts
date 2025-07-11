@@ -19,14 +19,14 @@ import type {
   ElementFn, 
   ElementMatcher, 
   WatchTarget, 
-  WatchContext, 
   CleanupFunction,
   PreDefinedWatchContext
-} from './types.ts';
-import { register } from './core/observer.ts';
-import { executeGenerator } from './core/context.ts';
-import { isPreDefinedWatchContext } from './core/context-factory.ts';
-import { debounceGenerator, throttleGenerator, onceGenerator } from './core/generator-utils.ts';
+} from './types';
+import { register } from './core/observer';
+import { executeGenerator } from './core/context';
+import { isPreDefinedWatchContext } from './core/context-factory';
+import { debounceGenerator, throttleGenerator, onceGenerator } from './core/generator-utils';
+import { setContextApi } from './core/generator';
 
 // Watch function overloads - the heart of the system
 
@@ -273,7 +273,7 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
     // Create delegation handlers for common events
     const delegationHandlers = new Map<string, (event: Event) => void>();
     
-    const createDelegationHandler = (eventType: string) => {
+    const createDelegationHandler = () => {
       return (event: Event) => {
         const target = event.target as HTMLElement;
         const matchedChild = target.closest(childSelector) as HTMLElement;
@@ -298,7 +298,7 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
     const eventTypes = ['click', 'input', 'change', 'submit', 'focus', 'blur', 'keydown', 'keyup'];
     
     eventTypes.forEach(eventType => {
-      const handler = createDelegationHandler(eventType);
+      const handler = createDelegationHandler();
       delegationHandlers.set(eventType, handler);
       parent.addEventListener(eventType, handler, true);
     });
@@ -337,13 +337,18 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
       // Create a temporary array for this single element
       const arr = [element];
       
-      executeGenerator(
+      const returnValue = executeGenerator(
         element,
         selector,
         0,
         arr,
         actualGenerator
       );
+      
+      // Store the API if it exists
+      if (returnValue !== undefined) {
+        setContextApi(element, returnValue);
+      }
     };
     
     return register(selector, setupFn);
@@ -355,13 +360,18 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
     const arr = [element];
     
     // Apply immediately
-    executeGenerator(
+    const returnValue = executeGenerator(
       element,
       `element-${element.tagName.toLowerCase()}`,
       0,
       arr,
       actualGenerator
     );
+    
+    // Store the API if it exists
+    if (returnValue !== undefined) {
+      setContextApi(element, returnValue);
+    }
     
     // Observe for removal
     const removalObserver = new MutationObserver((mutations) => {
@@ -530,13 +540,18 @@ export function run<S extends string>(
   
   elements.forEach((element, index) => {
     if (element instanceof HTMLElement) {
-      executeGenerator(
+      const returnValue = executeGenerator(
         element as ElementFromSelector<S>,
         selector,
         index,
         elements as ElementFromSelector<S>[],
         generator
       );
+      
+      // Store the API if it exists
+      if (returnValue !== undefined) {
+        setContextApi(element, returnValue);
+      }
     }
   });
 }
@@ -602,17 +617,24 @@ export function run<S extends string>(
  * @param element - The specific HTML element to run the generator on
  * @param generator - Generator function that defines the behavior to execute
  */
-export function runOn<El extends HTMLElement>(
+export function runOn<El extends HTMLElement, T = any>(
   element: El,
-  generator: () => Generator<ElementFn<El>, void, unknown>
-): void {
+  generator: () => Generator<ElementFn<El>, T, unknown>
+): T | undefined {
   const arr = [element];
   
-  executeGenerator(
+  const returnValue = executeGenerator(
     element,
     `element-${element.tagName.toLowerCase()}`,
     0,
     arr,
     generator
   );
+  
+  // Store the API if it exists
+  if (returnValue !== undefined) {
+    setContextApi(element, returnValue);
+  }
+  
+  return returnValue;
 }

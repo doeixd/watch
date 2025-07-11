@@ -91,6 +91,12 @@ export type SelfFunction<El extends HTMLElement = HTMLElement> = () => El;
 // Generator function type - element type is inferred and maintained throughout
 export type GeneratorFunction<El extends HTMLElement = HTMLElement, T = void> = () => Generator<ElementFn<El, any>, T, unknown>;
 
+// Parent context type for child components
+export interface ParentContext<ParentEl extends HTMLElement = HTMLElement, ParentApi = any> {
+  element: ParentEl;
+  api: ParentApi;
+}
+
 // Context function type - returns typed context
 export type ContextFunction<El extends HTMLElement = HTMLElement> = () => WatchContext<El>;
 

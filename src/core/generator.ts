@@ -4,9 +4,10 @@ import type {
   ElementFn, 
   TypedGeneratorContext, 
   CleanupFunction,
-  ElementFromSelector 
-} from '../types.ts';
-import { getCurrentContext } from './context.ts';
+  ElementFromSelector,
+  ParentContext 
+} from '../types';
+import { getCurrentContext, parentContextRegistry } from './context';
 
 // Create a typed generator context that maintains element type
 export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGeneratorContext<El> {
@@ -77,8 +78,75 @@ export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGene
 // Global cleanup registry
 const cleanupRegistry = new WeakMap<HTMLElement, Set<CleanupFunction>>();
 
+// Global registry to store the public API returned by a generator for an element.
+const generatorApiRegistry = new WeakMap<HTMLElement, any>();
+
 function getCleanupRegistry(): WeakMap<HTMLElement, Set<CleanupFunction>> {
   return cleanupRegistry;
+}
+
+/**
+ * Retrieves the public API returned by an element's generator.
+ * @param element The element whose API is being requested.
+ * @returns The returned API object, or undefined if none exists.
+ * @internal
+ */
+export function getContextApi<T = any>(element: HTMLElement): T | undefined {
+  return generatorApiRegistry.get(element);
+}
+
+/**
+ * Stores the public API returned by an element's generator.
+ * @param element The element whose API is being stored.
+ * @param api The API object to store.
+ * @internal
+ */
+export function setContextApi<T = any>(element: HTMLElement, api: T): void {
+  generatorApiRegistry.set(element, api);
+}
+
+/**
+ * # getParentContext() - Access the Parent Watcher's Context
+ * 
+ * From within a child's generator (one initiated by `createChildWatcher`),
+ * this function retrieves the element and public API of the direct parent watcher.
+ * This creates a parent-to-child communication channel.
+ * 
+ * ## Usage
+ * 
+ * ```typescript
+ * // In a child's generator:
+ * function* childComponent() {
+ *   // Specify the expected parent element and API types for full type safety.
+ *   const parent = getParentContext<HTMLFormElement, { submit: () => void }>();
+ * 
+ *   if (parent) {
+ *     console.log(`My parent is #${parent.element.id}`);
+ *     // Call a method on the parent's API.
+ *     parent.api.submit(); 
+ *   }
+ * }
+ * ```
+ * 
+ * @returns An object containing the parent's `element` and `api`, or `null` if the element is not a watched child.
+ */
+export function getParentContext<
+  ParentEl extends HTMLElement = HTMLElement,
+  ParentApi = any
+>(): ParentContext<ParentEl, ParentApi> | null {
+  const childElement = self(); // Gets the current (child) element from the context stack.
+  const parentElement = parentContextRegistry.get(childElement);
+
+  if (!parentElement) {
+    return null;
+  }
+
+  const parentApi = getContextApi<ParentApi>(parentElement);
+
+  return {
+    element: parentElement as ParentEl,
+    api: parentApi as ParentApi,
+  };
 }
 
 // Type-safe helper functions that work within generators

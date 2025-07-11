@@ -18,7 +18,7 @@ document.querySelectorAll('.product-card .add-to-cart').forEach(button => {
 // None of the new buttons work. Your JavaScript is broken.
 ```
 
-For years, the solution was jQuery's magical `.live()` (and later, the more performant `.on()`). You could attach an event listener to elements that didn't exist yet. It was a game-changer. But it had its own problems: state management was a nightmare, and cleanup was a manual, leaky process.
+For years, the solution was jQuery's magical `.live()`. You could attach an event listener to elements that didn't exist yet. It was a game-changer. But it had its own problems: state management was a nightmare, and cleanup was a manual, leaky process.
 
 Today, I want to show you a library that feels like the spiritual successor to `.live()`, rebuilt for the modern era with components, state management, and type safety. It's called **Watch**, and it’s a functional and composable tool for the unruly DOM.
 

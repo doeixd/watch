@@ -270,10 +270,10 @@ Watch isn't trying to replace React—it's here to solve a different class of pr
 
 ## The Bigger Picture
 
-Watch represents a return to the web's core philosophy: progressive enhancement. The idea that you start with working HTML and gradually layer on richer interactions. That you build for resilience, not just for the happy path.
+Watch represents a return to the web's core philosophy: progressive enhancement. The idea that you start with working HTML and gradually layer on richer interactions.
 
-In a world obsessed with controlling every pixel and every interaction, Watch suggests a different approach: embrace the chaos, listen to the DOM, and build behaviors that adapt rather than break.
+In a time where frameworks own everything on the page, Watch suggests a different approach: embrace the chaos, listen to the DOM, and build behaviors that adapt.
 
-Sometimes the most elegant solution isn't to replace the DOM, but to watch it come to life.
+Sometimes the most elegant solution isn't to own the DOM, but to *watch* it come to life.
 
 Ready to give it a try? Check out the [documentation](../README.md) and let me know what you think. Watch is still evolving, and feedback from real-world usage helps make it better.

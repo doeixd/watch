@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.1](https://github.com/doeixd/watch/compare/v2.0.0...v2.0.1) (2025-07-11)
+
+
+### Bug Fixes
+
+* resolve TypeScript compilation errors and build issues ([8ee2b80](https://github.com/doeixd/watch/commit/8ee2b802edcb62326b7d8bdadb74948bf1679bca))
+
 ## [2.0.0](https://github.com/doeixd/watch/compare/v1.0.7...v2.0.0) (2025-07-11)
 
 

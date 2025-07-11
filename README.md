@@ -346,11 +346,7 @@ watch('.counter', function* () {
 ## Installation
 
 ```bash
-# Deno
-import { watch } from "jsr:@doeixd/watch@5";
-
-# Node.js (coming soon)
-npm install @doeixd/watch
+npm install watch-selector
 ```
 
 ## Browser Support
@@ -368,6 +364,99 @@ Watch v5 supports all modern browsers with:
 - **Efficient batching**: DOM changes processed in batches
 - **Memory safe**: Automatic cleanup with WeakMaps
 - **Type-safe**: No runtime type checking needed
+
+## Gotchas & Performance Considerations
+
+### Performance Bottlenecks
+
+Because `watch` uses a global MutationObserver to detect DOM changes, it needs to check every added element against all active selectors. This can cause performance issues when:
+
+1. **Adding many elements at once** - Each new element is tested against all watchers
+2. **Using broad selectors** - Generic selectors like `div` or `*` match more frequently
+3. **Deep DOM mutations** - Adding elements with many children triggers multiple checks
+
+### Optimization Strategies
+
+#### 1. Use Event Delegation for Dynamic Content
+
+Instead of watching individual elements, use event delegation when adding lots of similar elements:
+
+```typescript
+// ❌ Slow: Each button gets its own watcher
+watch('button', function* () {
+  yield click(() => console.log('Clicked!'));
+});
+
+// ✅ Fast: Single delegation handler
+watch(document.body, 'button', function* () {
+  yield click(() => console.log('Clicked!'));
+});
+```
+
+#### 2. Scope Watchers to Specific Parents
+
+Limit the observation scope by using more specific selectors or the event delegation API:
+
+```typescript
+// ❌ Slow: Observes entire document
+watch('todo-item', function* () {
+  yield click(() => {
+    // This will cause lag when adding many elements elsewhere
+    document.querySelector('.lag-container').innerHTML += 
+      '<button>Lag</button>'.repeat(100000);
+  });
+});
+
+// ✅ Fast: Scoped to specific parent
+watch(document.querySelector('.todo-list'), 'todo-item', function* () {
+  yield click(() => {
+    // Only checks elements within .todo-list
+    document.querySelector('.lag-container').innerHTML += 
+      '<button>Lag</button>'.repeat(100000);
+  });
+});
+```
+
+#### 3. Use Specific Selectors
+
+More specific selectors reduce the number of false matches:
+
+```typescript
+// ❌ Slow: Matches many elements
+watch('div', function* () {
+  yield addClass('processed');
+});
+
+// ✅ Fast: Specific selector
+watch('.specific-component', function* () {
+  yield addClass('processed');
+});
+```
+
+#### 4. Batch DOM Operations
+
+When adding many elements, batch them in a single operation:
+
+```typescript
+// ❌ Slow: Individual additions trigger observer repeatedly
+for (let i = 0; i < 1000; i++) {
+  container.appendChild(createButton());
+}
+
+// ✅ Fast: Single batch operation
+const fragment = document.createDocumentFragment();
+for (let i = 0; i < 1000; i++) {
+  fragment.appendChild(createButton());
+}
+container.appendChild(fragment);
+```
+
+### Troubleshooting Performance Issues
+
+1. **Profile using DevTools**: Use Performance tab to identify bottlenecks
+2. **Check selector specificity**: Ensure selectors are as specific as possible
+3. **Monitor mutation frequency**: High mutation rates may indicate over-watching
+4. **Consider `run()` for static content**: Use `run()` instead of `watch()` for elements that won't change
 
 ## License
 

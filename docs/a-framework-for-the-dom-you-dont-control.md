@@ -20,9 +20,36 @@ document.querySelectorAll('.product-card .add-to-cart').forEach(button => {
 // None of the new buttons work. Your JavaScript is broken.
 ```
 
-For years, the solution was jQuery's magical `.live()`. You could attach an event listener to elements that didn't exist yet. It was brilliant. But `.live()` had its own problems: state management was a nightmare, and cleanup was a manual, leaky process. When jQuery moved to the more performant but less "magical" `.on()` delegation model, we lost something important: a simple, declarative way to handle a chaotic DOM.
+The fundamental issue is that most JavaScript assumes a stable DOM. Components mount once, manage their own lifecycle, and live in a world where they control their own rendering. But what if you don't control the rendering? What if the server can replace your DOM at any moment?
 
-Today, I want to show you a library that feels like the spiritual successor to `.live()`, rebuilt for the modern era with components, state management, and automatic cleanup. It's called **Watch**, and it’s a functional, composable tool for the unruly DOM.
+You could reach for a full framework like React, but then you're committed to client-side rendering, build tools, and explaining to your team why a simple form enhancement now requires a complete architectural overhaul.
+
+For years, jQuery offered a elegant solution to this exact problem with `.live()`. You could attach event listeners to elements that didn't exist yet:
+
+```javascript
+// jQuery's magical .live() - worked on future elements
+$('.add-to-cart').live('click', handleAddToCart);
+```
+
+It was brilliant. No matter when those `.add-to-cart` buttons appeared in the DOM, they would automatically have click handlers. But `.live()` had its own problems: state management was a nightmare, cleanup was manual and error-prone, and performance suffered as the DOM grew larger.
+
+When jQuery deprecated `.live()` in favor of `.on()`, we lost the intuitive "just make it work" approach that made dynamic content feel manageable.
+
+<br />
+
+## Introducing Watch
+
+Watch is a JavaScript library that embraces DOM chaos rather than fighting it. It's the spiritual successor to jQuery's `.live()`, rebuilt for the modern era with components, state management, and automatic cleanup. Watch is built on a simple premise: you declare behaviors for CSS selectors, and those behaviors persist no matter what the server throws at you.
+
+```javascript
+import { watch } from 'watch-selector';
+
+// This works on Monday, Tuesday, and every day after
+watch('.product-card .add-to-cart', function* () {
+  yield on('click', handleAddToCart);
+});
+```
+<br />
 
 ## The Secret Sauce: Generators as Component Contexts
 

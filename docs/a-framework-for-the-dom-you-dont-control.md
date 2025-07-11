@@ -6,9 +6,7 @@ Not because you wrote bad code, but because the server-rendered app you're enhan
 
 I want you to think about a specific, and very common, kind of web development. It’s not the pristine, greenfield world of a brand-new Next.js or SvelteKit application. It’s messier. I’m talking about adding features to a big, server-rendered Rails or Django app. I’m talking about writing a user script to enhance a third-party website. I’m talking about building a Chrome extension that needs to inject life into pages you have no control over.
 
-I’m talking about the world of HTMX, where the server sends you HTML and you just have to *deal with it*.
-
-In this world, the classic JavaScript approach falls apart instantly.
+In this world, the classic JavaScript approach falls apart.
 
 ```javascript
 // You write this on Monday. It works.

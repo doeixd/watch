@@ -1,0 +1,62 @@
+{
+  "name": "watch-selector",
+  "version": "1.0.0",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT",
+  "keywords": [
+    "watch element",
+    "watch-element",
+    "watch selector",
+    "selector-observer",
+    "webcomponents",
+    "mount observer",
+    "selector observer",
+    "observer",
+    "reactive",
+    "mutation-observer",
+    "web-components",
+    "dom-manipulation",
+    "event-handling",
+    "state-management",
+    "pridepack"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "pridepack": "2.6.4",
+    "standard-version": "^9.5.0",
+    "tslib": "^2.8.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "scripts": {
+    "release": "standard-version && git push --follow-tags origin main",
+    "prepublishOnly": "pridepack clean && pridepack build",
+    "build": "pridepack build",
+    "type-check": "pridepack check",
+    "clean": "pridepack clean",
+    "watch": "pridepack watch",
+    "start": "pridepack start",
+    "dev": "pridepack dev",
+    "test": "vitest"
+  },
+  "private": false,
+  "description": "Runs a function when a selector is added to dom",
+  "repository": {
+    "url": "git+https://github.com/doeixd/watch.git",
+    "type": "git"
+  },
+  "homepage": "https://github.com/doeixd/watch",
+  "bugs": {
+    "url": "https://github.com/doeixd/watch/issues"
+  },
+  "author": "Patrick Glenn",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -30,14 +30,14 @@ Under the hood, Watch uses a MutationObserver to track DOM changes. When element
 
 ## The Secret Sauce: Generators as Persistent Contexts
 
-Here's where Watch makes its most important design decision. Instead of callbacks or classes, it uses **JavaScript generators** (`function*`) as the foundation for component behavior. This isn't just a clever trick—it's the key insight that makes everything else possible.
+Here's where Watch makes its most important design decision. Instead of callbacks or classes, it uses  generators as the foundation for component behavior. This is the key that makes everything else ergonomic.
 
-Let's see why with the classic "click counter" problem.
+Let's see how with the classic "click counter" problem.
 
-Here’s the old, broken way:
+Here’s the traditional, intuitive, first-draft way:
 
 ```javascript
-// This fails spectacularly. The `clicks` variable is shared
+// This fails. The `clicks` variable is shared
 // by all buttons, and it's lost if the buttons are re-rendered.
 let clicks = 0;
 document.querySelectorAll('button').forEach(btn => {
@@ -73,19 +73,19 @@ This is the "aha!" moment. The generator function creates a persistent execution
 2.  **Declarative API:** `yield click(...)` and `yield text(...)` clearly describe the behavior.
 3.  **Automatic Cleanup:** When an element is removed, its generator instance is discarded. No memory leaks.
 
-It's everything `.live()` promised, but with a proper component model.
+It's everything `.live()` promised, but with a modern component model you're used to.
 
 ## The "Un-Component" Philosophy: An Alternative to Web Components
 
-When we think of components, we often think of Web Components—custom tags like `<my-widget>` with their own encapsulated Shadow DOM and styles. This is great when you control the entire application, but it's a non-starter for the use cases we're talking about. You can't just tell a third-party site to start using your `<my-awesome-button>` tag.
+When we think of components, we often think of Web Components—custom tags like `<my-widget>` with their own encapsulated Shadow DOM and styles. This is great when you control the entire application, but it's a non-starter for the use cases we're talking about. You often can't get a third-party  to start using your `<my-awesome-button>` tag.
 
 Watch offers a different philosophy: **behavioral components**. It enhances existing HTML instead of replacing it.
 
 This approach gracefully sidesteps the common frustrations of Web Components:
 
 *   **No Custom Tags:** You don't need to define or use custom elements. You attach behavior to a standard `<div class="product-card">`. This is perfect for server-rendered HTML and legacy systems.
-*   **No Shadow DOM Drama:** Forget fighting with CSS custom properties to style your component or piercing the shadow boundary to access an inner element. Your global CSS works just as you'd expect.
-*   **No Boilerplate:** There’s no `class MyComponent extends HTMLElement { connectedCallback() { ... } }`. You just write a generator function and point it at a selector. It’s lightweight and functional.
+*   **No Shadow DOM:** Forget fighting with CSS custom properties to style your component or piercing the shadow boundary to access an inner element. Your global CSS works just as you'd expect.
+*   **No Boilerplate:** There’s no `class MyComponent extends HTMLElement { connectedCallback() { ... } }`. You just write a function and point it at a selector. It’s lightweight and functional.
 
 You're not creating new *kinds* of elements; you're creating new *behaviors* for existing ones.
 
@@ -181,7 +181,7 @@ This is the ultimate expression of the library's philosophy: it provides a power
 
 So, who is this for?
 
-Watch sits in a fascinating middle-ground, somewhere between the "bag of utilities" feel of jQuery and the pure, unopinionated minimalism of a library like vanJS. It provides structure and a component model without forcing a full virtual DOM or a complex build process.
+Watch sits in a fascinating middle-ground, somewhere between the "bag of utilities" feel of jQuery and the pure, unopinionated minimalism of a library like VanJS. It provides structure and a component model without forcing a full virtual DOM or a complex build process.
 
 It works well when you find yourself in these scenarios:
 
@@ -193,3 +193,7 @@ It works well when you find yourself in these scenarios:
 Watch isn't here to replace React. It's here to solve a different class of problems—the ones that exist in the messy, unpredictable, and often uncontrollable reality of the web. It’s a reminder that sometimes the most elegant solution isn’t to replace the DOM, but simply to listen to it, and watch it come to life.
 
 > Sometimes the most elegant solution isn't to replace the DOM, but simply to listen to it, and watch it come to life.
+
+## Give it a Try
+
+If this sounds useful for your project, I'd love for you to check out [the README](../README.md) and let me know what you think. Watch is still evolving, and feedback from real-world usage helps make it better.

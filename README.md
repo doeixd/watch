@@ -1,10 +1,13 @@
-# Watch v5: The Elegant Kernel
-
-**A type-safe, performant DOM observation library with dual APIs and generator composition.**
-
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![Deno](https://img.shields.io/badge/Deno-Compatible-green.svg)](https://deno.land/)
 [![JSR](https://img.shields.io/badge/JSR-Published-orange.svg)](https://jsr.io/)
+
+# Watch 🕶️
+
+**A type-safe, performant DOM observation library with dual APIs and generator composition.**
+Watch is a bare-bones web component alternative. It runs a function, and adds event listeners to elements that match a given selector. That's basically it. 
+
+Since each match of a given selector is given it's own state, it enables light-weight components for small bits of interactivity. A common use-case in server-driven websites, user-scripts, or Chrome Extensions, basically anywhere where you don't control the markup think Astro, e-commerce templates, blogs, htmx sites, etc...
 
 ## Quick Start
 

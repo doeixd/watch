@@ -93,20 +93,24 @@ You're not creating new *kinds* of elements; you're creating new *behaviors* for
 
 ## More Than a Utility: A System for Composition
 
-Because Watch is functional at its core, it’s not just for simple event listeners. It's a complete system for building complex, decoupled behaviors.
+Because Watch is functional at its core, it's not just for simple event listeners. It's a complete system for building complex, decoupled behaviors that can be layered and composed in ways that make your code more maintainable.
 
-It starts with **layering**. Imagine you have a core product card behavior:
+### Starting Simple: Layering Behaviors
+
+The most common composition pattern is **layering**—adding new behaviors to existing ones without modifying the original code. This is perfect for teams working on the same components or when you need to add features like analytics or A/B testing.
+
+Here's a core product card behavior:
 
 ```typescript
 // --- Core product card functionality (product-card.ts) ---
 export const productController = watch('.product-card', function* () {
-  // Core logic: add to cart, manage quantity, etc.
   const inCart = createState('inCart', false);
   yield on('click', '.add-btn', () => inCart.set(true));
+  // ... rest of the cart logic
 });
 ```
 
-Now, a different team needs to add analytics. They don't need to touch the original file. They can simply import the controller and layer a new behavior on top:
+Later, a different team needs to add analytics. They don't need to touch the original file—they can layer their behavior on top:
 
 ```typescript
 // --- Analytics layer (analytics.ts) ---
@@ -119,64 +123,112 @@ productController.layer(function* () {
 });
 ```
 
-These two pieces of logic can live in different files, be maintained by different teams, and are completely decoupled. The analytics team can add their tracking layer without ever touching the core behavior's code.
+These two pieces of logic live in different files, can be maintained by different teams, and are completely decoupled. It's a clean way to handle separation of concerns.
 
-This is powerful **separation of concerns**. But this is just one form of composition. The system also allows for **functional composition**, where a container behavior can aggregate and coordinate the behaviors of the elements within it.
+### Building Up: Component Hierarchies
 
-This is achieved using a classic functional pattern: a function that returns other functions. The generator for an inner behavior can `return` a contract—a set of functions that control its internal state.
+Sometimes you need more than just layering—you need actual parent-child relationships where components can talk to each other. Watch handles this through functional composition: child components can return APIs that their parents can use.
 
-Let's build an interactive dashboard with multiple counters. First, the behavior for a single counter item:
+Let's build a simple dashboard with multiple counters. First, the child component:
 
 ```typescript
-// Inner Behavior: a single counter widget
+// Child: a single counter button
 function* counterWidget() {
   let count = 0;
-  yield text(`Count: ${count}`); // Set initial text
+  yield text(`Count: ${count}`);
 
   yield click(() => {
     count++;
     yield text(`Count: ${count}`);
   });
 
-  // Return a "contract" of functions for a consumer to use.
+  // Return an API for the parent to use
   return {
     getCount: () => count,
     reset: () => {
       count = 0;
-      yield text(`Count: ${count}`); // Yield still works inside these functions!
+      yield text(`Count: ${count}`); // Yield still works inside API methods!
     },
   };
 }
 ```
 
-Now, the container—the dashboard—can instantiate this behavior on all its inner elements and compose their returned functions:
+Now the parent dashboard can manage all its counter children:
 
 ```typescript
-// Container Behavior: the dashboard
+// Parent: the dashboard that orchestrates its children
 watch('.counter-dashboard', function* () {
-  // `child` instantiates `counterWidget` on each matching element
-  // and returns a live Map of their resulting "contracts".
-  // This Map automatically updates as elements are added or removed!
-  const counterContracts = child('.counter-widget', counterWidget);
+  // `child` finds all matching elements and gives us a live Map of their APIs
+  const counterApis = child('.counter-widget', counterWidget);
 
-  // Now the container can use the contracts to coordinate the inner widgets.
   yield click('.reset-all-btn', () => {
-    for (const contract of counterContracts.values()) {
-      contract.reset();
+    for (const api of counterApis.values()) {
+      api.reset();
     }
   });
 
   yield click('.show-total-btn', () => {
-    const total = Array.from(counterContracts.values())
-                      .reduce((sum, contract) => sum + contract.getCount(), 0);
-    alert(`Total across all counters: ${total}`);
+    const total = Array.from(counterApis.values())
+                      .reduce((sum, api) => sum + api.getCount(), 0);
+    alert(`Total: ${total}`);
   });
 });
 ```
 
-This is true functional composition, applied directly to the DOM. The container behavior isn't tightly coupled to the inner behavior; it just consumes the contract it returns. This creates a clean, decoupled system where complex UIs are built by composing smaller, independent functions, all without a virtual DOM and while remaining resilient to the server swapping out the HTML.
+This gives you a real component hierarchy with type-safe communication between parents and children, all while staying resilient to DOM changes.
 
-This is the ultimate expression of the library's philosophy: it provides a powerful, unopinionated foundation that lets you build the exact abstractions your project needs.
+### Going Further: Reusable Behavior Wrappers
+
+Here's where things get interesting. Because everything is just functions and generators, you can create reusable wrappers that add common functionality to any component. Think of these as "higher-order components" but for DOM behaviors.
+
+For example, maybe you want to add error handling to components without touching their code:
+
+```typescript
+// A wrapper that adds error handling to any component
+function withErrorHandling(componentGenerator) {
+  return function* () {
+    try {
+      yield* componentGenerator(); // Run the original component
+    } catch (error) {
+      console.error('Component failed:', error);
+      yield text('Something went wrong. Please refresh the page.');
+    }
+  };
+}
+
+// Usage:
+const safeCounter = withErrorHandling(counterWidget);
+watch('.counter-widget', safeCounter);
+```
+
+The original `counterWidget` doesn't know or care about error handling—it's been wrapped transparently. This pattern is incredibly useful for cross-cutting concerns like performance monitoring, feature flags, or loading states.
+
+You can even chain these wrappers together:
+
+```typescript
+// A fully-equipped component with multiple behaviors
+const robustWidget = compose(
+  (gen) => withErrorHandling(gen),
+  (gen) => withLoadingState(gen),
+  (gen) => withPerformanceLogging('MyWidget', gen)
+)(function* myWidget() {
+  // Just focus on the core logic here
+  yield text('Hello world!');
+});
+```
+
+### Why This Matters
+
+This composition system solves real problems I've encountered in production apps:
+
+- **Team autonomy**: Different teams can add their own behaviors without stepping on each other's toes
+- **Testability**: You can test core logic separately from cross-cutting concerns
+- **Reusability**: Write a behavior wrapper once, use it everywhere
+- **Maintainability**: Changes to one concern don't ripple through your entire codebase
+
+It's the kind of architecture that makes you feel clever when you write it, but more importantly, it makes you feel grateful when you come back to modify it six months later.
+
+The best part? You can start simple with basic `watch()` calls and gradually adopt these patterns as your app grows. There's no upfront architectural commitment—just a smooth path from simple to sophisticated.
 
 ## Finding its Niche
 

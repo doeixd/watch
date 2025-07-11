@@ -23,7 +23,7 @@ watch('button', function* () {
 });
 ```
 
-## Why Watch v5?
+## Why Watch?
 
 ### 🎯 **Type-Safe by Design**
 Automatic element type inference from selectors:

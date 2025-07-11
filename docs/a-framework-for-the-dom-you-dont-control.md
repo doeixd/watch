@@ -221,9 +221,9 @@ watch('[data-counter]', function* () {
 });
 ```
 
-Watch is a better fit if you prefer clean separation of concerns, want the full power of TypeScript, or need complex programmatic composition patterns.
+Watch is a better fit if you prefer keeping state and logic in TypeScript, or need complex programmatic composition patterns.
 
-**Web Components** work well when you control the entire application, but they're a non-starter for our use cases. You can't get third-party sites to adopt your `<my-awesome-button>` custom elements. Watch enhances existing HTML instead of requiring custom tags.
+**Web Components** work well when you control the application, but often you can't get third-party sites to adopt your `<my-awesome-button>` custom elements. Watch enhances existing HTML instead of requiring custom tags.
 
 More importantly, Web Components come with significant overhead:
 - Shadow DOM isolation fights with existing CSS

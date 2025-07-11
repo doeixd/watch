@@ -26,7 +26,7 @@ Today, I want to show you a library that feels like the spiritual successor to `
 
 The core idea of Watch is simple: you declare behaviors for CSS selectors, and it ensures those behaviors are applied to all matching elements, whether they exist now or are added to the DOM ten minutes from now.
 
-Under the hood, Watch uses a MutationObserver to track DOM changes. When elements matching your selectors are added or removed, Watch automatically manages the lifecycle..
+Under the hood, Watch uses a MutationObserver to track DOM changes. When elements matching your selectors are added or removed, Watch automatically manages the lifecycle.
 
 ## The Secret Sauce: Generators as Persistent Contexts
 

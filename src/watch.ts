@@ -258,7 +258,9 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
         0,
         arr,
         wrappedGenerator
-      );
+      ).catch(error => {
+        console.error('Error in pre-defined context generator:', error);
+      });
     };
     
     return register(context.selector, setupFn);
@@ -289,7 +291,9 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
             0,
             arr,
             delegatedGenerator
-          );
+          ).catch(error => {
+            console.error('Error in delegated generator:', error);
+          });
         }
       };
     };
@@ -313,7 +317,9 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
           index,
           existingChildren as any[],
           delegatedGenerator
-        );
+        ).catch(error => {
+          console.error('Error in existing child generator:', error);
+        });
       }
     });
     
@@ -337,18 +343,20 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
       // Create a temporary array for this single element
       const arr = [element];
       
-      const returnValue = executeGenerator(
+      executeGenerator(
         element,
         selector,
         0,
         arr,
         actualGenerator
-      );
-      
-      // Store the API if it exists
-      if (returnValue !== undefined) {
-        setContextApi(element, returnValue);
-      }
+      ).then(returnValue => {
+        // Store the API if it exists
+        if (returnValue !== undefined) {
+          setContextApi(element, returnValue);
+        }
+      }).catch(error => {
+        console.error('Error in string selector generator:', error);
+      });
     };
     
     return register(selector, setupFn);
@@ -360,18 +368,20 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
     const arr = [element];
     
     // Apply immediately
-    const returnValue = executeGenerator(
+    executeGenerator(
       element,
       `element-${element.tagName.toLowerCase()}`,
       0,
       arr,
       actualGenerator
-    );
-    
-    // Store the API if it exists
-    if (returnValue !== undefined) {
-      setContextApi(element, returnValue);
-    }
+    ).then(returnValue => {
+      // Store the API if it exists
+      if (returnValue !== undefined) {
+        setContextApi(element, returnValue);
+      }
+    }).catch(error => {
+      console.error('Error in single element generator:', error);
+    });
     
     // Observe for removal
     const removalObserver = new MutationObserver((mutations) => {
@@ -406,7 +416,9 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
           0,
           arr,
           actualGenerator
-        );
+        ).catch(error => {
+          console.error('Error in matcher function generator:', error);
+        });
       }
     };
     
@@ -453,7 +465,9 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
         index,
         elements,
         actualGenerator
-      );
+      ).catch(error => {
+        console.error('Error in element array generator:', error);
+      });
       
       // Observe for removal
       const removalObserver = new MutationObserver((mutations) => {
@@ -540,18 +554,20 @@ export function run<S extends string>(
   
   elements.forEach((element, index) => {
     if (element instanceof HTMLElement) {
-      const returnValue = executeGenerator(
+      executeGenerator(
         element as ElementFromSelector<S>,
         selector,
         index,
         elements as ElementFromSelector<S>[],
         generator
-      );
-      
-      // Store the API if it exists
-      if (returnValue !== undefined) {
-        setContextApi(element, returnValue);
-      }
+      ).then(returnValue => {
+        // Store the API if it exists
+        if (returnValue !== undefined) {
+          setContextApi(element, returnValue);
+        }
+      }).catch(error => {
+        console.error('Error in run generator:', error);
+      });
     }
   });
 }
@@ -619,22 +635,21 @@ export function run<S extends string>(
  */
 export function runOn<El extends HTMLElement, T = any>(
   element: El,
-  generator: () => Generator<ElementFn<El>, T, unknown>
-): T | undefined {
+  generator: () => Generator<ElementFn<El>, T, unknown> | AsyncGenerator<ElementFn<El>, T, unknown>
+): Promise<T | undefined> {
   const arr = [element];
   
-  const returnValue = executeGenerator(
+  return executeGenerator(
     element,
     `element-${element.tagName.toLowerCase()}`,
     0,
     arr,
     generator
-  );
-  
-  // Store the API if it exists
-  if (returnValue !== undefined) {
-    setContextApi(element, returnValue);
-  }
-  
-  return returnValue;
+  ).then(returnValue => {
+    // Store the API if it exists
+    if (returnValue !== undefined) {
+      setContextApi(element, returnValue);
+    }
+    return returnValue;
+  });
 }

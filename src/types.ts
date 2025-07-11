@@ -89,7 +89,17 @@ export type ElementProxy<El extends HTMLElement = HTMLElement> = El & {
 export type SelfFunction<El extends HTMLElement = HTMLElement> = () => El;
 
 // Generator function type - element type is inferred and maintained throughout
-export type GeneratorFunction<El extends HTMLElement = HTMLElement, T = void> = () => Generator<ElementFn<El, any>, T, unknown>;
+export type GeneratorFunction<El extends HTMLElement = HTMLElement, T = void> = 
+  | (() => Generator<ElementFn<El, any>, T, unknown>)
+  | (() => AsyncGenerator<ElementFn<El, any>, T, unknown>);
+
+// Generator yield types - expanded to support more patterns
+export type GeneratorYield<El extends HTMLElement = HTMLElement> = 
+  | ElementFn<El, any>
+  | Promise<ElementFn<El, any>>
+  | Generator<ElementFn<El, any>, void, unknown>
+  | AsyncGenerator<ElementFn<El, any>, void, unknown>
+  | Promise<any>;
 
 // Parent context type for child components
 export interface ParentContext<ParentEl extends HTMLElement = HTMLElement, ParentApi = any> {
@@ -286,8 +296,4 @@ export interface WatchContext<El extends HTMLElement = HTMLElement> {
   addObserver: (observer: MutationObserver | IntersectionObserver | ResizeObserver) => void;
 }
 
-// Generator yield types
-export type GeneratorYield<El extends HTMLElement = HTMLElement> = 
-  | ElementFn<El, any>
-  | Promise<ElementFn<El, any>>
-  | Generator<ElementFn<El, any>, void, unknown>;
+

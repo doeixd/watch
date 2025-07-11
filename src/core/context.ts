@@ -129,8 +129,8 @@ export function executeGenerator<El extends HTMLElement, T = any>(
   selector: string,
   index: number,
   array: readonly El[],
-  generatorFn: () => Generator<any, T, unknown>
-): T | undefined {
+  generatorFn: () => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>
+): Promise<T | undefined> {
   const watchContext = createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
     element,
@@ -147,25 +147,13 @@ export function executeGenerator<El extends HTMLElement, T = any>(
   try {
     // Execute generator in typed context
     const generator = generatorFn();
-    let result = generator.next();
     
-    while (!result.done) {
-      const elementFn = result.value;
-      
-      if (typeof elementFn === 'function') {
-        try {
-          // The yielded function should be properly typed for El
-          elementFn(element);
-        } catch (e) {
-          console.error('Error executing generator function:', e);
-        }
-      }
-      
-      result = generator.next();
-    }
+    // Handle both sync and async generators
+    await executeGeneratorSequence(generator, element);
     
-    // When the generator is done, capture its return value
-    returnValue = result.value;
+    // Get the final return value
+    const finalResult = await generator.next();
+    returnValue = finalResult.value;
   } catch (e) {
     console.error('Error in generator execution:', e);
   } finally {
@@ -174,6 +162,75 @@ export function executeGenerator<El extends HTMLElement, T = any>(
   }
   
   return returnValue;
+}
+
+// Helper function to execute generator sequences with support for yield*, async, and nested patterns
+async function executeGeneratorSequence<El extends HTMLElement>(
+  generator: Generator<any, any, unknown> | AsyncGenerator<any, any, unknown>,
+  element: El
+): Promise<void> {
+  let result = await generator.next();
+  
+  while (!result.done) {
+    const yielded = result.value;
+    
+    try {
+      await handleYieldedValue(yielded, element);
+    } catch (e) {
+      console.error('Error executing yielded value:', e);
+    }
+    
+    result = await generator.next();
+  }
+}
+
+// Handle different types of yielded values
+async function handleYieldedValue<El extends HTMLElement>(
+  yielded: any,
+  element: El
+): Promise<void> {
+  // Handle regular element functions
+  if (typeof yielded === 'function') {
+    const result = yielded(element);
+    // If the function returns a promise, await it
+    if (result && typeof result.then === 'function') {
+      await result;
+    }
+    return;
+  }
+  
+  // Handle promises
+  if (yielded && typeof yielded.then === 'function') {
+    const resolved = await yielded;
+    // If the resolved value is a function, execute it
+    if (typeof resolved === 'function') {
+      resolved(element);
+    }
+    return;
+  }
+  
+  // Handle generator delegation (yield*)
+  if (yielded && typeof yielded[Symbol.iterator] === 'function') {
+    await executeGeneratorSequence(yielded, element);
+    return;
+  }
+  
+  // Handle async generator delegation (yield*)
+  if (yielded && typeof yielded[Symbol.asyncIterator] === 'function') {
+    await executeGeneratorSequence(yielded, element);
+    return;
+  }
+  
+  // Handle arrays of functions (batch operations)
+  if (Array.isArray(yielded)) {
+    for (const item of yielded) {
+      await handleYieldedValue(item, element);
+    }
+    return;
+  }
+  
+  // If we get here, it's an unsupported yield type
+  console.warn('Unsupported yield type:', typeof yielded, yielded);
 }
 
 // Global proxy for accessing current element when not in generator context

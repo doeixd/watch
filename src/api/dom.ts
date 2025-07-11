@@ -639,10 +639,13 @@ export function createChildWatcher<
     // Link child to parent for `getParentContext()` to work.
     registerParentContext(element, parentElement);
     // Execute the child's generator and get its returned API.
-    const api = runOn(element, childGenerator as any);
-    if (api) {
-      childContexts.set(element, api);
-    }
+    runOn(element, childGenerator as any).then(api => {
+      if (api) {
+        childContexts.set(element, api);
+      }
+    }).catch(error => {
+      console.error('Error in child generator:', error);
+    });
   };
   
   const teardownChild = (element: ChildEl) => {

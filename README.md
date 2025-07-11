@@ -9,10 +9,29 @@ Watch is a bare-bones web component alternative. It runs a function, and adds ev
 
 Since each match of a given selector is given it's own state, it enables light-weight components for small bits of interactivity. A common use-case in server-driven websites, user-scripts, or Chrome Extensions, basically anywhere where you don't control the markup think Astro, e-commerce templates, blogs, htmx sites, etc...
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Why Watch?](#why-watch)
+- [Design Philosophy: Why These Choices Matter](#design-philosophy-why-these-choices-matter)
+- [Core Concepts](#core-concepts)
+- [Component Composition: Building Hierarchies](#component-composition-building-hierarchies)
+- [Building Higher-Level Abstractions](#building-higher-level-abstractions)
+- [Frequently Asked Questions](#frequently-asked-questions)
+- [Complete API Reference](#complete-api-reference)
+- [Examples](#examples)
+- [Installation](#installation)
+- [Browser Support](#browser-support)
+- [Performance](#performance)
+- [Gotchas & Performance Considerations](#gotchas--performance-considerations)
+- [License](#license)
+
+<br>
+
 ## Quick Start
 
 ```typescript
-import { watch, text, addClass, click } from '@doeixd/watch';
+import { watch, text, addClass, click } from 'watch-selector';
 
 // Watch buttons and make them interactive
 watch('button', function* () {
@@ -22,6 +41,8 @@ watch('button', function* () {
   });
 });
 ```
+
+<br>
 
 ## Why Watch?
 
@@ -81,6 +102,8 @@ watch('.expensive-operation', function* () {
   yield once(initializeComponent);
 });
 ```
+
+<br>
 
 ## Design Philosophy: Why These Choices Matter
 
@@ -349,6 +372,8 @@ Watch's generator-based approach with `yield` provides:
 
 This creates a development experience that's both powerful and intuitive, letting you focus on what your components should do rather than how to manage their lifecycle.
 
+<br>
+
 ## Core Concepts
 
 ### **Watchers**
@@ -370,6 +395,66 @@ function* makeInteractive() {
 }
 
 watch('.component', makeInteractive);
+```
+
+### **Advanced Generator Patterns**
+Watch supports advanced generator features for sophisticated composition:
+
+```typescript
+// Async generators for data fetching
+watch('.user-profile', async function* () {
+  yield text('Loading...');
+  
+  const response = await fetch('/api/user');
+  const user = await response.json();
+  
+  yield text(`Welcome, ${user.name}!`);
+  yield template('<img src="{{avatar}}" />', user);
+});
+
+// Generator delegation with yield*
+function* clickBehavior() {
+  yield click(() => console.log('Clicked!'));
+}
+
+function* hoverBehavior() {
+  yield on('hover', () => console.log('Hovered!'));
+}
+
+watch('button', function* () {
+  yield* clickBehavior();  // Delegate to another generator
+  yield* hoverBehavior();  // Compose multiple behaviors
+  
+  // Mix with regular yields
+  yield addClass('interactive');
+});
+
+// Promise-based operations
+watch('.async-button', function* () {
+  yield click(async () => {
+    // Return promises from yields - they'll be awaited
+    yield new Promise(resolve => {
+      setTimeout(() => {
+        yield text('Delayed update!');
+        resolve();
+      }, 1000);
+    });
+  });
+});
+
+// Nested generator composition
+function* withLogging(innerGenerator) {
+  console.log('Starting component...');
+  yield* innerGenerator();
+  console.log('Component initialized!');
+}
+
+watch('.logged-component', function* () {
+  yield* withLogging(function* () {
+    yield text('This component is logged');
+    yield click(() => console.log('Logged click'));
+  });
+});
 ```
 
 ### **Context Functions**
@@ -396,6 +481,8 @@ watchState('count', (newVal, oldVal) => {
   console.log(`${oldVal} → ${newVal}`);
 });
 ```
+
+<br>
 
 ## Component Composition: Building Hierarchies
 
@@ -436,7 +523,7 @@ function* counterButton() {
 
 **Parent Component**
 ```typescript
-import { watch, child, click } from '@doeixd/watch';
+import { watch, child, click } from 'watch-selector';
 
 watch('.button-container', function*() {
   // `childApis` is a reactive Map: Map<HTMLButtonElement, { getCount, reset, increment }>
@@ -482,7 +569,7 @@ watch('form#main-form', function*() {
 
 **Child Component (inside the form)**
 ```typescript
-import { getParentContext, on, self } from '@doeixd/watch';
+import { getParentContext, on, self } from 'watch-selector';
 
 watch('input.submit-on-enter', function*() {
   // Get the parent form's context and API with full type safety
@@ -569,6 +656,8 @@ function* counterDashboard() {
 // Usage
 watch('.dashboard', counterDashboard);
 ```
+
+<br>
 
 ## Building Higher-Level Abstractions
 
@@ -1727,6 +1816,277 @@ watch('.auto-counter', counterComponent);
 
 **Rule of thumb:** If you find yourself copying the same generator patterns across multiple components, consider a generator abstraction. If you're just adding functionality to elements, use function abstractions.
 
+<br>
+
+## Frequently Asked Questions
+
+### Why doesn't Watch include templating?
+
+**Short answer:** We believe in "bring your own templating" for maximum flexibility.
+
+**Long answer:** Watch is designed to integrate into existing pages where you don't control the DOM structure. This is common in:
+
+- **Server-driven websites** (Rails, Django, PHP applications)
+- **E-commerce platforms** with fixed templates
+- **CMS systems** like WordPress or Drupal
+- **Legacy applications** being modernized incrementally
+- **Browser extensions** working with arbitrary websites
+
+By not including templating, Watch can focus on what it does best: reactive DOM observation and element lifecycle management. You can use any templating solution you prefer - Handlebars, Mustache, lit-html, or even just string concatenation.
+
+That said, we may add an opinionated templating module in the future that integrates seamlessly with watch-selector's patterns, but it would be optional and composable with existing solutions.
+
+### Isn't this just jQuery `.live()` but more confusing?
+
+**Yes!** But with significant improvements:
+
+```javascript
+// jQuery .live() (deprecated)
+$(document).on('click', '.button', function() {
+  var clickCount = 0; // This doesn't work - shared across all buttons!
+  clickCount++;
+  $(this).text('Clicked ' + clickCount + ' times');
+});
+
+// Watch equivalent
+watch('button', function* () {
+  let clickCount = 0; // This works - scoped per button instance
+  
+  yield click(() => {
+    clickCount++; // Each button has its own counter
+    yield text(`Clicked ${clickCount} times`);
+  });
+});
+```
+
+**Key improvements over jQuery:**
+
+1. **Type Safety**: Full TypeScript support with element type inference
+2. **Element-Scoped State**: Each element gets its own isolated state
+3. **Composable Behavior**: Generators can be mixed, matched, and reused  
+4. **Automatic Cleanup**: No memory leaks from forgotten event handlers
+5. **Modern JavaScript**: Uses generators, async/await, and ES modules
+6. **Performance**: Single global observer vs multiple event delegations
+
+### Why not React/Vue/Svelte/Alpine/htmx/Mithril?
+
+**I respect all those libraries!** They're excellent for their intended use cases. But they have different assumptions:
+
+**React/Vue/Svelte:**
+- Want complete control of rendering and state
+- Assume you're building a Single Page Application
+- Require build tools and complex toolchains
+- Don't play well with server-rendered markup you can't control
+
+**Alpine.js:**
+- Great library! Very similar philosophy to Watch
+- Less type-safe, more limited state management
+- Watch provides more sophisticated component composition
+
+**htmx:**
+- Excellent for server-driven interactions
+- Requires server-side coordination
+- Watch works purely client-side with any backend
+
+**Mithril:**
+- Lightweight and fast
+- Still assumes control over rendering
+- Not designed for enhancing existing markup
+
+**Watch is designed for different scenarios:**
+- Enhancing existing server-rendered pages
+- Adding interactivity without controlling the entire page
+- Working with legacy systems or third-party markup
+- Building browser extensions or user scripts
+- Gradual modernization of existing applications
+
+### Why not just use Web Components?
+
+Web Components are great, but they have limitations for Watch's use cases:
+
+**Composition Challenges:**
+```javascript
+// Web Components - hard to compose behaviors
+class MyButton extends HTMLElement {
+  connectedCallback() {
+    // How do you mix in other behaviors?
+    // How do you share this logic with other components?
+  }
+}
+
+// Watch - easy composition
+function* clickBehavior() { yield click(() => console.log('Clicked')); }
+function* hoverBehavior() { yield on('hover', () => console.log('Hovered')); }
+
+watch('button', function* () {
+  yield* clickBehavior();
+  yield* hoverBehavior();
+  // Easy to mix and match behaviors
+});
+```
+
+**Pre-existing Markup:**
+```html
+<!-- You can't easily turn this into a web component -->
+<div class="legacy-widget" data-product-id="123">
+  <span class="price">$29.99</span>
+  <button class="add-to-cart">Add to Cart</button>
+</div>
+
+<!-- But you can easily enhance it with Watch -->
+<script>
+watch('.legacy-widget', function* () {
+  const productId = self().dataset.productId;
+  yield click('.add-to-cart', () => addToCart(productId));
+});
+</script>
+```
+
+**Other Web Component limitations:**
+- Require defining custom elements upfront
+- Don't work well with server-rendered content
+- Limited cross-component communication
+- Heavyweight for simple enhancements
+- Browser compatibility considerations
+
+### How does this compare to arrive.js or mount-observer?
+
+You're right - the core observation pattern is very similar! Watch builds on that foundation:
+
+**arrive.js:**
+```javascript
+// arrive.js
+document.arrive('.button', function() {
+  var element = this;
+  element.addEventListener('click', function() {
+    // No built-in state management
+    // No automatic cleanup
+    // No composition patterns
+  });
+});
+```
+
+**mount-observer:**
+```javascript
+// mount-observer  
+mountObserver.observe('.button', {
+  mount(element) {
+    // Similar observation pattern
+    // But no state, no composition, no generators
+  }
+});
+```
+
+**Watch adds:**
+
+1. **Lifecycle Context**: Persistent generator scope for each element
+2. **State Management**: Built-in element-scoped state with reactivity
+3. **Pseudo-Components**: Components with APIs, parent-child relationships
+4. **Type Safety**: Full TypeScript integration with element type inference
+5. **Composition**: Generators can be mixed, matched, and reused
+6. **Automatic Cleanup**: Memory leak prevention
+7. **Performance**: Optimized observation and delegation patterns
+
+**Think of it as:** arrive.js + state management + component composition + type safety + modern JavaScript patterns.
+
+### When should I NOT use Watch?
+
+Watch isn't the right choice for every project:
+
+**Don't use Watch when:**
+
+- **Building a new SPA from scratch** - Use React, Vue, or Svelte
+- **You control the entire page** - Modern frameworks might be better
+- **Server-side rendering is critical** - Use Next.js, Nuxt, or SvelteKit  
+- **You need complex routing** - Use a full framework with routing
+- **Team prefers component-based architecture** - Stick with what works
+- **Performance is absolutely critical** - Vanilla JS might be better
+- **You don't need reactivity** - Simple event listeners might suffice
+
+**DO use Watch when:**
+
+- Enhancing existing server-rendered pages
+- Building browser extensions or user scripts
+- Adding interactivity to CMS or e-commerce sites
+- Modernizing legacy applications gradually
+- Working with third-party markup you can't control
+- Building reusable behaviors for multiple projects
+- You want type safety without build complexity
+
+### Is Watch suitable for large applications?
+
+**Yes, with the right patterns:**
+
+**For large applications, use:**
+- Component composition with parent-child APIs
+- Generator abstractions for cross-cutting concerns
+- Custom higher-level abstractions for your domain
+- Performance optimization patterns (scoped observers, delegation)
+- TypeScript for type safety at scale
+
+**Watch scales well because:**
+- Each component is isolated and independently testable
+- Behaviors can be composed and reused across teams
+- Performance stays consistent regardless of component count
+- TypeScript catches integration issues early
+- No global state management complexity
+
+Many teams use Watch successfully in production applications with hundreds of components.
+
+### Does Watch support async generators and yield*?
+
+**Yes!** Watch v5+ has full support for advanced generator patterns:
+
+```typescript
+// ✅ Async generators
+watch('.data-component', async function* () {
+  yield text('Loading...');
+  
+  const data = await fetch('/api/data').then(r => r.json());
+  yield template('<div>{{message}}</div>', data);
+});
+
+// ✅ Generator delegation with yield*
+function* reusableBehavior() {
+  yield addClass('interactive');
+  yield click(() => console.log('Reusable click!'));
+}
+
+watch('button', function* () {
+  yield* reusableBehavior();  // Delegate to another generator
+  yield text('Enhanced Button');
+});
+
+// ✅ Promise yields
+watch('.promise-component', function* () {
+  yield new Promise(resolve => {
+    setTimeout(() => {
+      yield text('Delayed content');
+      resolve();
+    }, 1000);
+  });
+});
+
+// ✅ Nested composition
+function* withErrorHandling(innerGen) {
+  try {
+    yield* innerGen();
+  } catch (error) {
+    yield text('Error occurred');
+    yield addClass('error');
+  }
+}
+```
+
+**Supported patterns:**
+- **Async generators** with `async function*`
+- **Generator delegation** with `yield*`
+- **Promise yields** - automatically awaited
+- **Nested generators** - full recursion support
+- **Mixed sync/async** - seamless composition
+
+<br>
+
 ## Complete API Reference
 
 ### Core Functions
@@ -1874,6 +2234,8 @@ watch('.auto-counter', counterComponent);
 | `child` | `(selector, generator) => Map<ChildEl, ChildApi>` | Alias for `createChildWatcher` - shorter and more intuitive |
 | `getParentContext` | `() => { element: ParentEl, api: ParentApi } \| null` | Get the context of the parent watcher |
 
+<br>
+
 ## Examples
 
 ### Interactive Components
@@ -1989,11 +2351,28 @@ watch('.counter', function* () {
 });
 ```
 
+<br>
+
 ## Installation
+
+### npm/pnpm/yarn
 
 ```bash
 npm install watch-selector
 ```
+
+### ESM CDN (no build required)
+
+```typescript
+import { watch } from 'https://esm.sh/watch-selector';
+
+// Start using immediately
+watch('button', function* () {
+  yield click(() => console.log('Hello from CDN!'));
+});
+```
+
+<br>
 
 ## Browser Support
 
@@ -2003,6 +2382,8 @@ Watch v5 supports all modern browsers with:
 - ResizeObserver
 - Proxy
 - WeakMap/WeakSet
+
+<br>
 
 ## Performance
 
@@ -2063,6 +2444,8 @@ watch('.parent', function* () {
   // Only changes within this .parent element are monitored
 });
 ```
+
+<br>
 
 ## Gotchas & Performance Considerations
 
@@ -2301,6 +2684,8 @@ function* childComponent() {
   };
 }
 ```
+
+<br>
 
 ## License
 

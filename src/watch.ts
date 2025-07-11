@@ -19,10 +19,11 @@ import type {
   ElementFn, 
   ElementMatcher, 
   WatchTarget, 
-  CleanupFunction,
-  PreDefinedWatchContext
+  PreDefinedWatchContext,
+  WatchController,
+  ManagedInstance
 } from './types';
-import { register } from './core/observer';
+import { getOrCreateController } from './core/observer';
 import { executeGenerator } from './core/context';
 import { isPreDefinedWatchContext } from './core/context-factory';
 import { debounceGenerator, throttleGenerator, onceGenerator } from './core/generator-utils';
@@ -171,43 +172,43 @@ import { setContextApi } from './core/generator';
  * 
  * @param selector - CSS selector string that matches target elements
  * @param generator - Generator function that defines reactive behavior
- * @returns Cleanup function to stop observation
+ * @returns WatchController to manage the watch operation
  */
 export function watch<S extends string>(
   selector: S, 
   generator: () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
-): CleanupFunction;
+): WatchController<ElementFromSelector<S>>;
 
 // 2. Single element - infer exact element type
 export function watch<El extends HTMLElement>(
   element: El,
   generator: () => Generator<ElementFn<El>, void, unknown>
-): CleanupFunction;
+): WatchController<El>;
 
 // 3. Matcher function - HTMLElement
 export function watch<El extends HTMLElement>(
   matcher: ElementMatcher<El>,
   generator: () => Generator<ElementFn<El>, void, unknown>
-): CleanupFunction;
+): WatchController<El>;
 
 // 4. Array of elements - infer union type
 export function watch<El extends HTMLElement>(
   elements: El[],
   generator: () => Generator<ElementFn<El>, void, unknown>
-): CleanupFunction;
+): WatchController<El>;
 
 // 5. NodeList - infer element type
 export function watch<El extends HTMLElement>(
   nodeList: NodeListOf<El>,
   generator: () => Generator<ElementFn<El>, void, unknown>
-): CleanupFunction;
+): WatchController<El>;
 
 // 6. Event Delegation - parent element with child selector
 export function watch<Parent extends HTMLElement, S extends string>(
   parent: Parent,
   childSelector: S,
   generator: () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
-): CleanupFunction;
+): WatchController<ElementFromSelector<S>>;
 
 // 7. Pre-defined watch context - enhanced type safety
 export function watch<
@@ -216,14 +217,14 @@ export function watch<
 >(
   context: Ctx,
   generator: () => Generator<ElementFn<El>, void, unknown>
-): CleanupFunction;
+): WatchController<El>;
 
 // Implementation
 export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchContext<any, any, any>>(
   target: T,
   selectorOrGenerator?: string | (() => Generator<ElementFn<any>, void, unknown>),
   generator?: () => Generator<ElementFn<any>, void, unknown>
-): CleanupFunction {
+): WatchController<any> {
   
   // Handle pre-defined watch context case
   if (isPreDefinedWatchContext(target)) {
@@ -245,25 +246,10 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
       wrappedGenerator = onceGenerator(actualGenerator);
     }
     
-    const setupFn = (element: HTMLElement) => {
-      // Apply filter if specified
-      if (context.options.filter && !context.options.filter(element)) {
-        return;
-      }
-      
-      const arr = [element];
-      executeGenerator(
-        element,
-        context.selector,
-        0,
-        arr,
-        wrappedGenerator
-      ).catch(error => {
-        console.error('Error in pre-defined context generator:', error);
-      });
-    };
-    
-    return register(context.selector, setupFn);
+    // Get or create controller for this context
+    const controller = getOrCreateController(context.selector);
+    controller.layer(wrappedGenerator);
+    return controller;
   }
   
   // Handle event delegation case: watch(parent, childSelector, generator)
@@ -272,224 +258,23 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
     const childSelector = selectorOrGenerator;
     const delegatedGenerator = generator!;
     
-    // Create delegation handlers for common events
-    const delegationHandlers = new Map<string, (event: Event) => void>();
+    // Create a special target that combines the parent element and child selector
+    // This ensures each parent-child combination gets its own controller
+    const delegatedTarget = { parent: parent as HTMLElement, childSelector };
     
-    const createDelegationHandler = () => {
-      return (event: Event) => {
-        const target = event.target as HTMLElement;
-        const matchedChild = target.closest(childSelector) as HTMLElement;
-        
-        if (matchedChild && parent.contains(matchedChild)) {
-          // Create array with single element for consistency
-          const arr = [matchedChild] as any[];
-          
-          // Execute generator for the matched child
-          executeGenerator(
-            matchedChild,
-            childSelector,
-            0,
-            arr,
-            delegatedGenerator
-          ).catch(error => {
-            console.error('Error in delegated generator:', error);
-          });
-        }
-      };
-    };
-    
-    // Set up event delegation for common events
-    const eventTypes = ['click', 'input', 'change', 'submit', 'focus', 'blur', 'keydown', 'keyup'];
-    
-    eventTypes.forEach(eventType => {
-      const handler = createDelegationHandler();
-      delegationHandlers.set(eventType, handler);
-      parent.addEventListener(eventType, handler, true);
-    });
-    
-    // Also apply to existing matching children
-    const existingChildren = Array.from(parent.querySelectorAll(childSelector));
-    existingChildren.forEach((child, index) => {
-      if (child instanceof HTMLElement) {
-        executeGenerator(
-          child,
-          childSelector,
-          index,
-          existingChildren as any[],
-          delegatedGenerator
-        ).catch(error => {
-          console.error('Error in existing child generator:', error);
-        });
-      }
-    });
-    
-    return () => {
-      // Remove all delegation handlers
-      delegationHandlers.forEach((handler, eventType) => {
-        parent.removeEventListener(eventType, handler, true);
-      });
-      delegationHandlers.clear();
-    };
+    // Get or create controller for this delegation
+    const controller = getOrCreateController(delegatedTarget);
+    controller.layer(delegatedGenerator);
+    return controller;
   }
   
   // Handle normal cases: watch(target, generator)
   const actualGenerator = selectorOrGenerator as () => Generator<ElementFn<any>, void, unknown>;
   
-  // String selector - traditional observation
-  if (typeof target === 'string') {
-    const selector = target;
-    
-    const setupFn = (element: HTMLElement) => {
-      // Create a temporary array for this single element
-      const arr = [element];
-      
-      executeGenerator(
-        element,
-        selector,
-        0,
-        arr,
-        actualGenerator
-      ).then(returnValue => {
-        // Store the API if it exists
-        if (returnValue !== undefined) {
-          setContextApi(element, returnValue);
-        }
-      }).catch(error => {
-        console.error('Error in string selector generator:', error);
-      });
-    };
-    
-    return register(selector, setupFn);
-  }
-  
-  // Single element - apply immediately + observe for removal
-  if (target instanceof HTMLElement) {
-    const element = target;
-    const arr = [element];
-    
-    // Apply immediately
-    executeGenerator(
-      element,
-      `element-${element.tagName.toLowerCase()}`,
-      0,
-      arr,
-      actualGenerator
-    ).then(returnValue => {
-      // Store the API if it exists
-      if (returnValue !== undefined) {
-        setContextApi(element, returnValue);
-      }
-    }).catch(error => {
-      console.error('Error in single element generator:', error);
-    });
-    
-    // Observe for removal
-    const removalObserver = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        mutation.removedNodes.forEach(node => {
-          if (node === element || (node instanceof Element && node.contains(element))) {
-            // Element was removed - cleanup
-            removalObserver.disconnect();
-          }
-        });
-      });
-    });
-    
-    if (element.parentNode) {
-      removalObserver.observe(element.parentNode, { childList: true, subtree: true });
-    }
-    
-    return () => removalObserver.disconnect();
-  }
-  
-  // Matcher function - observe all elements
-  if (typeof target === 'function') {
-    const matcher = target as ElementMatcher<any>;
-    
-    const setupFn = (element: HTMLElement) => {
-      if (matcher(element)) {
-        const arr = [element];
-        
-        executeGenerator(
-          element,
-          'matcher-function',
-          0,
-          arr,
-          actualGenerator
-        ).catch(error => {
-          console.error('Error in matcher function generator:', error);
-        });
-      }
-    };
-    
-    // Apply to existing elements
-    const existingElements = Array.from(document.querySelectorAll('*'));
-    existingElements.forEach(el => {
-      if (el instanceof HTMLElement) {
-        setupFn(el);
-      }
-    });
-    
-    // Observe for new elements
-    const matcherObserver = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => {
-          if (node instanceof HTMLElement) {
-            setupFn(node);
-            // Also check children
-            const childElements = Array.from(node.querySelectorAll('*'));
-            childElements.forEach(child => {
-              if (child instanceof HTMLElement) {
-                setupFn(child);
-              }
-            });
-          }
-        });
-      });
-    });
-    
-    matcherObserver.observe(document.body, { childList: true, subtree: true });
-    return () => matcherObserver.disconnect();
-  }
-  
-  // Array of elements or NodeList - apply to each
-  const elements = Array.isArray(target) ? target : Array.from(target as NodeListOf<HTMLElement>);
-  const cleanupFns: CleanupFunction[] = [];
-  
-  elements.forEach((element, index) => {
-    if (element instanceof HTMLElement) {
-      // Execute generator for each element
-      executeGenerator(
-        element,
-        'element-array',
-        index,
-        elements,
-        actualGenerator
-      ).catch(error => {
-        console.error('Error in element array generator:', error);
-      });
-      
-      // Observe for removal
-      const removalObserver = new MutationObserver((mutations) => {
-        mutations.forEach(mutation => {
-          mutation.removedNodes.forEach(node => {
-            if (node === element || (node instanceof Element && node.contains(element))) {
-              removalObserver.disconnect();
-            }
-          });
-        });
-      });
-      
-      if (element.parentNode) {
-        removalObserver.observe(element.parentNode, { childList: true, subtree: true });
-        cleanupFns.push(() => removalObserver.disconnect());
-      }
-    }
-  });
-  
-  return () => {
-    cleanupFns.forEach(fn => fn());
-  };
+  // Get or create controller for this target
+  const controller = getOrCreateController(target as WatchTarget);
+  controller.layer(actualGenerator);
+  return controller;
 }
 
 /**
@@ -652,4 +437,35 @@ export function runOn<El extends HTMLElement, T = any>(
     }
     return returnValue;
   });
+}
+
+// --- Standalone Controller Functions ---
+
+/**
+ * Adds a new behavior "layer" to an existing WatchController.
+ * This is the functional alternative to `controller.layer()`.
+ */
+export function layer<El extends HTMLElement>(
+  controller: WatchController<El>,
+  generator: () => Generator<ElementFn<El, any>, any, unknown>
+): void {
+  controller.layer(generator);
+}
+
+/**
+ * Returns a read-only Map of the current elements being managed by a WatchController.
+ * This is the functional alternative to `controller.getInstances()`.
+ */
+export function getInstances<El extends HTMLElement>(
+  controller: WatchController<El>
+): ReadonlyMap<El, ManagedInstance> {
+  return controller.getInstances();
+}
+
+/**
+ * Destroys a WatchController and all its associated behaviors.
+ * This is the functional alternative to `controller.destroy()`.
+ */
+export function destroy(controller: WatchController<any>): void {
+  controller.destroy();
 }

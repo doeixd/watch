@@ -310,3 +310,13 @@ export function debugState(): Record<string, any> {
 export function logState(prefix = 'State:'): void {
   console.log(prefix, debugState());
 }
+
+/**
+ * Gets a read-only snapshot of an element's state.
+ * This is an internal helper for the WatchController's introspection feature.
+ * It does not require a generator context.
+ * @internal
+ */
+export function getElementStateSnapshot(element: HTMLElement): Readonly<Record<string, any>> {
+  return Object.freeze({ ...(elementStates.get(element) || {}) });
+}

@@ -7,6 +7,7 @@ import type {
   CleanupFunction,
   GeneratorContext
 } from '../types';
+import { registerUnmount } from './observer';
 
 // Global context stack for tracking current element during generator execution
 const contextStack: GeneratorContext[] = [];
@@ -124,7 +125,7 @@ export function createWatchContext<El extends HTMLElement>(
 }
 
 // Execute a generator function with proper context and type safety
-export function executeGenerator<El extends HTMLElement, T = any>(
+export async function executeGenerator<El extends HTMLElement, T = any>(
   element: El,
   selector: string,
   index: number,
@@ -142,6 +143,13 @@ export function executeGenerator<El extends HTMLElement, T = any>(
   // Push context onto stack
   pushContext(generatorContext);
   
+  // Register unmount handler to clean up when element is removed
+  registerUnmount(element, () => {
+    // Clean up any state related to this element
+    const event = new CustomEvent('cleanup', { detail: { element } });
+    element.dispatchEvent(event);
+  });
+  
   let returnValue: T | undefined;
   
   try {
@@ -149,11 +157,7 @@ export function executeGenerator<El extends HTMLElement, T = any>(
     const generator = generatorFn();
     
     // Handle both sync and async generators
-    await executeGeneratorSequence(generator, element);
-    
-    // Get the final return value
-    const finalResult = await generator.next();
-    returnValue = finalResult.value;
+    returnValue = await executeGeneratorSequence(generator, element);
   } catch (e) {
     console.error('Error in generator execution:', e);
   } finally {
@@ -168,7 +172,7 @@ export function executeGenerator<El extends HTMLElement, T = any>(
 async function executeGeneratorSequence<El extends HTMLElement>(
   generator: Generator<any, any, unknown> | AsyncGenerator<any, any, unknown>,
   element: El
-): Promise<void> {
+): Promise<any> {
   let result = await generator.next();
   
   while (!result.done) {
@@ -182,6 +186,8 @@ async function executeGeneratorSequence<El extends HTMLElement>(
     
     result = await generator.next();
   }
+  
+  return result.value;
 }
 
 // Handle different types of yielded values

@@ -15,6 +15,7 @@ Since each match of a given selector is given it's own state, it enables light-w
 - [Why Watch?](#why-watch)
 - [Design Philosophy: Why These Choices Matter](#design-philosophy-why-these-choices-matter)
 - [Core Concepts](#core-concepts)
+- [Advanced Composition: Controllers & Behavior Layering](#advanced-composition-controllers--behavior-layering)
 - [Component Composition: Building Hierarchies](#component-composition-building-hierarchies)
 - [Building Higher-Level Abstractions](#building-higher-level-abstractions)
 - [Frequently Asked Questions](#frequently-asked-questions)
@@ -34,12 +35,21 @@ Since each match of a given selector is given it's own state, it enables light-w
 import { watch, text, addClass, click } from 'watch-selector';
 
 // Watch buttons and make them interactive
-watch('button', function* () {
+const buttonController = watch('button', function* () {
   yield addClass('interactive');
   yield click((e, el) => {
     text(el, 'Clicked!');
   });
 });
+
+// Advanced: Layer additional behaviors
+buttonController.layer(function* () {
+  yield addClass('enhanced');
+  yield click(() => console.log('Enhanced click!'));
+});
+
+// Advanced: Inspect managed instances
+console.log(`Managing ${buttonController.getInstances().size} buttons`);
 ```
 
 <br>
@@ -377,12 +387,17 @@ This creates a development experience that's both powerful and intuitive, lettin
 ## Core Concepts
 
 ### **Watchers**
-Observe DOM elements and run generators when they appear:
+Observe DOM elements and run generators when they appear, returning a controller:
 ```typescript
-watch('selector', function* () {
+const controller = watch('selector', function* () {
   // Generator runs for each matching element
   yield elementFunction;
 });
+
+// Controllers provide advanced management capabilities
+controller.layer(additionalBehavior);
+controller.getInstances(); // Introspection
+controller.destroy(); // Cleanup
 ```
 
 ### **Generators**
@@ -480,6 +495,259 @@ const doubled = createComputed(() => counter.get() * 2, ['count']);
 watchState('count', (newVal, oldVal) => {
   console.log(`${oldVal} → ${newVal}`);
 });
+```
+
+<br>
+
+## Advanced Composition: Controllers & Behavior Layering
+
+Watch v5 introduces **WatchController** objects that transform the traditional fire-and-forget watch operations into managed, extensible systems. Controllers enable **Behavior Layering** - the ability to add multiple independent behaviors to the same set of elements.
+
+### **WatchController Fundamentals**
+
+Every `watch()` call now returns a `WatchController` instead of a simple cleanup function:
+
+```typescript
+import { watch, layer, getInstances, destroy } from 'watch-selector';
+
+// Basic controller usage
+const cardController = watch('.product-card', function* () {
+  // Core business logic
+  const inCart = createState('inCart', false);
+  yield on('click', '.add-btn', () => inCart.set(true));
+  yield text('Add to Cart');
+});
+
+// The controller provides a handle to the watch operation
+console.log(`Watching ${cardController.getInstances().size} product cards`);
+```
+
+### **Behavior Layering**
+
+Add multiple independent behaviors to the same elements:
+
+```typescript
+// Layer 1: Core functionality
+const cardController = watch('.product-card', function* () {
+  const inCart = createState('inCart', false);
+  yield on('click', '.add-btn', () => inCart.set(true));
+});
+
+// Layer 2: Analytics (added later, different module)
+cardController.layer(function* () {
+  yield onVisible(() => analytics.track('product-view', {
+    id: self().dataset.productId
+  }));
+});
+
+// Layer 3: Animations (added conditionally)
+if (enableAnimations) {
+  cardController.layer(function* () {
+    yield watchState('inCart', (inCart) => {
+      if (inCart) {
+        yield addClass('animate-add-to-cart');
+      }
+    });
+  });
+}
+```
+
+### **Dual API: Methods vs Functions**
+
+Controllers support both object-oriented and functional patterns:
+
+```typescript
+// Method-based (OOP style)
+const controller = watch('.component', baseGenerator);
+controller.layer(enhancementGenerator);
+controller.layer(analyticsGenerator);
+
+const instances = controller.getInstances();
+controller.destroy();
+
+// Function-based (FP style)
+const controller = watch('.component', baseGenerator);
+layer(controller, enhancementGenerator);
+layer(controller, analyticsGenerator);
+
+const instances = getInstances(controller);
+destroy(controller);
+```
+
+### **Instance Introspection**
+
+Controllers provide read-only access to managed instances:
+
+```typescript
+const controller = watch('button', function* () {
+  const clickCount = createState('clicks', 0);
+  yield click(() => clickCount.update(n => n + 1));
+});
+
+// Inspect all managed instances
+const instances = controller.getInstances();
+instances.forEach((instance, element) => {
+  console.log(`Button ${element.id}:`, instance.getState());
+});
+
+// State is read-only from the outside
+const buttonState = instances.get(someButton)?.getState();
+// { clicks: 5 } - snapshot of current state
+```
+
+### **Real-World Example: Composable Product Cards**
+
+This example demonstrates how behavior layering enables clean separation of concerns:
+
+```typescript
+// --- Core product card functionality ---
+// File: components/product-card.ts
+export const productController = watch('.product-card', function* () {
+  const inCart = createState('inCart', false);
+  const quantity = createState('quantity', 1);
+  
+  yield on('click', '.add-btn', () => {
+    inCart.set(true);
+    // Update cart through global state or API
+  });
+  
+  yield on('click', '.quantity-btn', (e) => {
+    const delta = e.target.dataset.delta;
+    quantity.update(q => Math.max(1, q + parseInt(delta)));
+  });
+});
+
+// --- Analytics layer ---
+// File: analytics/product-tracking.ts
+import { productController } from '../components/product-card';
+
+productController.layer(function* () {
+  // Track product views
+  yield onVisible(() => {
+    analytics.track('product_viewed', {
+      product_id: self().dataset.productId,
+      category: self().dataset.category
+    });
+  });
+  
+  // Track cart additions
+  yield watchState('inCart', (inCart, wasInCart) => {
+    if (inCart && !wasInCart) {
+      analytics.track('product_added_to_cart', {
+        product_id: self().dataset.productId,
+        quantity: getState('quantity')
+      });
+    }
+  });
+});
+
+// --- Animation layer ---
+// File: animations/product-animations.ts
+import { productController } from '../components/product-card';
+
+productController.layer(function* () {
+  // Animate cart additions
+  yield watchState('inCart', (inCart) => {
+    if (inCart) {
+      yield addClass('animate-add-to-cart');
+      yield delay(300);
+      yield removeClass('animate-add-to-cart');
+    }
+  });
+  
+  // Hover effects
+  yield on('mouseenter', () => yield addClass('hover-highlight'));
+  yield on('mouseleave', () => yield removeClass('hover-highlight'));
+});
+
+// --- Usage in main application ---
+// File: main.ts
+import './components/product-card';
+import './analytics/product-tracking';
+import './animations/product-animations';
+
+// All layers are automatically active
+// Analytics and animations are completely independent
+// Each can be enabled/disabled or modified without affecting others
+```
+
+### **State Communication Between Layers**
+
+Layers communicate through shared element state:
+
+```typescript
+// Layer 1: Set up shared state
+const formController = watch('form', function* () {
+  const isValid = createState('isValid', false);
+  const errors = createState('errors', []);
+  
+  yield on('input', () => {
+    const validation = validateForm(self());
+    isValid.set(validation.isValid);
+    errors.set(validation.errors);
+  });
+});
+
+// Layer 2: React to validation state
+formController.layer(function* () {
+  yield watchState('isValid', (valid) => {
+    yield toggleClass('form-invalid', !valid);
+  });
+  
+  yield watchState('errors', (errors) => {
+    yield text('.error-display', errors.join(', '));
+  });
+});
+
+// Layer 3: Conditional behavior based on state
+formController.layer(function* () {
+  yield on('submit', (e) => {
+    if (!getState('isValid')) {
+      e.preventDefault();
+      yield addClass('shake-animation');
+    }
+  });
+});
+```
+
+### **Controller Lifecycle Management**
+
+Controllers are singleton instances per target - calling `watch()` multiple times with the same selector returns the same controller:
+
+```typescript
+// These all return the same controller instance
+const controller1 = watch('.my-component', generator1);
+const controller2 = watch('.my-component', generator2); // Same controller!
+const controller3 = watch('.my-component', generator3); // Same controller!
+
+// All generators are layered onto the same controller
+console.log(controller1 === controller2); // true
+console.log(controller1 === controller3); // true
+
+// Clean up destroys all layers
+controller1.destroy(); // Removes all behaviors for '.my-component'
+```
+
+### **Integration with Scoped Utilities**
+
+Controllers work seamlessly with scoped watchers:
+
+```typescript
+// Create a scoped controller
+const container = document.querySelector('#dashboard');
+const scopedController = scopedWatchWithController(container, '.widget', function* () {
+  yield addClass('widget-base');
+});
+
+// Layer additional behaviors on the scoped controller
+scopedController.controller.layer(function* () {
+  yield addClass('widget-enhanced');
+  yield on('click', () => console.log('Scoped widget clicked'));
+});
+
+// Inspect scoped instances
+const scopedInstances = scopedController.controller.getInstances();
+console.log(`Managing ${scopedInstances.size} widgets in container`);
 ```
 
 <br>
@@ -1818,6 +2086,166 @@ watch('.auto-counter', counterComponent);
 
 <br>
 
+## Scoped Watch: Isolated DOM Observation
+
+When you need precise control over DOM observation scope, **scoped watch** creates isolated observers for specific parent elements without event delegation.
+
+### **Key Benefits**
+
+- **🔒 Isolated Observation**: Each watcher has its own MutationObserver scoped to a specific parent
+- **🚫 No Event Delegation**: Direct DOM observation without event bubbling overhead  
+- **⚡ Better Performance**: Only watches the specific subtree you care about
+- **🧹 Automatic Cleanup**: Automatically disconnects when parent is removed from DOM
+- **🎛️ Granular Control**: Fine-tune what changes to observe (attributes, character data, etc.)
+
+### **Basic Usage**
+
+```typescript
+import { scopedWatch, addClass, text } from 'watch-selector';
+
+// Watch for buttons only within a specific container
+const container = document.querySelector('#my-container');
+const watcher = scopedWatch(container, 'button', function* () {
+  yield addClass('scoped-button');
+  yield text('I was found by scoped watch!');
+});
+
+// Later cleanup
+watcher.disconnect();
+```
+
+### **Advanced Options**
+
+```typescript
+// Watch attributes and character data within a form
+const form = document.querySelector('form');
+const formWatcher = scopedWatch(form, 'input', function* () {
+  yield addClass('monitored-input');
+  yield* setValue(''); // Clear on detection
+}, {
+  attributes: true,
+  attributeFilter: ['value', 'disabled'],
+  characterData: true,
+  subtree: true // Watch descendants (default: true)
+});
+```
+
+### **Batch Scoped Watching**
+
+```typescript
+// Watch multiple selectors within the same parent
+const dashboard = document.querySelector('#dashboard');
+const watchers = scopedWatchBatch(dashboard, [
+  {
+    selector: '.chart',
+    generator: function* () {
+      yield addClass('chart-initialized');
+      yield* setupChart();
+    }
+  },
+  {
+    selector: '.widget',
+    generator: function* () {
+      yield addClass('widget-ready');
+      yield* setupWidget();
+    },
+    options: { attributes: true }
+  }
+]);
+
+// Later cleanup all watchers
+watchers.forEach(watcher => watcher.disconnect());
+```
+
+### **One-Time and Timeout Watchers**
+
+```typescript
+// Process only the first 3 matching elements
+const firstThreeWatcher = scopedWatchOnce(list, '.item', function* () {
+  yield addClass('first-batch');
+  yield* setupSpecialBehavior();
+}, 3);
+
+// Auto-disconnect after 5 seconds
+const tempWatcher = scopedWatchTimeout(container, '.temp-element', function* () {
+  yield addClass('temporary-highlight');
+  yield* animateIn();
+}, 5000);
+```
+
+### **Matcher Functions**
+
+```typescript
+// Use custom logic instead of CSS selectors
+const submitButtonMatcher = (el: HTMLElement): el is HTMLButtonElement => {
+  return el.tagName === 'BUTTON' && 
+         el.getAttribute('type') === 'submit' && 
+         el.dataset.important === 'true';
+};
+
+const watcher = scopedWatch(container, submitButtonMatcher, function* () {
+  yield addClass('important-submit');
+  yield style({ backgroundColor: 'red', color: 'white' });
+});
+```
+
+### **Full Context Integration**
+
+Scoped watchers work seamlessly with all Watch primitives:
+
+```typescript
+const watcher = scopedWatch(container, 'li', function* () {
+  // Context primitives work perfectly
+  const element = yield* self();
+  const siblings = yield* all('li');
+  const parentContext = yield* ctx();
+  
+  // State management
+  yield* createState('itemIndex', siblings.indexOf(element));
+  
+  // Event handling
+  yield onClick(function* () {
+    const index = yield* getState('itemIndex');
+    yield text(`Item ${index} clicked`);
+  });
+  
+  // Execution helpers
+  yield onClick(debounce(function* () {
+    yield addClass('debounced-click');
+  }, 300));
+});
+```
+
+### **When to Use Scoped Watch**
+
+**Use scoped watch when:**
+- You need to observe a specific container or component
+- Performance is critical (avoid global observer overhead)
+- You want isolated behavior that doesn't affect other parts of the page
+- You need fine-grained control over what changes to observe
+
+**Use regular watch when:**
+- You want to observe elements across the entire document
+- You need event delegation for dynamic content
+- You want the simplest possible setup
+
+### **Utility Functions**
+
+```typescript
+// Get all active watchers for a parent
+const activeWatchers = getScopedWatchers(parent);
+
+// Disconnect all watchers for a parent
+disconnectScopedWatchers(parent);
+
+// Check watcher status
+console.log('Active:', watcher.isActive());
+console.log('Parent:', watcher.getParent());
+console.log('Selector:', watcher.getSelector());
+```
+
+<br>
+
 ## Frequently Asked Questions
 
 ### Why doesn't Watch include templating?
@@ -2093,9 +2521,12 @@ function* withErrorHandling(innerGen) {
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `watch` | `(target, generator) => CleanupFunction` | Watch for elements and run generators |
+| `watch` | `(target, generator) => WatchController` | Watch for elements and run generators |
 | `run` | `(selector, generator) => void` | Run generator on existing elements |
 | `runOn` | `(element, generator) => void` | Run generator on specific element |
+| `layer` | `(controller, generator) => void` | Add behavior layer to controller |
+| `getInstances` | `(controller) => ReadonlyMap<Element, ManagedInstance>` | Get controller's managed instances |
+| `destroy` | `(controller) => void` | Destroy controller and all layers |
 
 ### DOM Manipulation
 
@@ -2134,12 +2565,16 @@ function* withErrorHandling(innerGen) {
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `on` | `(el?, event, handler, options?) => CleanupFn \| ElementFn` | Add event listener |
-| `emit` | `(el?, event, detail?, options?) => void \| ElementFn` | Dispatch custom event |
-| `click` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Click event shortcut |
-| `change` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Change event shortcut |
-| `input` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Input event shortcut |
-| `submit` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Submit event shortcut |
+| `on` | `(el?, event\|CustomEvent, handler, options?) => CleanupFn \| ElementFn` | Advanced event listener with generators, queuing, delegation, debounce/throttle, AbortSignal |
+| `emit` | `(el?, event, detail?, options?) => void \| ElementFn` | Dispatch custom event with full API support |
+| `createCustomEvent` | `(type, detail, options?) => CustomEvent<T>` | Create typed CustomEvent with type inference |
+| `click` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Click event with generator support and advanced options |
+| `change` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Change event with generator support and advanced options |
+| `input` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Input event with generator support and advanced options |
+| `submit` | `(el?, handler, options?) => CleanupFn \| ElementFn` | Submit event with generator support and advanced options |
+| `createEventBehavior` | `(eventType, behavior, options?) => () => Generator` | Create typed reusable event behavior |
+| `composeEventHandlers` | `(...handlers) => EventHandler` | Compose multiple event handlers with async support |
+| `delegate` | `(selector, eventType, handler, options?) => ElementFn` | Create delegated event handler with capture/bubble support |
 
 ### Observer Events
 
@@ -2234,14 +2669,362 @@ function* withErrorHandling(innerGen) {
 | `child` | `(selector, generator) => Map<ChildEl, ChildApi>` | Alias for `createChildWatcher` - shorter and more intuitive |
 | `getParentContext` | `() => { element: ParentEl, api: ParentApi } \| null` | Get the context of the parent watcher |
 
+### WatchController Interface
+
+```typescript
+interface WatchController<El extends HTMLElement = HTMLElement> {
+  readonly subject: WatchTarget<El>;
+  getInstances(): ReadonlyMap<El, ManagedInstance>;
+  layer(generator: () => Generator<ElementFn<El, any>, any, unknown>): void;
+  destroy(): void;
+}
+
+interface ManagedInstance {
+  readonly element: HTMLElement;
+  getState(): Readonly<Record<string, any>>;
+}
+```
+
+### Scoped Controller Functions
+
+| Function | Type | Description |
+|----------|------|-------------|
+| `scopedWatch` | `(parent, selector, generator, options?) => ScopedWatcher` | Create scoped watcher |
+| `scopedWatchWithController` | `(parent, selector, generator, options?) => ScopedWatcher & { controller: WatchController }` | Create scoped watcher with controller |
+| `scopedWatchBatch` | `(parent, watchers[]) => ScopedWatcher[]` | Create multiple scoped watchers |
+| `scopedWatchBatchWithController` | `(parent, watchers[]) => ScopedWatcher[]` | Create multiple scoped watchers with controllers |
+
+### Enhanced Event Options
+
+```typescript
+interface WatchEventListenerOptions extends AddEventListenerOptions {
+  /** Enable delegation - listen on parent and match against selector */
+  delegate?: string;
+  /** Debounce the event handler (milliseconds) */
+  debounce?: number;
+  /** Throttle the event handler (milliseconds) */
+  throttle?: number;
+  /** Only handle events from specific elements */
+  filter?: (event: Event, element: HTMLElement) => boolean;
+  /** All standard AddEventListenerOptions (passive, once, capture, signal) */
+}
+```
+
 <br>
 
 ## Examples
 
+### WatchController & Behavior Layering
+```typescript
+// Create a controller for product cards
+const productController = watch('.product-card', function* () {
+  const inCart = createState('inCart', false);
+  yield on('click', '.add-btn', () => inCart.set(true));
+});
+
+// Layer analytics behavior
+productController.layer(function* () {
+  yield onVisible(() => {
+    analytics.track('product_viewed', { 
+      id: self().dataset.productId 
+    });
+  });
+});
+
+// Layer animation behavior conditionally
+if (enableAnimations) {
+  productController.layer(function* () {
+    yield watchState('inCart', (inCart) => {
+      if (inCart) yield addClass('animate-bounce');
+    });
+  });
+}
+
+// Inspect managed instances
+const instances = productController.getInstances();
+console.log(`Managing ${instances.size} product cards`);
+```
+
+### Enhanced Event Handling
+```typescript
+import { watch, on, createCustomEvent } from 'watch-selector';
+
+// 1. CustomEvent with type safety
+const userEvent = createCustomEvent('user:login', { 
+  userId: 123, 
+  username: 'john_doe' 
+});
+
+watch('.dashboard', function* () {
+  // TypeScript infers the detail type automatically
+  yield on(userEvent, (event, element) => {
+    console.log(event.detail.userId); // ✅ Type-safe access
+    console.log(event.detail.username); // ✅ Type-safe access
+  });
+});
+
+// 2. Event delegation
+watch('.list-container', function* () {
+  yield on('click', (event, delegatedElement) => {
+    // delegatedElement is the matched .list-item, not .list-container
+    console.log('Item clicked:', delegatedElement.textContent);
+  }, {
+    delegate: '.list-item' // Only handle clicks on list items
+  });
+});
+
+// 3. Debounced input handling
+watch('input[type="search"]', function* () {
+  yield on('input', (event, input) => {
+    performSearch(input.value);
+  }, {
+    debounce: 300 // Wait 300ms after user stops typing
+  });
+});
+
+// 4. AbortSignal support
+const controller = new AbortController();
+
+watch('.temporary-element', function* () {
+  yield on('click', handler, {
+    signal: controller.signal // Automatically cleanup when aborted
+  });
+});
+
+// Later: controller.abort(); // Removes all listeners
+
+// 5. Throttled scroll events
+watch('.scroll-container', function* () {
+  yield on('scroll', (event, container) => {
+    updateScrollIndicator(container.scrollTop);
+  }, {
+    throttle: 16 // 60fps throttling
+  });
+});
+
+// 6. Event filtering
+watch('.interactive-area', function* () {
+  yield on('click', handler, {
+    filter: (event, element) => {
+      // Only handle clicks with Ctrl+Click
+      return event.ctrlKey;
+    }
+  });
+});
+
+// 7. Multiple options combined
+watch('.advanced-button', function* () {
+  yield on('click', handler, {
+    delegate: '.clickable',
+    debounce: 100,
+    filter: (event) => !event.defaultPrevented,
+    once: true,
+    passive: true
+  });
+});
+```
+
+### Advanced Event Handling with Generators
+
+The event handling system provides a powerful, generator-first approach while maintaining full backward compatibility with traditional event listeners:
+
+```typescript
+import { watch, on, click } from 'watch-selector';
+
+// 1. Generator Event Handlers with Full Context Access
+watch('.interactive-button', function* () {
+  yield click(function* (event) {
+    // Full access to Watch context!
+    const button = self();
+    const allButtons = all('.interactive-button');
+    
+    // Can yield other Watch functions seamlessly
+    yield addClass('clicked');
+    yield style({ transform: 'scale(0.95)' });
+    
+    // Async operations with yield
+    yield delay(150);
+    
+    // State management works naturally
+    const clickCount = getState('clicks') || 0;
+    setState('clicks', clickCount + 1);
+    
+    yield removeClass('clicked');
+    yield style({ transform: 'scale(1)' });
+    yield text(`Clicked ${clickCount + 1} times`);
+    
+    // Can register cleanup for this specific click
+    cleanup(() => {
+      console.log('Click handler cleaned up');
+    });
+  });
+  
+  // Traditional handlers also work and have context access
+  yield click((event) => {
+    const button = self(); // Works! Context is provided automatically
+    const clickCount = getState('traditionalClicks') || 0;
+    setState('traditionalClicks', clickCount + 1);
+    text(button, `Traditional: ${clickCount + 1}`);
+  });
+});
+
+// 2. Async Operations Made Simple
+watch('.data-loader', function* () {
+  yield click(async function* (event) {
+    const button = self();
+    
+    yield addClass('loading');
+    yield text('Loading...');
+    
+    try {
+      // Async operation
+      const response = await fetch('/api/data');
+      const data = await response.json();
+      
+      yield removeClass('loading');
+      yield addClass('success');
+      yield text(`Loaded: ${data.name}`);
+      
+      // Auto-reset after delay
+      yield delay(2000);
+      yield removeClass('success');
+      yield text('Load Data');
+      
+    } catch (error) {
+      yield removeClass('loading');
+      yield addClass('error');
+      yield text('Failed to load');
+      
+      yield delay(2000);
+      yield removeClass('error');
+      yield text('Load Data');
+    }
+  });
+});
+
+// 3. Complex Interactive Components
+watch('.hover-card', function* () {
+  // Mouse enter with nested event handling
+  yield on('mouseenter', function* (event) {
+    yield addClass('hovered');
+    yield style({
+      transform: 'translateY(-5px)',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+    });
+    
+    // Set up temporary mouse leave handler
+    yield on('mouseleave', function* () {
+      yield removeClass('hovered');
+      yield style({
+        transform: 'translateY(0)',
+        boxShadow: 'none'
+      });
+    }, { once: true });
+  });
+});
+
+// 4. Form Handling with Real-time Validation
+watch('.smart-form', function* () {
+  // Real-time validation with advanced debouncing
+  yield on('input', function* (event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value;
+    
+    // Validation logic
+    const isValid = value.length >= 3;
+    const errorMsg = all('.error-message')[0];
+    
+    if (isValid) {
+      yield removeClass('invalid');
+      yield addClass('valid');
+      if (errorMsg) yield text(errorMsg, '');
+    } else {
+      yield removeClass('valid');
+      yield addClass('invalid');
+      if (errorMsg) yield text(errorMsg, 'Minimum 3 characters required');
+    }
+    
+    // Update form state
+    setState('formValid', isValid);
+  }, { 
+    // Advanced debouncing with leading/trailing edge control
+    debounce: { wait: 300, leading: false, trailing: true },
+    delegate: 'input[required]',
+    delegatePhase: 'bubble', // or 'capture' for capture phase
+    queue: 'latest' // Only process the latest input change
+  });
+});
+
+// 5. Event Composition and Reusability
+const clickRippleEffect = createEventBehavior('click', function* (event) {
+  const clickX = (event as MouseEvent).clientX;
+  const clickY = (event as MouseEvent).clientY;
+  const rect = self().getBoundingClientRect();
+  
+  // Create ripple element
+  const ripple = document.createElement('div');
+  ripple.className = 'ripple';
+  ripple.style.left = `${clickX - rect.left}px`;
+  ripple.style.top = `${clickY - rect.top}px`;
+  
+  self().appendChild(ripple);
+  
+  yield delay(600);
+  ripple.remove();
+});
+
+// Apply composed behavior
+watch('.material-button', function* () {
+  yield click(clickRippleEffect);
+});
+```
+
+#### Advanced Options Example:
+
+```typescript
+watch('.advanced-component', function* () {
+  yield on('click', function* (event) {
+    // Complex interaction logic
+    yield addClass('processing');
+    yield delay(100);
+    yield removeClass('processing');
+  }, {
+    // Advanced debouncing with leading edge
+    debounce: { wait: 300, leading: true, trailing: false },
+    
+    // Event delegation with capture phase
+    delegate: '.clickable-child',
+    delegatePhase: 'capture',
+    
+    // Queue management for concurrent executions
+    queue: 'latest', // 'all' | 'latest' | 'none'
+    
+    // Event filtering
+    filter: (event, element) => !element.disabled,
+    
+    // Standard addEventListener options
+    once: false,
+    passive: false,
+    signal: abortController.signal
+  });
+});
+```
+
+#### Key Features:
+
+- **Generator-First**: Event handlers can be generators that yield Watch functions
+- **Full Context Access**: Access to `self()`, `all()`, `getState()`, `setState()`, etc.
+- **Async Support**: Native support for async operations with yield
+- **Composable**: Create reusable event behaviors
+- **Type-Safe**: Full TypeScript support with proper inference
+- **Performance**: Efficient debouncing, throttling, and delegation
+- **Queue Control**: Manage concurrent async generator execution
+- **Capture/Bubble**: Support for both event phases in delegation
+
 ### Interactive Components
 ```typescript
 // Make all buttons interactive
-watch('button', function* () {
+const buttonController = watch('button', function* () {
   yield addClass('interactive');
   yield style('cursor', 'pointer');
   

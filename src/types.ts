@@ -178,6 +178,90 @@ export type ElementEventHandler<
   K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap
 > = (event: HTMLElementEventMap[K], element: El) => void;
 
+// Custom event handler type for CustomEvent support
+export type CustomEventHandler<
+  El extends HTMLElement = HTMLElement,
+  T = any
+> = (event: CustomEvent<T>, element: El) => void;
+
+// Union type for all possible event handlers
+export type EventHandler<
+  El extends HTMLElement = HTMLElement,
+  K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap,
+  T = any
+> = ElementEventHandler<El, K> | CustomEventHandler<El, T>;
+
+// Enhanced event listener options with delegation support
+export interface WatchEventListenerOptions extends AddEventListenerOptions {
+  /** Enable delegation - listen on parent and match against selector */
+  delegate?: string;
+  /** Debounce the event handler (milliseconds) */
+  debounce?: number;
+  /** Throttle the event handler (milliseconds) */
+  throttle?: number;
+  /** Only handle events from specific elements */
+  filter?: (event: Event, element: HTMLElement) => boolean;
+}
+
+// Hybrid event handler types that support both regular functions and generators
+export type HybridEventHandler<El extends HTMLElement = HTMLElement, K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap> = 
+  | ((event: HTMLElementEventMap[K], element?: El) => void)
+  | ((event: HTMLElementEventMap[K], element?: El) => Promise<void>)
+  | ((event: HTMLElementEventMap[K], element?: El) => Generator<ElementFn<El>, void, unknown>)
+  | ((event: HTMLElementEventMap[K], element?: El) => AsyncGenerator<ElementFn<El>, void, unknown>)
+  | ((event: HTMLElementEventMap[K]) => void)
+  | ((event: HTMLElementEventMap[K]) => Promise<void>)
+  | ((event: HTMLElementEventMap[K]) => Generator<ElementFn<El>, void, unknown>)
+  | ((event: HTMLElementEventMap[K]) => AsyncGenerator<ElementFn<El>, void, unknown>);
+
+export type HybridCustomEventHandler<El extends HTMLElement = HTMLElement, T = any> = 
+  | ((event: CustomEvent<T>, element?: El) => void)
+  | ((event: CustomEvent<T>, element?: El) => Promise<void>)
+  | ((event: CustomEvent<T>, element?: El) => Generator<ElementFn<El>, void, unknown>)
+  | ((event: CustomEvent<T>, element?: El) => AsyncGenerator<ElementFn<El>, void, unknown>)
+  | ((event: CustomEvent<T>) => void)
+  | ((event: CustomEvent<T>) => Promise<void>)
+  | ((event: CustomEvent<T>) => Generator<ElementFn<El>, void, unknown>)
+  | ((event: CustomEvent<T>) => AsyncGenerator<ElementFn<El>, void, unknown>);
+
+// Debounce configuration options
+export interface DebounceOptions {
+  /** Wait time in milliseconds */
+  wait: number;
+  /** Execute on leading edge */
+  leading?: boolean;
+  /** Execute on trailing edge (default: true) */
+  trailing?: boolean;
+}
+
+// Throttle configuration options  
+export interface ThrottleOptions {
+  /** Limit in milliseconds */
+  limit: number;
+  /** Execute on leading edge (default: true) */
+  leading?: boolean;
+  /** Execute on trailing edge */
+  trailing?: boolean;
+}
+
+// Enhanced options for hybrid event handling
+export interface HybridEventOptions extends Omit<AddEventListenerOptions, 'signal'> {
+  /** Enable delegation - listen on parent and match against selector */
+  delegate?: string;
+  /** Delegation phase - bubble (default) or capture */
+  delegatePhase?: 'bubble' | 'capture';
+  /** Debounce configuration */
+  debounce?: number | DebounceOptions;
+  /** Throttle configuration */
+  throttle?: number | ThrottleOptions;
+  /** Filter function to conditionally handle events */
+  filter?: (event: Event, element: HTMLElement) => boolean;
+  /** AbortSignal for cleanup */
+  signal?: AbortSignal;
+  /** Queue concurrent async generators: 'latest' | 'all' | 'none' (default: 'all') */
+  queue?: 'latest' | 'all' | 'none';
+}
+
 // Form element types
 export type FormElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -204,14 +288,17 @@ export type ElementMatcher<El extends HTMLElement = HTMLElement> = (element: HTM
 // Enhanced matcher function with more control
 export type AdvancedMatcher = (element: HTMLElement) => 'skip' | 'observe' | 'queue';
 
-// Watch target types - now with advanced matcher
+// Watch target types - now with advanced matcher and special objects
 export type WatchTarget<El extends HTMLElement = HTMLElement> = 
   | string
   | El
   | El[]
   | NodeListOf<El>
   | ElementMatcher<El>
-  | AdvancedMatcher;
+  | AdvancedMatcher
+  | { parent: HTMLElement; childSelector: string }
+  | { parent: HTMLElement; selector: string }
+  | { parent: HTMLElement; matcher: ElementMatcher<any> };
 
 // Observer event types
 export interface AttributeChange {
@@ -255,6 +342,47 @@ export type TypedState<T = any> = {
   update(fn: (current: T) => T): void;
   init(value: T): void;
 };
+
+/**
+ * Represents a managed instance of a watched element, providing access to
+ * its element and a snapshot of its state for introspection purposes.
+ */
+export interface ManagedInstance {
+  readonly element: HTMLElement;
+  getState: () => Readonly<Record<string, any>>;
+}
+
+/**
+ * The controller object returned by the watch() function. It provides a handle
+ * to the watch operation, enabling advanced control like behavior layering,
+ * instance introspection, and manual destruction.
+ * 
+ * For backward compatibility, controllers are callable as cleanup functions.
+ */
+export interface WatchController<El extends HTMLElement = HTMLElement> {
+  /** The original subject (selector, element, etc.) that this controller manages. */
+  readonly subject: WatchTarget<El>;
+  
+  /** Returns a read-only Map of the current elements being managed by this watcher. */
+  getInstances(): ReadonlyMap<El, ManagedInstance>;
+  
+  /**
+   * Adds a new behavior "layer" to the watched elements. This generator will be
+   * executed on all current and future elements matched by this controller.
+   */
+  layer(generator: () => Generator<ElementFn<El, any>, any, unknown>): void;
+  
+  /**
+   * Destroys this watch operation entirely, cleaning up all its layered behaviors
+   * and removing all listeners and observers for all managed instances.
+   */
+  destroy(): void;
+  
+  /**
+   * Backward compatibility: Allow controller to be called as a cleanup function
+   */
+  (): void;
+}
 
 // Individual element instance with its own state
 export interface WatchedInstance<El extends HTMLElement = HTMLElement> {

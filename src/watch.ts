@@ -21,7 +21,8 @@ import type {
   WatchTarget, 
   PreDefinedWatchContext,
   WatchController,
-  ManagedInstance
+  ManagedInstance,
+  TypedGeneratorContext
 } from './types';
 import { getOrCreateController } from './core/observer';
 import { executeGenerator } from './core/context';
@@ -43,6 +44,12 @@ import { setContextApi } from './core/generator';
  * ```typescript
  * watch('button', function* () {
  *   // Element type is automatically inferred as HTMLButtonElement
+ *   yield click(() => console.log('Button clicked!'));
+ *   yield text('Click me');
+ * });
+ * 
+ * // Or with explicit context parameter for better ergonomics
+ * watch('button', function* (ctx) {
  *   yield click(() => console.log('Button clicked!'));
  *   yield text('Click me');
  * });
@@ -174,62 +181,63 @@ import { setContextApi } from './core/generator';
  * @param generator - Generator function that defines reactive behavior
  * @returns WatchController to manage the watch operation
  */
+// 1. String Selector
 export function watch<S extends string>(
   selector: S, 
-  generator: () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<ElementFromSelector<S>>) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
 ): WatchController<ElementFromSelector<S>>;
 
-// 2. Single element - infer exact element type
+// 2. Single element
 export function watch<El extends HTMLElement>(
   element: El,
-  generator: () => Generator<ElementFn<El>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 ): WatchController<El>;
 
-// 3. Matcher function - HTMLElement
+// 3. Matcher function
 export function watch<El extends HTMLElement>(
   matcher: ElementMatcher<El>,
-  generator: () => Generator<ElementFn<El>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 ): WatchController<El>;
 
-// 4. Array of elements - infer union type
+// 4. Array of elements
 export function watch<El extends HTMLElement>(
   elements: El[],
-  generator: () => Generator<ElementFn<El>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 ): WatchController<El>;
 
-// 5. NodeList - infer element type
+// 5. NodeList
 export function watch<El extends HTMLElement>(
   nodeList: NodeListOf<El>,
-  generator: () => Generator<ElementFn<El>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 ): WatchController<El>;
 
-// 6. Event Delegation - parent element with child selector
+// 6. Event Delegation
 export function watch<Parent extends HTMLElement, S extends string>(
   parent: Parent,
   childSelector: S,
-  generator: () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<ElementFromSelector<S>>) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
 ): WatchController<ElementFromSelector<S>>;
 
-// 7. Pre-defined watch context - enhanced type safety
+// 7. Pre-defined watch context
 export function watch<
   Ctx extends PreDefinedWatchContext<any, any, any>,
   El extends Ctx['elementType'] = Ctx['elementType']
 >(
   context: Ctx,
-  generator: () => Generator<ElementFn<El>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 ): WatchController<El>;
 
 // Implementation
 export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchContext<any, any, any>>(
   target: T,
-  selectorOrGenerator?: string | (() => Generator<ElementFn<any>, void, unknown>),
-  generator?: () => Generator<ElementFn<any>, void, unknown>
+  selectorOrGenerator?: string | ((ctx: TypedGeneratorContext<any>) => Generator<ElementFn<any>, void, unknown>),
+  generator?: (ctx: TypedGeneratorContext<any>) => Generator<ElementFn<any>, void, unknown>
 ): WatchController<any> {
   
   // Handle pre-defined watch context case
   if (isPreDefinedWatchContext(target)) {
     const context = target;
-    const actualGenerator = selectorOrGenerator as () => Generator<ElementFn<any>, void, unknown>;
+    const actualGenerator = selectorOrGenerator as (ctx: TypedGeneratorContext<any>) => Generator<ElementFn<any>, void, unknown>;
     
     // Apply options like debounce, throttle, etc.
     let wrappedGenerator = actualGenerator;
@@ -269,7 +277,7 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
   }
   
   // Handle normal cases: watch(target, generator)
-  const actualGenerator = selectorOrGenerator as () => Generator<ElementFn<any>, void, unknown>;
+  const actualGenerator = selectorOrGenerator as (ctx: TypedGeneratorContext<any>) => Generator<ElementFn<any>, void, unknown>;
   
   // Get or create controller for this target
   const controller = getOrCreateController(target as WatchTarget);
@@ -333,7 +341,7 @@ export function watch<T extends WatchTarget | HTMLElement | PreDefinedWatchConte
  */
 export function run<S extends string>(
   selector: S,
-  generator: () => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
+  generator: (ctx: TypedGeneratorContext<ElementFromSelector<S>>) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>
 ): void {
   const elements = Array.from(document.querySelectorAll(selector));
   
@@ -420,7 +428,7 @@ export function run<S extends string>(
  */
 export function runOn<El extends HTMLElement, T = any>(
   element: El,
-  generator: () => Generator<ElementFn<El>, T, unknown> | AsyncGenerator<ElementFn<El>, T, unknown>
+  generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, T, unknown> | AsyncGenerator<ElementFn<El>, T, unknown>
 ): Promise<T | undefined> {
   const arr = [element];
   

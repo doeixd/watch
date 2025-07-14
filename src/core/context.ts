@@ -5,7 +5,8 @@ import type {
   ElementProxy, 
   SelfFunction, 
   CleanupFunction,
-  GeneratorContext
+  GeneratorContext,
+  TypedGeneratorContext
 } from '../types';
 import { registerUnmount } from './observer';
 
@@ -16,8 +17,17 @@ const contextStack: GeneratorContext[] = [];
 // This is the backbone of the getParentContext() functionality.
 export const parentContextRegistry = new WeakMap<HTMLElement, HTMLElement>();
 
-// Get the current context
-export function getCurrentContext<El extends HTMLElement = HTMLElement>(): GeneratorContext<El> | null {
+// Get the current context - optionally override with passed context
+export function getCurrentContext<El extends HTMLElement = HTMLElement>(ctx?: TypedGeneratorContext<El>): GeneratorContext<El> | null {
+  if (ctx) {
+    // Convert TypedGeneratorContext to GeneratorContext
+    return {
+      element: ctx.element,
+      selector: ctx.selector,
+      index: ctx.index,
+      array: ctx.array
+    };
+  }
   return (contextStack[contextStack.length - 1] as GeneratorContext<El>) || null;
 }
 
@@ -137,7 +147,7 @@ export async function executeGenerator<El extends HTMLElement, T = GeneratorCont
   selector: string,
   index: number,
   array: readonly El[],
-  generatorFn: () => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>
+  generatorFn: (ctx: TypedGeneratorContext<El>) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>
 ): Promise<T | undefined> {
   createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
@@ -152,7 +162,8 @@ export async function executeGenerator<El extends HTMLElement, T = GeneratorCont
   
   // Register unmount handler to clean up when element is removed
   registerUnmount(element, () => {
-    // Clean up any state related to this element
+    executeCleanup(element);
+    // Also dispatch cleanup event for backwards compatibility
     const event = new CustomEvent('cleanup', { detail: { element } });
     element.dispatchEvent(event);
   });
@@ -160,9 +171,32 @@ export async function executeGenerator<El extends HTMLElement, T = GeneratorCont
   let returnValue: T | undefined;
   
   try {
-    // Execute generator in typed context
-    // @ts-ignore
-    const generator = generatorFn(generatorContext);
+    // Create typed context for the generator - always pass it
+    const typedContext: TypedGeneratorContext<El> = {
+      self: () => element,
+      el: <T extends HTMLElement = HTMLElement>(selector: string): T | null => 
+        element.querySelector(selector) as T | null,
+      all: <T extends HTMLElement = HTMLElement>(selector: string): T[] => 
+        Array.from(element.querySelectorAll(selector)) as T[],
+      cleanup: (fn: CleanupFunction): void => {
+        const element = generatorContext.element;
+        if (!cleanupRegistry.has(element)) {
+          cleanupRegistry.set(element, new Set());
+        }
+        cleanupRegistry.get(element)!.add(fn);
+      },
+      ctx: () => {
+        const watchContext = createWatchContext(element, selector, index, array);
+        return watchContext as any; // Type assertion needed
+      },
+      element,
+      selector,
+      index,
+      array
+    };
+    
+    // Always pass context - JavaScript ignores extra parameters if not needed
+    const generator = (generatorFn as any)(typedContext);
     
     // Handle both sync and async generators
     returnValue = await executeGeneratorSequence(generator, element);
@@ -254,8 +288,8 @@ export function getCurrentElement<El extends HTMLElement = HTMLElement>(): El | 
 }
 
 // Global self function with proper type inference
-export function self<El extends HTMLElement = HTMLElement>(): El {
-  const context = getCurrentContext();
+export function self<El extends HTMLElement = HTMLElement>(ctx?: TypedGeneratorContext<El>): El {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('self() can only be called within a generator context');
   }
@@ -263,8 +297,8 @@ export function self<El extends HTMLElement = HTMLElement>(): El {
 }
 
 // Global el proxy function
-export function el<T extends HTMLElement = HTMLElement>(selector: string): T | null {
-  const context = getCurrentContext();
+export function el<T extends HTMLElement = HTMLElement>(selector: string, ctx?: TypedGeneratorContext<any>): T | null {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('el() can only be called within a generator context');
   }
@@ -272,8 +306,8 @@ export function el<T extends HTMLElement = HTMLElement>(selector: string): T | n
 }
 
 // Global el.all function
-el.all = function<T extends HTMLElement = HTMLElement>(selector: string): T[] {
-  const context = getCurrentContext();
+el.all = function<T extends HTMLElement = HTMLElement>(selector: string, ctx?: TypedGeneratorContext<any>): T[] {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('el.all() can only be called within a generator context');
   }
@@ -281,8 +315,8 @@ el.all = function<T extends HTMLElement = HTMLElement>(selector: string): T[] {
 };
 
 // Add cleanup function to global context
-export function cleanup(fn: CleanupFunction): void {
-  const context = getCurrentContext();
+export function cleanup(fn: CleanupFunction, ctx?: TypedGeneratorContext<any>): void {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('cleanup() can only be called within a generator context');
   }
@@ -297,8 +331,8 @@ export function cleanup(fn: CleanupFunction): void {
 }
 
 // Get current context as a function (ctx() function) with proper type inference
-export function ctx<El extends HTMLElement = HTMLElement>(): WatchContext<El> {
-  const context = getCurrentContext();
+export function ctx<El extends HTMLElement = HTMLElement>(passedCtx?: TypedGeneratorContext<El>): WatchContext<El> {
+  const context = getCurrentContext(passedCtx);
   if (!context) {
     throw new Error('ctx() can only be called within a generator context');
   }

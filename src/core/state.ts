@@ -1,14 +1,14 @@
 // Enhanced state management for Watch v5
 
-import type { TypedState, CleanupFunction } from '../types';
+import type { TypedState, CleanupFunction, TypedGeneratorContext } from '../types';
 import { getCurrentContext } from './context';
 
 // Global state storage per element
 const elementStates = new WeakMap<HTMLElement, Record<string, any>>();
 
 // Get state for current element
-function getElementState(): Record<string, any> {
-  const context = getCurrentContext();
+function getElementState(ctx?: TypedGeneratorContext<any>): Record<string, any> {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('State functions can only be called within a generator context');
   }
@@ -22,29 +22,29 @@ function getElementState(): Record<string, any> {
 }
 
 // Basic state functions
-export function getState<T = any>(key: string): T {
-  const state = getElementState();
+export function getState<T = any>(key: string, ctx?: TypedGeneratorContext<any>): T {
+  const state = getElementState(ctx);
   return state[key] as T;
 }
 
-export function setState<T = any>(key: string, value: T): void {
-  const state = getElementState();
+export function setState<T = any>(key: string, value: T, ctx?: TypedGeneratorContext<any>): void {
+  const state = getElementState(ctx);
   state[key] = value;
 }
 
-export function updateState<T = any>(key: string, updater: (current: T) => T): void {
-  const state = getElementState();
+export function updateState<T = any>(key: string, updater: (current: T) => T, ctx?: TypedGeneratorContext<any>): void {
+  const state = getElementState(ctx);
   const current = state[key] as T;
   state[key] = updater(current);
 }
 
-export function hasState(key: string): boolean {
-  const state = getElementState();
+export function hasState(key: string, ctx?: TypedGeneratorContext<any>): boolean {
+  const state = getElementState(ctx);
   return key in state;
 }
 
-export function deleteState(key: string): void {
-  const state = getElementState();
+export function deleteState(key: string, ctx?: TypedGeneratorContext<any>): void {
+  const state = getElementState(ctx);
   delete state[key];
 }
 

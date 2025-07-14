@@ -4,11 +4,11 @@ import type {
   ElementFn, 
   FormElement,
   ElementFromSelector,
-  GeneratorFunction
+  GeneratorFunction,
+  TypedGeneratorContext
 } from '../types';
 import { runOn } from '../watch';
 import { cleanup, executeElementCleanup } from '../core/generator';
-import { self } from '../core/generator';
 import { getCurrentContext, registerParentContext, unregisterParentContext } from '../core/context';
 import { getState, setState } from '../core/state';
 
@@ -40,21 +40,23 @@ export function text<El extends HTMLElement = HTMLElement>(content: string): Ele
 export function text<El extends HTMLElement = HTMLElement>(): ElementFn<El, string>;
 export function text(...args: any[]): any {
   if (args.length === 2) {
+    // Called with element/selector + content: text(element, 'content')
     const [elementLike, content] = args;
     const element = resolveElement(elementLike);
     if (element) {
       element.textContent = content;
     }
-  } else if (args.length === 1 && isElementLike(args[0])) {
-    const [elementLike] = args;
-    const element = resolveElement(elementLike);
-    return element?.textContent || null;
+  } else if (args.length === 1 && args[0] instanceof HTMLElement) {
+    // Called with just an element: text(element) - get text content
+    return args[0].textContent || null;
   } else if (args.length === 1) {
+    // Called with content: text('content') - return ElementFn for generators
     const [content] = args;
     return ((element: HTMLElement) => {
       element.textContent = content;
     }) as ElementFn<HTMLElement>;
   } else {
+    // Called with no args: text() - return ElementFn to get text content
     return ((element: HTMLElement) => element.textContent || '') as ElementFn<HTMLElement, string>;
   }
 }
@@ -92,16 +94,25 @@ export function addClass(element: HTMLElement, ...classNames: string[]): void;
 export function addClass(selector: string, ...classNames: string[]): void;
 export function addClass<El extends HTMLElement = HTMLElement>(...classNames: string[]): ElementFn<El>;
 export function addClass(...args: any[]): any {
-  if (args.length >= 1 && isElementLike(args[0])) {
+  if (args.length >= 2 && isElementLike(args[0])) {
+    // Called with element/selector + class names: addClass(element, 'class1', 'class2')
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
-      element.classList.add(...classNames);
+      // Split space-separated class names
+      const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
+      element.classList.add(...splitClassNames);
     }
+  } else if (args.length === 1 && args[0] instanceof HTMLElement) {
+    // Called with just an element: addClass(element) - get classes
+    return args[0].className;
   } else {
+    // Called with just class names: addClass('class1', 'class2') - return ElementFn
     const classNames = args;
     return ((element: HTMLElement) => {
-      element.classList.add(...classNames);
+      // Split space-separated class names
+      const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
+      element.classList.add(...splitClassNames);
     }) as ElementFn<HTMLElement>;
   }
 }
@@ -114,12 +125,16 @@ export function removeClass(...args: any[]): any {
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
-      element.classList.remove(...classNames);
+      // Split space-separated class names
+      const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
+      element.classList.remove(...splitClassNames);
     }
   } else {
     const classNames = args;
     return ((element: HTMLElement) => {
-      element.classList.remove(...classNames);
+      // Split space-separated class names
+      const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
+      element.classList.remove(...splitClassNames);
     }) as ElementFn<HTMLElement>;
   }
 }
@@ -775,21 +790,23 @@ export function createChildWatcher<
   ChildGen extends GeneratorFunction<ChildEl, any> = GeneratorFunction<ChildEl, any>
 >(
   childSelector: S,
-  childGenerator: ChildGen
+  childGenerator: ChildGen,
+  ctx?: TypedGeneratorContext<any>
 ): YieldableMap<ChildEl, Awaited<ReturnType<ChildGen>>> {
-  if (!getCurrentContext()) {
+  const context = getCurrentContext(ctx);
+  if (!context) {
     console.warn('`createChildWatcher` was called outside of a `watch` generator context. It will not function correctly. Please ensure it is called inside a `watch()` generator.');
     const emptyMap = new Map();
     return Object.assign(emptyMap, { then: (resolve: (v: any) => void) => resolve(emptyMap) });
   }
 
-  const parentElement = self<HTMLElement>();
+  const parentElement = context.element;
   const managerKey = '__childWatcherManager';
 
-  let manager: ChildWatcherManager = getState(managerKey);
+  let manager: ChildWatcherManager = getState(managerKey, ctx);
   if (!manager) {
     manager = new ChildWatcherManager(parentElement);
-    setState(managerKey, manager);
+    setState(managerKey, manager, ctx);
   }
 
   // The `register` method is fully generic, so it returns a correctly typed Map.

@@ -69,7 +69,7 @@ watch('button', function* () {
 });
 
 // Each button gets its own click counter
-watch('.counter-btn', function* () {
+watch('.counter-btn', function* (ctx) {
   let count = 0;
   yield click(() => {
     count++;
@@ -211,6 +211,49 @@ watch('.counter', function* () {
 });
 ```
 
+#### Context Parameter
+Generators can optionally receive a context parameter for enhanced ergonomics:
+```typescript
+// Traditional approach (still works)
+watch('button', function* () {
+  const element = self();
+  yield click(() => console.log('Clicked!'));
+});
+
+// New context parameter approach
+watch('button', function* (ctx) {
+  const element = ctx.self(); // Direct access via context
+  yield click(() => console.log('Clicked!'));
+});
+```
+
+**Benefits:**
+- **Better discoverability** - TypeScript autocomplete shows all available methods
+- **Explicit context** - No reliance on hidden global state
+- **Backward compatible** - Existing code continues to work unchanged
+- **Mixed usage** - You can use both patterns in the same generator
+
+All primitives support both patterns:
+```typescript
+watch('form', function* (ctx) {
+  // Context object provides direct access to element functions
+  const element = ctx.self();
+  const input = ctx.el('input');
+  const allInputs = ctx.all('input');
+  
+  // State functions accept optional context parameter
+  setState('valid', false, ctx);
+  const isValid = getState('valid', ctx);
+  
+  // Global functions still work (use getCurrentContext internally)
+  setState('backup', true);
+  const backup = getState('backup');
+  
+  // Both access the same element's state
+  expect(isValid).toBe(getState('valid')); // true - same element
+});
+```
+
 ### State Management
 Type-safe, element-scoped reactive state:
 ```typescript
@@ -279,11 +322,11 @@ watch('.lazy-content', async function* () {
 
 ### Advanced Composition: Controllers & Behavior Layering
 
-Watch v1 introduces **WatchController** objects that transform the traditional fire-and-forget watch operations into managed, extensible systems. Controllers enable **Behavior Layering** - the ability to add multiple independent behaviors to the same set of elements.
+Watch introduces **WatchController** objects that transform the traditional fire-and-forget watch operations into managed, extensible systems. Controllers enable **Behavior Layering** - the ability to add multiple independent behaviors to the same set of elements.
 
 ### **WatchController Fundamentals**
 
-Every `watch()` call now returns a `WatchController` instead of a simple cleanup function:
+Every `watch()` call returns a `WatchController` instead of a simple cleanup function:
 
 ```typescript
 import { watch, layer, getInstances, destroy } from 'watch-selector';
@@ -2241,7 +2284,7 @@ Many teams use Watch successfully in production applications with hundreds of co
 
 ### Does Watch support async generators and yield*?
 
-**Yes!** Watch v1+ has full support for advanced generator patterns:
+**Yes!** Watch has full support for advanced generator patterns:
 
 ```typescript
 // ✅ Async generators
@@ -2295,13 +2338,15 @@ function* withErrorHandling(innerGen) {
 
 ## Complete API Reference
 
+> **Context Parameter Support**: Most generator context functions accept an optional `ctx?` parameter. This allows you to explicitly pass context instead of relying on `getCurrentContext()`. Both patterns work: `self()` uses global context, `self(ctx)` uses passed context.
+
 ### Core Functions
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `watch` | `(target, generator) => WatchController` | Watch for elements and run generators |
-| `run` | `(selector, generator) => void` | Run generator on existing elements |
-| `runOn` | `(element, generator) => void` | Run generator on specific element |
+| `watch` | `(target, generator) => WatchController` | Watch for elements and run generators (generators can accept optional context parameter) |
+| `run` | `(selector, generator) => void` | Run generator on existing elements (generators can accept optional context parameter) |
+| `runOn` | `(element, generator) => void` | Run generator on specific element (generators can accept optional context parameter) |
 | `layer` | `(controller, generator) => void` | Add behavior layer to controller |
 | `getInstances` | `(controller) => ReadonlyMap<Element, ManagedInstance>` | Get controller's managed instances |
 | `destroy` | `(controller) => void` | Destroy controller and all layers |
@@ -2369,13 +2414,14 @@ function* withErrorHandling(innerGen) {
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `self` | `() => Element` | Get current element |
-| `el` | `(selector) => Element \| null` | Query within current element |
-| `all` | `(selector) => Element[]` | Query all within current element |
-| `cleanup` | `(fn) => void` | Register cleanup function |
-| `ctx` | `() => WatchContext` | Get full context object |
+| `self` | `(ctx?) => Element` | Get current element (optionally pass context) |
+| `el` | `(selector, ctx?) => Element \| null` | Query within current element (optionally pass context) |
+| `all` | `(selector, ctx?) => Element[]` | Query all within current element (optionally pass context) |
+| `cleanup` | `(fn, ctx?) => void` | Register cleanup function (optionally pass context) |
+| `ctx` | `(passedCtx?) => WatchContext` | Get full context object (optionally pass context) |
+| `getParentContext` | `(ctx?) => ParentContext \| null` | Get parent component context (optionally pass context) |
 | `getCurrentElement` | `() => Element \| null` | Get current element (low-level) |
-| `getCurrentContext` | `() => WatchContext \| null` | Get current context (low-level) |
+| `getCurrentContext` | `(ctx?) => WatchContext \| null` | Get current context (low-level, optionally pass context) |
 
 ### State Management
 
@@ -2384,11 +2430,11 @@ function* withErrorHandling(innerGen) {
 | `createState` | `(key, initial) => TypedState` | Create element-scoped state |
 | `createTypedState` | `(key, initial) => TypedState` | Create typed element-scoped state |
 | `createComputed` | `(fn, deps) => () => T` | Create computed value |
-| `getState` | `(key) => T` | Get state value |
-| `setState` | `(key, val) => void` | Set state value |
-| `updateState` | `(key, fn) => void` | Update state value |
-| `hasState` | `(key) => boolean` | Check if state exists |
-| `deleteState` | `(key) => void` | Delete state value |
+| `getState` | `(key, ctx?) => T` | Get state value (optionally pass context) |
+| `setState` | `(key, val, ctx?) => void` | Set state value (optionally pass context) |
+| `updateState` | `(key, fn, ctx?) => void` | Update state value (optionally pass context) |
+| `hasState` | `(key, ctx?) => boolean` | Check if state exists (optionally pass context) |
+| `deleteState` | `(key, ctx?) => void` | Delete state value (optionally pass context) |
 | `watchState` | `(key, handler) => CleanupFn` | Watch state changes |
 | `setStateReactive` | `(key, val) => void` | Set state with automatic reactivity |
 | `batchStateUpdates` | `(fn) => void` | Batch multiple state updates |
@@ -2467,9 +2513,9 @@ function* withErrorHandling(innerGen) {
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `createChildWatcher` | `(selector, generator) => Map<ChildEl, ChildApi>` | Create a reactive collection of child component APIs |
-| `child` | `(selector, generator) => Map<ChildEl, ChildApi>` | Alias for `createChildWatcher` - shorter and more intuitive |
-| `getParentContext` | `() => { element: ParentEl, api: ParentApi } \| null` | Get the context of the parent watcher |
+| `createChildWatcher` | `(selector, generator, ctx?) => Map<ChildEl, ChildApi>` | Create a reactive collection of child component APIs (optionally pass context) |
+| `child` | `(selector, generator, ctx?) => Map<ChildEl, ChildApi>` | Alias for `createChildWatcher` - shorter and more intuitive (optionally pass context) |
+| `getParentContext` | `(ctx?) => { element: ParentEl, api: ParentApi } \| null` | Get the context of the parent watcher (optionally pass context) |
 
 ### WatchController Interface
 

@@ -1,17 +1,17 @@
 // Utility functions for wrapping generators with timing controls
 
-import type { ElementFn } from '../types.ts';
+import type { ElementFn, TypedGeneratorContext } from '../types.ts';
 
 // Debounce a generator function
 export function debounceGenerator<El extends HTMLElement>(
-  generatorFn: () => Generator<ElementFn<El>, void, unknown>,
+  generatorFn: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>,
   delay: number
-): () => Generator<ElementFn<El>, void, unknown> {
+): (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown> {
   const timers = new WeakMap<HTMLElement, number>();
   
-  return function* () {
+  return function* (ctx: TypedGeneratorContext<El>) {
     // We need to get the current element to debounce per-element
-    const generator = generatorFn();
+    const generator = generatorFn(ctx);
     let result = generator.next();
     
     while (!result.done) {
@@ -42,13 +42,13 @@ export function debounceGenerator<El extends HTMLElement>(
 
 // Throttle a generator function
 export function throttleGenerator<El extends HTMLElement>(
-  generatorFn: () => Generator<ElementFn<El>, void, unknown>,
+  generatorFn: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>,
   delay: number
-): () => Generator<ElementFn<El>, void, unknown> {
+): (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown> {
   const lastCalls = new WeakMap<HTMLElement, number>();
   
-  return function* () {
-    const generator = generatorFn();
+  return function* (ctx: TypedGeneratorContext<El>) {
+    const generator = generatorFn(ctx);
     let result = generator.next();
     
     while (!result.done) {
@@ -73,12 +73,12 @@ export function throttleGenerator<El extends HTMLElement>(
 
 // Run a generator only once per element
 export function onceGenerator<El extends HTMLElement>(
-  generatorFn: () => Generator<ElementFn<El>, void, unknown>
-): () => Generator<ElementFn<El>, void, unknown> {
+  generatorFn: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
+): (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown> {
   const executed = new WeakSet<HTMLElement>();
   
-  return function* () {
-    const generator = generatorFn();
+  return function* (ctx: TypedGeneratorContext<El>) {
+    const generator = generatorFn(ctx);
     let result = generator.next();
     
     while (!result.done) {

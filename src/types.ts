@@ -370,7 +370,7 @@ export interface WatchController<El extends HTMLElement = HTMLElement> {
    * Adds a new behavior "layer" to the watched elements. This generator will be
    * executed on all current and future elements matched by this controller.
    */
-  layer(generator: () => Generator<ElementFn<El, any>, any, unknown>): void;
+  layer(generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El, any>, any, unknown>): void;
   
   /**
    * Destroys this watch operation entirely, cleaning up all its layered behaviors

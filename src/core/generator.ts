@@ -34,13 +34,10 @@ export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGene
       return Array.from(element.querySelectorAll(selector)) as T[];
     },
 
-    // Cleanup function
+    // Cleanup function - delegate to context.ts
     cleanup(fn: CleanupFunction): void {
-      const cleanupRegistry = getCleanupRegistry();
-      if (!cleanupRegistry.has(element)) {
-        cleanupRegistry.set(element, new Set());
-      }
-      cleanupRegistry.get(element)!.add(fn);
+      const cleanupFn = createCleanupFunction(element);
+      cleanupFn(fn);
     },
 
     // Context access
@@ -75,15 +72,11 @@ export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGene
   };
 }
 
-// Global cleanup registry
-const cleanupRegistry = new WeakMap<HTMLElement, Set<CleanupFunction>>();
+// Import unified cleanup functions from context.ts
+import { executeCleanup, createCleanupFunction } from './context';
 
 // Global registry to store the public API returned by a generator for an element.
 const generatorApiRegistry = new WeakMap<HTMLElement, any>();
-
-function getCleanupRegistry(): WeakMap<HTMLElement, Set<CleanupFunction>> {
-  return cleanupRegistry;
-}
 
 /**
  * Retrieves the public API returned by an element's generator.
@@ -133,8 +126,13 @@ export function setContextApi<T = any>(element: HTMLElement, api: T): void {
 export function getParentContext<
   ParentEl extends HTMLElement = HTMLElement,
   ParentApi = any
->(): ParentContext<ParentEl, ParentApi> | null {
-  const childElement = self(); // Gets the current (child) element from the context stack.
+>(ctx?: TypedGeneratorContext<any>): ParentContext<ParentEl, ParentApi> | null {
+  const context = getCurrentContext(ctx);
+  if (!context) {
+    throw new Error('getParentContext() can only be called within a generator context');
+  }
+  
+  const childElement = context.element;
   const parentElement = parentContextRegistry.get(childElement);
 
   if (!parentElement) {
@@ -149,47 +147,21 @@ export function getParentContext<
   };
 }
 
-// Type-safe helper functions that work within generators
-export function self<El extends HTMLElement = HTMLElement>(): El {
-  const context = getCurrentContext();
-  if (!context) {
-    throw new Error('self() can only be called within a generator context');
-  }
-  return context.element as El;
-}
+// Import the functions from context.ts to avoid duplication
+import { self as selfFn, el, cleanup, ctx } from './context';
+export { el, cleanup, ctx };
 
-export function el<T extends HTMLElement = HTMLElement>(selector: string): T | null {
-  const context = getCurrentContext();
-  if (!context) {
-    throw new Error('el() can only be called within a generator context');
-  }
-  return context.element.querySelector(selector) as T | null;
-}
-
-export function all<T extends HTMLElement = HTMLElement>(selector: string): T[] {
-  const context = getCurrentContext();
+// Add the all function that doesn't exist in context.ts
+export function all<T extends HTMLElement = HTMLElement>(selector: string, ctx?: TypedGeneratorContext<any>): T[] {
+  const context = getCurrentContext(ctx);
   if (!context) {
     throw new Error('all() can only be called within a generator context');
   }
   return Array.from(context.element.querySelectorAll(selector)) as T[];
 }
 
-export function cleanup(fn: CleanupFunction): void {
-  const context = getCurrentContext();
-  if (!context) {
-    throw new Error('cleanup() can only be called within a generator context');
-  }
-  
-  const element = context.element;
-  if (!cleanupRegistry.has(element)) {
-    cleanupRegistry.set(element, new Set());
-  }
-  cleanupRegistry.get(element)!.add(fn);
-}
-
-export function ctx<El extends HTMLElement = HTMLElement>(): TypedGeneratorContext<El> {
-  return createTypedGeneratorContext<El>();
-}
+// Export self with the original name for backwards compatibility
+export { selfFn as self };
 
 // Type-safe generator creation helpers
 export function createGenerator<El extends HTMLElement>(
@@ -219,17 +191,7 @@ export function watchGenerator<S extends string>(
   };
 }
 
-// Execute cleanup for an element
+// Execute cleanup for an element - delegate to unified cleanup
 export function executeElementCleanup(element: HTMLElement): void {
-  const cleanups = cleanupRegistry.get(element);
-  if (cleanups) {
-    cleanups.forEach(fn => {
-      try {
-        fn();
-      } catch (e) {
-        console.error('Error during cleanup:', e);
-      }
-    });
-    cleanupRegistry.delete(element);
-  }
+  executeCleanup(element);
 }

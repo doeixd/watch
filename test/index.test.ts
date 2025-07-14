@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import add from '../src';
+import { watch } from '../src';
 
-describe('blah', () => {
-  it('works', () => {
-    expect(add(1, 1)).toEqual(2);
+describe('watch library', () => {
+  it('should be importable', () => {
+    expect(typeof watch).toBe('function');
   });
 });

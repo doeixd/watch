@@ -66,7 +66,7 @@ export type ElementFromSelector<S extends string> =
 
 // Handler types
 export type ElementHandler<El extends HTMLElement = HTMLElement> = (element: El) => void;
-export type ElementFn<El extends HTMLElement = HTMLElement, T = void> = (element: El) => T;
+export type ElementFn<El extends Element = HTMLElement, T = void> = (element: El) => T;
 
 // Selector type
 export type Selector = string;
@@ -204,7 +204,7 @@ export interface WatchEventListenerOptions extends AddEventListenerOptions {
 }
 
 // Hybrid event handler types that support both regular functions and generators
-export type HybridEventHandler<El extends HTMLElement = HTMLElement, K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap> = 
+export type HybridEventHandler<El extends Element = HTMLElement, K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap> = 
   | ((event: HTMLElementEventMap[K], element?: El) => void)
   | ((event: HTMLElementEventMap[K], element?: El) => Promise<void>)
   | ((event: HTMLElementEventMap[K], element?: El) => Generator<ElementFn<El>, void, unknown>)
@@ -214,7 +214,7 @@ export type HybridEventHandler<El extends HTMLElement = HTMLElement, K extends k
   | ((event: HTMLElementEventMap[K]) => Generator<ElementFn<El>, void, unknown>)
   | ((event: HTMLElementEventMap[K]) => AsyncGenerator<ElementFn<El>, void, unknown>);
 
-export type HybridCustomEventHandler<El extends HTMLElement = HTMLElement, T = any> = 
+export type HybridCustomEventHandler<El extends Element = HTMLElement, T = any> = 
   | ((event: CustomEvent<T>, element?: El) => void)
   | ((event: CustomEvent<T>, element?: El) => Promise<void>)
   | ((event: CustomEvent<T>, element?: El) => Generator<ElementFn<El>, void, unknown>)
@@ -320,8 +320,8 @@ export interface VisibilityChange {
 
 export interface ResizeChange {
   contentRect: DOMRectReadOnly;
-  borderBoxSize: ResizeObserverSize[];
-  contentBoxSize: ResizeObserverSize[];
+  borderBoxSize: readonly ResizeObserverSize[];
+  contentBoxSize: readonly ResizeObserverSize[];
 }
 
 // Lifecycle event types

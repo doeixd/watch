@@ -9,7 +9,8 @@ import type {
 import { runOn } from '../watch';
 import { cleanup, executeElementCleanup } from '../core/generator';
 import { self } from '../core/generator';
-import { registerParentContext, unregisterParentContext } from '../core/context';
+import { getCurrentContext, registerParentContext, unregisterParentContext } from '../core/context';
+import { getState, setState } from '../core/state';
 
 // Type guards and utilities
 export function isElement(value: any): value is HTMLElement {
@@ -590,35 +591,183 @@ export function batchAll(elements: (HTMLElement | string)[], ...operations: Elem
 export const el = query;
 export const all = queryAll;
 
+
+
 /**
- * # createChildWatcher() - Create a Reactive Collection of Child Contexts
+ * @internal
+ * This interface describes the properties stored for each watched child selector.
+ * It's generic to preserve the specific element and generator types.
+ */
+interface WatchedSelectorInfo<
+  ChildEl extends HTMLElement = HTMLElement,
+  ChildGen extends GeneratorFunction<ChildEl, any> = GeneratorFunction<ChildEl, any>
+> {
+  generator: ChildGen;
+  contexts: Map<ChildEl, Awaited<ReturnType<ChildGen>>>;
+  setupFn: (el: ChildEl) => void;
+  teardownFn: (el: ChildEl) => void;
+}
+
+/**
+ * @internal
+ * Manages all child watchers for a single parent element. This internal class
+ * is the core of the `child()` function's efficiency and robustness.
  *
- * Establishes a live, type-safe link between a parent and its children. It
- * returns a reactive `Map` where keys are the child elements and values are the
- * public APIs returned by each child's generator. This is the primary tool for
- * child-to-parent communication.
+ * It ensures that only one `MutationObserver` is ever attached to a parent element,
+ * regardless of how many `child()` watchers are declared within its `watch` scope.
+ * This prevents performance degradation from multiple redundant observers.
+ *
+ * An instance of this class is created on the first `child()` call for a given
+ * parent and is then stored in the parent's private state for reuse.
+ */
+class ChildWatcherManager {
+  private parentElement: HTMLElement;
+  private observer: MutationObserver;
+  // The Map now stores `WatchedSelectorInfo` with an `any` type, but we will
+  // use generics in the `register` method to ensure type safety upon retrieval.
+  private watchedSelectors: Map<string, WatchedSelectorInfo<any, any>> = new Map();
+
+  constructor(parentElement: HTMLElement) {
+    this.parentElement = parentElement;
+    this.handleMutations = this.handleMutations.bind(this);
+    this.observer = new MutationObserver(this.handleMutations);
+    this.observer.observe(this.parentElement, { childList: true, subtree: true });
+
+    cleanup(() => this.destroy());
+  }
+
+  private handleMutations(mutations: MutationRecord[]): void {
+    for (const mutation of mutations) {
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (node instanceof HTMLElement) {
+          this.processNode(node, 'setup');
+        }
+      }
+      for (const node of Array.from(mutation.removedNodes)) {
+        if (node instanceof HTMLElement) {
+          this.processNode(node, 'teardown');
+        }
+      }
+    }
+  }
+
+  private processNode(node: HTMLElement, action: 'setup' | 'teardown'): void {
+    // Iterate over all registered selectors and their specific handlers.
+    this.watchedSelectors.forEach(({ setupFn, teardownFn }, selector) => {
+      const fn = action === 'setup' ? setupFn : teardownFn;
+      if (node.matches(selector)) {
+        fn(node);
+      }
+      node.querySelectorAll(selector).forEach(fn);
+    });
+  }
+
+  /**
+   * Registers a new child selector to be watched. This method is now fully generic.
+   */
+  public register<
+    S extends string,
+    ChildEl extends HTMLElement,
+    ChildGen extends GeneratorFunction<ChildEl, any>
+  >(
+    childSelector: S,
+    childGenerator: ChildGen
+  ): Map<ChildEl, Awaited<ReturnType<ChildGen>>> {
+    const existingWatcher = this.watchedSelectors.get(childSelector);
+    if (existingWatcher) {
+      return existingWatcher.contexts;
+    }
+
+    const childContexts = new Map<ChildEl, Awaited<ReturnType<ChildGen>>>();
+
+    // These closures capture the specific ChildEl type from the generic signature.
+    const setupChild = (element: ChildEl) => {
+      if (childContexts.has(element)) return;
+      registerParentContext(element, this.parentElement);
+      runOn(element, childGenerator as any)
+        .then(api => { if (api !== undefined) childContexts.set(element, api); })
+        .catch(error => console.error(`Error in child generator for selector "${childSelector}":`, error));
+    };
+
+    const teardownChild = (element: ChildEl) => {
+      if (!childContexts.has(element)) return;
+      unregisterParentContext(element);
+      executeElementCleanup(element);
+      childContexts.delete(element);
+    };
+
+    // We create a strongly-typed info object here.
+    const selectorInfo: WatchedSelectorInfo<ChildEl, ChildGen> = {
+      generator: childGenerator,
+      contexts: childContexts,
+      setupFn: setupChild,
+      teardownFn: teardownChild,
+    };
+    
+    // Although the map is `Map<string, any>`, we store the fully-typed object.
+    this.watchedSelectors.set(childSelector, selectorInfo);
+    
+    // Process existing elements with the correctly-typed setup function.
+    this.parentElement.querySelectorAll<ChildEl>(childSelector).forEach(setupChild);
+
+    return childContexts;
+  }
+
+  public destroy(): void {
+    this.observer.disconnect();
+    this.watchedSelectors.forEach(({ teardownFn, contexts }) => {
+      for (const childEl of contexts.keys()) {
+        teardownFn(childEl);
+      }
+    });
+    this.watchedSelectors.clear();
+  }
+}
+
+// A Promise-like interface to make the returned map "yield-able".
+interface YieldableMap<K, V> extends Map<K, V> {
+  then(resolve: (value: Map<K, V>) => void): void;
+}
+
+/**
+ * # createChildWatcher() - Create a Reactive Collection of Child Component APIs
+ *
+ * Establishes a live, type-safe link between a parent and its children. This
+ * function is the primary tool for building complex, communicative component
+ * hierarchies.
+ *
+ * It returns a reactive `Map` where keys are the child `HTMLElement` instances
+ * and values are the public APIs `return`ed by each child's generator. This
+ * map automatically updates as child elements are added to or removed from the DOM.
  *
  * ## Usage
  *
  * ```typescript
  * // In the parent's generator:
  * function* parentComponent() {
- *   // Create the watcher. The type of `childApis` is inferred as:
- *   // Map<HTMLButtonElement, { click: () => void }>
- *   const childApis = createChildWatcher('button.child', childButtonLogic);
+ *   const childApis = createChildWatcher('button.counter', counterLogic);
  *
- *   // Interact with the children's APIs
- *   yield click('#trigger-all-children', () => {
+ *   yield click('.reset-all', () => {
  *     for (const childApi of childApis.values()) {
- *       childApi.click(); // Call method on the child's API
+ *       childApi.reset();
  *     }
  *   });
  * }
  * ```
  *
- * @param childSelector The CSS selector for the child elements.
- * @param childGenerator The generator for the children, which should `return` a public API object.
- * @returns A reactive `Map<ChildEl, ChildApi>` that updates as children are added/removed.
+ * ## Best Practices
+ *
+ * 1.  **Call from a `watch` Context:** This function must be called from within a
+ *     `watch()` generator, as it needs a parent context to attach to.
+ * 2.  **Child API Design:** For a child to be useful to its parent, its generator
+ *     should `return` an object containing methods the parent can call.
+ * 3.  **Efficiency:** Multiple calls to `createChildWatcher` within the same parent
+ *     are highly efficient, as they all share a single `MutationObserver`.
+ *
+ * @param childSelector The CSS selector used to find child elements.
+ * @param childGenerator The generator function that defines the child's behavior and returns its public API.
+ * @returns A reactive `Map<ChildEl, ChildApi>` that updates as children are added or removed.
+ *          The map is also "thenable" for safe use with `yield` if needed.
  */
 export function createChildWatcher<
   S extends string,
@@ -627,88 +776,40 @@ export function createChildWatcher<
 >(
   childSelector: S,
   childGenerator: ChildGen
-): Map<ChildEl, Awaited<ReturnType<ChildGen>>> {
-  // This function must be called from within a parent's generator context.
+): YieldableMap<ChildEl, Awaited<ReturnType<ChildGen>>> {
+  if (!getCurrentContext()) {
+    console.warn('`createChildWatcher` was called outside of a `watch` generator context. It will not function correctly. Please ensure it is called inside a `watch()` generator.');
+    const emptyMap = new Map();
+    return Object.assign(emptyMap, { then: (resolve: (v: any) => void) => resolve(emptyMap) });
+  }
+
   const parentElement = self<HTMLElement>();
-  const childContexts = new Map<ChildEl, Awaited<ReturnType<ChildGen>>>();
+  const managerKey = '__childWatcherManager';
 
-  const setupChild = (element: ChildEl) => {
-    // Link child to parent for `getParentContext()` to work.
-    registerParentContext(element, parentElement);
-    // Execute the child's generator and get its returned API.
-    runOn(element, childGenerator as any).then(api => {
-      if (api) {
-        childContexts.set(element, api);
-      }
-    }).catch(error => {
-      console.error('Error in child generator:', error);
-    });
-  };
-  
-  const teardownChild = (element: ChildEl) => {
-    unregisterParentContext(element);
-    executeElementCleanup(element); // Runs all cleanup fns for the child.
-    childContexts.delete(element);
-  };
+  let manager: ChildWatcherManager = getState(managerKey);
+  if (!manager) {
+    manager = new ChildWatcherManager(parentElement);
+    setState(managerKey, manager);
+  }
 
-  // 1. Initial setup for existing children
-  const existingChildren = Array.from(parentElement.querySelectorAll(childSelector)) as ChildEl[];
-  existingChildren.forEach(setupChild);
+  // The `register` method is fully generic, so it returns a correctly typed Map.
+  const contexts = manager.register<S, ChildEl, ChildGen>(childSelector, childGenerator);
 
-  // 2. Scoped MutationObserver to watch for dynamic changes
-  const scopedObserver = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      for (const node of Array.from(mutation.addedNodes)) {
-        if (node instanceof HTMLElement) {
-          if (node.matches(childSelector)) setupChild(node as ChildEl);
-          Array.from(node.querySelectorAll(childSelector)).forEach(el => setupChild(el as ChildEl));
-        }
-      }
-      for (const node of Array.from(mutation.removedNodes)) {
-        if (node instanceof HTMLElement) {
-          if (node.matches(childSelector)) teardownChild(node as ChildEl);
-          Array.from(node.querySelectorAll(childSelector)).forEach(el => teardownChild(el as ChildEl));
-        }
-      }
-    }
+  // The `contexts` variable is now correctly typed as `Map<ChildEl, ...>`,
+  // so the `Object.assign` call will also be correctly typed.
+  return Object.assign(contexts, {
+    then: (resolve: (value: typeof contexts) => void) => resolve(contexts),
   });
-
-  scopedObserver.observe(parentElement, { childList: true, subtree: true });
-
-  // 3. Register a cleanup function in the parent's context to stop this observer.
-  // This is critical for preventing memory leaks.
-  cleanup(() => {
-    scopedObserver.disconnect();
-    // Also clean up any remaining children when parent is destroyed
-    for (const childEl of childContexts.keys()) {
-        teardownChild(childEl);
-    }
-    childContexts.clear();
-  });
-
-  return childContexts;
 }
 
 /**
  * # child() - Alias for createChildWatcher()
- * 
- * A shorter, more intuitive alias for `createChildWatcher`. 
- * Creates a reactive collection of child component APIs.
- * 
- * ## Usage
- * 
- * ```typescript
- * watch('.parent', function* () {
- *   const children = child('.child-button', childButtonLogic);
- *   
- *   yield click('.reset-all', () => {
- *     children.forEach(api => api.reset());
- *   });
- * });
- * ```
- * 
+ *
+ * A shorter, more intuitive alias for `createChildWatcher`. It creates a
+ * reactive collection of child component APIs.
+ *
  * @param childSelector The CSS selector for the child elements.
  * @param childGenerator The generator for the children, which should `return` a public API object.
- * @returns A reactive `Map<ChildEl, ChildApi>` that updates as children are added/removed.
+ * @returns A reactive `Map<ChildEl, ChildApi>` that updates as children are added or removed.
  */
 export const child = createChildWatcher;

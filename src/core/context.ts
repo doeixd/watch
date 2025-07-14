@@ -132,7 +132,7 @@ export function createWatchContext<El extends HTMLElement>(
 }
 
 // Execute a generator function with proper context and type safety
-export async function executeGenerator<El extends HTMLElement, T = any>(
+export async function executeGenerator<El extends HTMLElement, T = GeneratorContext<El> | any>(
   element: El,
   selector: string,
   index: number,

@@ -1,44 +1,62 @@
 # The JavaScript Library for the DOM You Don't Control
 
-I want you to think about a specific kind of web development. It’s not the controlled environment of greenfield projects where you're building a brand-new Next.js or SvelteKit application. It’s messier.
+Your JavaScript breaks every Tuesday.
 
-I’m talking about adding features to a big, server-rendered Rails or Django app. I’m talking about writing a user script to enhance a third-party website. I’m talking about building a Chrome extension that needs to inject life into pages you have no control over. I'm talking about the world of HTMX, where the server sends you HTML and you just have to *deal with it*.
+Not because you wrote bad code, but because the server-rendered app you're enhancing just loaded new content, and none of your event listeners survived. Users click buttons that do nothing. Forms submit without validation. The "Add to Cart" functionality that worked perfectly on Monday is now dead code.
 
-In this world, the classic JavaScript approach falls apart instantly:
+I want you to think about a specific, and very common, kind of web development. It’s not the pristine, greenfield world of a brand-new Next.js or SvelteKit application. It’s messier. I’m talking about adding features to a big, server-rendered Rails or Django app. I’m talking about writing a user script to enhance a third-party website. I’m talking about building a Chrome extension that needs to inject life into pages you have no control over.
+
+In this world, the classic JavaScript approach falls apart.
 
 ```javascript
-// You write this code on Monday. It works.
+// You write this on Monday. It works.
 document.querySelectorAll('.product-card .add-to-cart').forEach(button => {
-  button.addEventListener('click', () => {
-    // ... logic to add to cart
-  });
+  button.addEventListener('click', () => { /* ... */ });
 });
 
-// On Tuesday, a new feature loads more products onto the page.
+// On Tuesday, a new feature loads more products.
 // None of the new buttons work. Your JavaScript is broken.
 ```
 
-For years, the solution was jQuery's magical `.live()` (and later, the more performant `.on()`). You could attach an event listener to elements that didn't exist yet. It was a game-changer. But it had its own problems: state management was a nightmare, and cleanup was a manual, leaky process.
+The fundamental issue is that most JavaScript assumes a stable DOM. Components mount once, manage their own lifecycle, and live in a world where they control their own rendering. But what if you don't control the rendering? What if the server can replace your DOM at any moment?
 
-Today, I want to show you a library that feels like the spiritual successor to `.live()`, rebuilt for the modern era with components, state management, and type safety. It's called **Watch** (available on npm as `watch-selector`), and it’s a functional and composable tool for the unruly DOM.
+You could reach for a full framework like React, but then you're committed to client-side rendering, build tools, and explaining to your team why a simple form enhancement now requires a complete architectural overhaul.
 
-## The Ghost of `.live()` Past
-
-The core idea of Watch is simple: you declare behaviors for CSS selectors, and it ensures those behaviors are applied to all matching elements, whether they exist now or are added to the DOM ten minutes from now.
-
-Under the hood, Watch uses a **single global MutationObserver** to efficiently track DOM changes. When elements matching your selectors are added or removed, Watch automatically manages the lifecycle. This scales beautifully—whether you're watching 10 elements or 10,000, the performance overhead remains minimal.
-
-## The Secret Sauce: Generators as Persistent Contexts
-
-Here's where Watch makes its most important design decision. Instead of callbacks or classes, it uses **JavaScript generators** (`function*`) as the foundation for component behavior. This isn't just a clever trick—it's the key insight that makes everything else possible.
-
-Let's see why with the classic "click counter" problem.
-
-Here’s the old, broken way:
+For years, jQuery offered a elegant solution to this exact problem with `.live()`. You could attach event listeners to elements that didn't exist yet:
 
 ```javascript
-// This fails spectacularly. The `clicks` variable is shared
-// by all buttons, and it's lost if the buttons are re-rendered.
+// jQuery's magical .live() - worked on future elements
+$('.add-to-cart').live('click', handleAddToCart);
+```
+
+It was brilliant. No matter when those `.add-to-cart` buttons appeared in the DOM, they would automatically have click handlers. But `.live()` had its own problems: state management was a nightmare, cleanup was manual and error-prone, and performance suffered as the DOM grew larger.
+
+When jQuery deprecated `.live()` in favor of `.on()`, we lost the intuitive "just make it work" approach that made dynamic content feel manageable.
+
+<br />
+
+## Introducing Watch
+
+Watch is a JavaScript library that embraces DOM chaos rather than fighting it. It's the spiritual successor to jQuery's `.live()`, rebuilt for the modern era with components, state management, and automatic cleanup. Watch is built on a simple premise: you declare behaviors for CSS selectors, and those behaviors persist no matter what the server throws at you.
+
+```javascript
+import { watch } from 'watch-selector';
+
+// This works on Monday, Tuesday, and every day after
+watch('.product-card .add-to-cart', function* () {
+  yield on('click', handleAddToCart);
+});
+```
+<br />
+
+## The Secret Sauce: Generators as Component Contexts
+
+Here's where Watch makes its most important design decision. Instead of callbacks or classes, it uses **generators** as the foundation for component behavior. This is the key that makes everything else work so elegantly.
+
+Let's look at the classic "click counter" problem. The traditional, intuitive first draft fails spectacularly because the state is shared across all instances:
+
+```javascript
+// This fails. The `clicks` variable is shared by all buttons.
 let clicks = 0;
 document.querySelectorAll('button').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -55,6 +73,8 @@ Here is the Watch way:
 watch('.counter-btn', function* () {
   let count = 0; // State is scoped to this button only
 
+  yield text(`Clicked ${count} times`); // Set initial text
+
   yield click(() => {
     count++; // State persists across clicks
     yield text(`Clicked ${count} times`);
@@ -64,134 +84,193 @@ watch('.counter-btn', function* () {
 });
 ```
 
-This is the "aha!" moment. The generator function creates a persistent execution context for *each matching element*. Unlike callbacks that execute and disappear, generators maintain their state between yields, creating a perfect component lifecycle.
+This is the "aha!" moment. The generator function creates a **persistent execution context** for *each matching element*. Unlike callbacks that execute and disappear, generators maintain their state between `yield`s, creating a perfect, lightweight component lifecycle with three crucial properties:
 
-> **Why generators are the perfect choice:** They provide isolated state, declarative syntax, and automatic cleanup—all in one language feature. No classes, no lifecycle methods, no manual memory management.
+1.  **Isolated State**: Each button gets its own `count` variable.
+2.  **Persistent Context**: The state survives across multiple interactions and events.
+3.  **Automatic Cleanup**: When an element is removed, its generator instance is discarded. No memory leaks.
 
-1.  **Isolated State:** `let count = 0` is unique to every single button.
-2.  **Declarative API:** `yield click(...)` and `yield text(...)` clearly describe the behavior.
-3.  **Automatic Cleanup:** When an element is removed, its generator instance is discarded. No memory leaks.
+It's everything `.live()` promised, but with a modern component model you're used to.
 
-It's everything `.live()` promised, but with a proper component model.
+<br />
 
-## The "Un-Component" Philosophy: An Alternative to Web Components
+## The "Un-Component" Philosophy
 
-When we think of components, we often think of Web Components—custom tags like `<my-widget>` with their own encapsulated Shadow DOM and styles. This is great when you control the entire application, but it's a non-starter for the use cases we're talking about. You can't just tell a third-party site to start using your `<my-awesome-button>` tag.
+Watch represents a different philosophy from Web Components or framework-based approaches. Instead of replacing HTML with custom elements, Watch enhances existing HTML with rich behavior.
 
-Watch offers a different philosophy: **behavioral components**. It enhances existing HTML instead of replacing it.
+You're not creating new *kinds* of elements; you're creating new *behaviors* for existing ones. This "enhancement over replacement" approach solves real problems:
 
-This approach gracefully sidesteps the common frustrations of Web Components:
+- **No Build Tools Required**: Drop in a script tag and start writing components
+- **Works with Any Backend**: Your Rails, Django, or PHP app doesn't need to change
+- **CSS Just Works**: No Shadow DOM isolation to fight with
+- **Progressive Enhancement**: Start simple, add complexity only where needed
+- **Team Friendly**: Different teams can enhance the same elements without conflicts
 
-*   **No Custom Tags:** You don't need to define or use custom elements. You attach behavior to a standard `<div class="product-card">`. This is perfect for server-rendered HTML and legacy systems.
-*   **No Shadow DOM Drama:** Forget fighting with CSS custom properties to style your component or piercing the shadow boundary to access an inner element. Your global CSS works just as you'd expect.
-*   **No Boilerplate:** There’s no `class MyComponent extends HTMLElement { connectedCallback() { ... } }`. You just write a generator function and point it at a selector. It’s lightweight and functional.
+Compare this to Web Components, which require you to define custom elements, manage Shadow DOM, and convince your entire stack to adopt new HTML tags. Or framework approaches, which require you to abandon server-side rendering and commit to client-side architecture. It’s like jQuery’s ethos, but with modern primitives and a real component model.
 
-You're not creating new *kinds* of elements; you're creating new *behaviors* for existing ones.
+<br />
 
-> **How does this compare to Alpine.js?** Both libraries excel at enhancing server-rendered HTML. The key difference is where the logic lives: Alpine encourages you to place declarative logic and state inside your HTML (`<div x-data="...">`). Watch keeps all logic and state firmly in your JavaScript, using selectors to connect it to the HTML. Watch is a strong choice if you prefer a clean separation of concerns, the full power of TypeScript, and programmatic composition for more complex behaviors.
+## A System for Composition
 
-The examples so far show isolated components—each button managing its own state. But real applications need components that work together, share concerns, and build upon each other. This is where Watch's composition system shines.
+Where most tools give you components that render DOM, Watch gives you behaviors that **attach** to it. That shift unlocks a surprising amount of composability.
 
-## More Than a Utility: A System for Composition
+### 🧱 Layering Behavior
 
-Because Watch is functional at its core, it’s not just for simple event listeners. It's a complete system for building complex, decoupled components.
+Let’s say Team A owns cart logic, and Team B wants to track analytics. Watch lets both teams enhance the same element—no coordination required.
 
-It starts with **layering**. Imagine you have a core product card component:
-
-```typescript
-// --- Core product card functionality (product-card.ts) ---
-export const productController = watch('.product-card', function* () {
+```ts
+// Cart logic
+const productCard = watch('.product-card', function* () {
   const inCart = createState('inCart', false);
   yield on('click', '.add-btn', () => inCart.set(true));
 });
-```
 
-Now, a different team needs to add analytics. They don't need to touch the original file. They can simply import the controller and layer a new behavior on top:
-
-```typescript
-// --- Analytics layer (analytics.ts) ---
-import { productController } from './product-card.js';
-
-productController.layer(function* () {
-  yield onVisible(() => {
-    analytics.track('product-viewed', { id: self().dataset.productId });
-  });
+// Analytics logic
+productCard.layer(function* () {
+  const productId = self().dataset.productId;
+  yield onVisible(() => analytics.track('product-viewed', { id: productId }));
 });
 ```
 
-These two pieces of logic can live in different files, be maintained by different teams, and are completely decoupled. The analytics team can add their tracking layer without ever touching the core component code.
+✅ **Takeaway:** Layers let you stack behaviors like middleware—cleanly, safely, and independently.
 
-This is powerful **separation of concerns**. But layering is just the beginning. The system naturally scales up to full **component hierarchies**, where parents can orchestrate their children.
 
-This is accomplished by having a child component `return` an API from its generator.
+### 🌲 Parent-Child Composition
 
-Let's build an interactive dashboard with multiple counters. First, the child component:
+Need interaction between components? Watch handles parent-child structure through **functional composition**, not global state or props.
 
-```typescript
-// Child Component: a single counter button
+```ts
+// A reusable counter component
 function* counterWidget() {
   let count = 0;
   yield text(`Count: ${count}`);
-
   yield click(() => {
     count++;
     yield text(`Count: ${count}`);
   });
 
-  // Public API for parent component
   return {
     getCount: () => count,
     reset: () => {
       count = 0;
       yield text(`Count: ${count}`);
-    },
+    }
   };
 }
 ```
 
-Now, the parent dashboard can find all its `counterWidget` children and manage them:
+In the parent:
 
-```typescript
-// Parent Component: the dashboard
-watch('.counter-dashboard', function* () {
-  // Live Map of child APIs, auto-updates as children are added/removed
-  const counterApis = child('.counter-widget', counterWidget);
+```ts
+watch('.dashboard', function* () {
+  const counters = child('.counter', counterWidget);
 
-  yield click('.reset-all-btn', () => {
-    for (const api of counterApis.values()) {
-      api.reset();
-    }
-  });
-
-  yield click('.show-total-btn', () => {
-    const total = Array.from(counterApis.values())
-                      .reduce((sum, api) => sum + api.getCount(), 0);
-    alert(`Total across all counters: ${total}`);
+  yield click('.reset-all', () => {
+    for (const api of counters.values()) api.reset();
   });
 });
 ```
 
-This is a true component hierarchy. The parent has a clean, type-safe way to interact with its children, all without a virtual DOM and while remaining resilient to the server swapping out the HTML.
+✅ **Takeaway:** Components don’t just render—they expose APIs. You get clean, scoped communication without a framework.
 
-This is the ultimate expression of the library's philosophy: it provides a powerful, unopinionated foundation that lets you build the exact abstractions your project needs.
 
-## Finding its Niche
+### 🧩 Higher-Order Behavior
 
-So, who is this for?
+Now imagine you want error handling, feature flags, and performance tracking—without jamming it into every component manually.
 
-Watch sits in a fascinating middle-ground, somewhere between the "bag of utilities" feel of jQuery and the pure, unopinionated minimalism of a library like vanJS. It provides structure and a component model without forcing a full virtual DOM or a complex build process.
+Watch supports **behavior composition** out of the box:
 
+```ts
+const composedEnhancer = compose(
+  gen => withFeatureFlag('new-widget-ui', gen),
+  gen => withErrorBoundary(gen, '<p>Widget failed to load.</p>'),
+  gen => withPerformanceMonitoring('MySuperWidget', gen)
+);
+```
+
+Your core logic stays focused:
+
+```ts
+const enhancedWidget = composedEnhancer(function* mySuperWidget() {
+  const count = createState('count', 0);
+  yield text(`Clicked ${count.get()} times`);
+  yield click(() => {
+    count.update(c => c + 1);
+    yield text(`Clicked ${count.get()} times`);
+  });
+});
+
+watch('.super-widget', enhancedWidget);
+```
+
+✅ **Takeaway:** `compose()` gives you declarative pipelines for UI behavior—just like middleware, but for components.
+
+
+<br />
+
+## Finding Watch's Niche
+
+These are valid alternatives, and I considered them carefully when building Watch. Here's why I chose a different path:
+
+**Alpine.js** is excellent for declarative interactions. The key difference is architectural: Alpine encourages you to place logic and state directly in your HTML (`<div x-data="{ count: 0 }" x-on:click="count++">`), while Watch keeps all logic in JavaScript using selectors to connect it to the DOM.
+
+```html
+<!-- Alpine approach -->
+<div x-data="{ count: 0 }" x-on:click="count++">
+  <span x-text="count"></span>
+</div>
+```
+
+```javascript
+// Watch approach
+watch('[data-counter]', function* () {
+  let count = 0;
+  yield text(count);
+  yield on('click', () => {
+    count++;
+    yield text(count);
+  });
+});
+```
+
+Watch is a better fit if you prefer clean separation of concerns, want the full power of TypeScript for complex logic, or need the kind of programmatic composition patterns I've shown above.
+
+**Web Components** work well when you control the entire application, but they're a non-starter for our use cases. You can't get third-party sites to adopt your `<my-awesome-button>` custom elements. Watch enhances existing HTML instead of requiring custom tags.
+
+More importantly, Web Components come with significant overhead:
+- Shadow DOM isolation fights with existing CSS
+- Custom element registration requires polyfills in older browsers  
+- The imperative lifecycle API (`connectedCallback`, `disconnectedCallback`) is verbose compared to Watch's declarative approach
+
+Watch sidesteps these issues by working with standard HTML and CSS, making it perfect for browser extensions, userscripts, and server-rendered applications.
+
+<br />
+
+## When Watch Shines (And When It Doesn't)
+
+So, who is this for? Watch sits in a fascinating middle-ground, somewhere between the "bag of utilities" feel of jQuery and the structured component model of modern frameworks. It provides structure without forcing a complete architectural commitment.
 It works well when you find yourself in these scenarios:
+- **Browser extensions** that enhance third-party sites
+- **Userscripts** that add functionality to existing pages
+- **HTMX applications** where the server controls rendering
+- **Legacy modernization** where you're gradually replacing jQuery
 
-*   **Progressive Enhancement:** You have a server-rendered site and want to "sprinkle" on rich, stateful interactivity.
-*   **Userscripts & Extensions:** You need to reliably and robustly manipulate pages you don't own.
-*   **HTMX-Driven Apps:** You need a client-side companion that understands that the DOM is ephemeral and can be replaced at any moment.
-*   **Legacy Modernization:** You're slowly refactoring an old jQuery-based app and need a bridge to a more modern, component-based way of thinking without a full rewrite.
+**Not ideal for:**
+- **Single-page applications** where you control the entire rendering pipeline
+- **Performance-critical applications** that need virtual DOM optimizations
+- **Teams fully committed to React/Vue ecosystems**
+- **Simple sites** that don't need complex interactions
 
-Watch isn't here to replace React. It's here to solve a different class of problems—the ones that exist in the messy, unpredictable, and often uncontrollable reality of the web. It’s a reminder that sometimes the most elegant solution isn’t to replace the DOM, but simply to listen to it, and watch it come to life.
+Watch isn't trying to replace React—it's here to solve a different class of problems. The ones that exist in the messy, unpredictable, and often uncontrollable reality of web development.
 
-> Sometimes the most elegant solution isn't to replace the DOM, but simply to listen to it, and watch it come to life.
+<br />
 
-## Give it a Try
+## The Bigger Picture
 
-If this sounds useful for your project, I'd love for you to check out [the README](../README.md) and let me know what you think. Watch is still evolving, and feedback from real-world usage helps make it better.
+Watch represents a return to the web's core philosophy: progressive enhancement. The idea that you start with working HTML and gradually layer on richer interactions.
+
+In a time where frameworks own everything on the page, Watch suggests a different approach: embrace the chaos, listen to the DOM, and build behaviors that adapt.
+
+Sometimes the most elegant solution isn't to own the DOM, but to *watch* it come to life.
+
+Ready to give it a try? Check out the [documentation](../README.md) and let me know what you think. Watch is still evolving, and feedback from real-world usage helps make it better.

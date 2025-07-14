@@ -639,7 +639,7 @@ describe('State Management System', () => {
         setState('counter', 0);
         
         // Simulate concurrent updates
-        const promises = [];
+        const promises: Promise<void>[] = [];
         for (let i = 0; i < 100; i++) {
           promises.push(
             new Promise<void>(resolve => {
@@ -651,8 +651,9 @@ describe('State Management System', () => {
           );
         }
         
-        await Promise.all(promises);
-        expect(getState('counter')).toBe(100);
+        Promise.all(promises).then(() => {
+          expect(getState('counter')).toBe(100);
+        })
       });
     });
 

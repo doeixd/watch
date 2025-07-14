@@ -3,6 +3,7 @@
 import type { ElementHandler, SelectorRegistry, UnmountRegistry, UnmountHandler, WatchController, ManagedInstance, WatchTarget, ElementMatcher, TypedGeneratorContext } from '../types';
 import { getElementStateSnapshot } from './state';
 import { executeGenerator } from './context';
+import { triggerUnmountHandlers } from '../api/events';
 
 // Global state
 let globalObserver: MutationObserver | null = null;
@@ -155,7 +156,6 @@ function processRemovedElements(elements: Set<HTMLElement>): void {
     // Use unified trigger function for all unmount handling
     try {
       // Import trigger function from events-hybrid
-      const { triggerUnmountHandlers } = require('../api/events-hybrid');
       triggerUnmountHandlers(element);
     } catch (e) {
       // Fallback to legacy unmount handling if import fails

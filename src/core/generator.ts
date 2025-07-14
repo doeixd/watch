@@ -34,10 +34,13 @@ export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGene
       return Array.from(element.querySelectorAll(selector)) as T[];
     },
 
-    // Cleanup function - delegate to context.ts
+    // Cleanup function
     cleanup(fn: CleanupFunction): void {
-      const cleanupFn = createCleanupFunction(element);
-      cleanupFn(fn);
+      const cleanupRegistry = getCleanupRegistry();
+      if (!cleanupRegistry.has(element)) {
+        cleanupRegistry.set(element, new Set());
+      }
+      cleanupRegistry.get(element)!.add(fn);
     },
 
     // Context access
@@ -72,11 +75,15 @@ export function createTypedGeneratorContext<El extends HTMLElement>(): TypedGene
   };
 }
 
-// Import unified cleanup functions from context.ts
-import { executeCleanup, createCleanupFunction } from './context';
+// Global cleanup registry
+const cleanupRegistry = new WeakMap<HTMLElement, Set<CleanupFunction>>();
 
 // Global registry to store the public API returned by a generator for an element.
 const generatorApiRegistry = new WeakMap<HTMLElement, any>();
+
+function getCleanupRegistry(): WeakMap<HTMLElement, Set<CleanupFunction>> {
+  return cleanupRegistry;
+}
 
 /**
  * Retrieves the public API returned by an element's generator.
@@ -191,7 +198,17 @@ export function watchGenerator<S extends string>(
   };
 }
 
-// Execute cleanup for an element - delegate to unified cleanup
+// Execute cleanup for an element
 export function executeElementCleanup(element: HTMLElement): void {
-  executeCleanup(element);
+  const cleanups = cleanupRegistry.get(element);
+  if (cleanups) {
+    cleanups.forEach(fn => {
+      try {
+        fn();
+      } catch (e) {
+        console.error('Error during cleanup:', e);
+      }
+    });
+    cleanupRegistry.delete(element);
+  }
 }

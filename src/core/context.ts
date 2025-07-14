@@ -162,8 +162,10 @@ export async function executeGenerator<El extends HTMLElement, T = GeneratorCont
   
   // Register unmount handler to clean up when element is removed
   registerUnmount(element, () => {
+    // Execute cleanup functions for this element
     executeCleanup(element);
-    // Also dispatch cleanup event for backwards compatibility
+    
+    // Clean up any state related to this element
     const event = new CustomEvent('cleanup', { detail: { element } });
     element.dispatchEvent(event);
   });
@@ -215,21 +217,26 @@ async function executeGeneratorSequence<El extends HTMLElement>(
   generator: Generator<any, any, unknown> | AsyncGenerator<any, any, unknown>,
   element: El
 ): Promise<any> {
-  let result = await generator.next();
-  
-  while (!result.done) {
-    const yielded = result.value;
+  try {
+    let result = await generator.next();
     
-    try {
-      await handleYieldedValue(yielded, element);
-    } catch (e) {
-      console.error('Error executing yielded value:', e);
+    while (!result.done) {
+      const yielded = result.value;
+      
+      try {
+        await handleYieldedValue(yielded, element);
+      } catch (e) {
+        console.error('Error executing yielded value:', e);
+      }
+      
+      result = await generator.next();
     }
     
-    result = await generator.next();
+    return result.value;
+  } catch (error) {
+    console.error('Error in generator sequence execution:', error);
+    throw error;
   }
-  
-  return result.value;
 }
 
 // Handle different types of yielded values
@@ -239,33 +246,52 @@ async function handleYieldedValue<El extends HTMLElement>(
 ): Promise<void> {
   // Handle regular element functions
   if (typeof yielded === 'function') {
-    const result = yielded(element);
-    // If the function returns a promise, await it
-    if (result && typeof result.then === 'function') {
-      await result;
+    try {
+      const result = yielded(element);
+      // If the function returns a promise, await it
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+    } catch (e) {
+      console.error('Error executing yielded function:', e);
     }
     return;
   }
   
   // Handle promises
   if (yielded && typeof yielded.then === 'function') {
-    const resolved = await yielded;
-    // If the resolved value is a function, execute it
-    if (typeof resolved === 'function') {
-      resolved(element);
+    try {
+      const resolved = await yielded;
+      // If the resolved value is a function, execute it
+      if (typeof resolved === 'function') {
+        const result = resolved(element);
+        if (result && typeof result.then === 'function') {
+          await result;
+        }
+      }
+    } catch (e) {
+      console.error('Error handling promise yield:', e);
     }
     return;
   }
   
   // Handle generator delegation (yield*)
   if (yielded && typeof yielded[Symbol.iterator] === 'function') {
-    await executeGeneratorSequence(yielded, element);
+    try {
+      await executeGeneratorSequence(yielded, element);
+    } catch (e) {
+      console.error('Error in generator delegation:', e);
+    }
     return;
   }
   
   // Handle async generator delegation (yield*)
   if (yielded && typeof yielded[Symbol.asyncIterator] === 'function') {
-    await executeGeneratorSequence(yielded, element);
+    try {
+      await executeGeneratorSequence(yielded, element);
+    } catch (e) {
+      console.error('Error in async generator delegation:', e);
+    }
     return;
   }
   
@@ -277,8 +303,8 @@ async function handleYieldedValue<El extends HTMLElement>(
     return;
   }
   
-  // If we get here, it's an unsupported yield type
-  console.warn('Unsupported yield type:', typeof yielded, yielded);
+  // If we get here, it's an unsupported yield type (but don't warn - might be intentional)
+  // console.warn('Unsupported yield type:', typeof yielded, yielded);
 }
 
 // Global proxy for accessing current element when not in generator context

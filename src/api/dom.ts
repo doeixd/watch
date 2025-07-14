@@ -40,23 +40,21 @@ export function text<El extends HTMLElement = HTMLElement>(content: string): Ele
 export function text<El extends HTMLElement = HTMLElement>(): ElementFn<El, string>;
 export function text(...args: any[]): any {
   if (args.length === 2) {
-    // Called with element/selector + content: text(element, 'content')
     const [elementLike, content] = args;
     const element = resolveElement(elementLike);
     if (element) {
       element.textContent = content;
     }
-  } else if (args.length === 1 && args[0] instanceof HTMLElement) {
-    // Called with just an element: text(element) - get text content
-    return args[0].textContent || null;
+  } else if (args.length === 1 && isElementLike(args[0])) {
+    const [elementLike] = args;
+    const element = resolveElement(elementLike);
+    return element?.textContent || null;
   } else if (args.length === 1) {
-    // Called with content: text('content') - return ElementFn for generators
     const [content] = args;
     return ((element: HTMLElement) => {
       element.textContent = content;
     }) as ElementFn<HTMLElement>;
   } else {
-    // Called with no args: text() - return ElementFn to get text content
     return ((element: HTMLElement) => element.textContent || '') as ElementFn<HTMLElement, string>;
   }
 }
@@ -95,7 +93,6 @@ export function addClass(selector: string, ...classNames: string[]): void;
 export function addClass<El extends HTMLElement = HTMLElement>(...classNames: string[]): ElementFn<El>;
 export function addClass(...args: any[]): any {
   if (args.length >= 2 && isElementLike(args[0])) {
-    // Called with element/selector + class names: addClass(element, 'class1', 'class2')
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
@@ -103,11 +100,8 @@ export function addClass(...args: any[]): any {
       const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
       element.classList.add(...splitClassNames);
     }
-  } else if (args.length === 1 && args[0] instanceof HTMLElement) {
-    // Called with just an element: addClass(element) - get classes
-    return args[0].className;
+    return;
   } else {
-    // Called with just class names: addClass('class1', 'class2') - return ElementFn
     const classNames = args;
     return ((element: HTMLElement) => {
       // Split space-separated class names
@@ -121,7 +115,7 @@ export function removeClass(element: HTMLElement, ...classNames: string[]): void
 export function removeClass(selector: string, ...classNames: string[]): void;
 export function removeClass<El extends HTMLElement = HTMLElement>(...classNames: string[]): ElementFn<El>;
 export function removeClass(...args: any[]): any {
-  if (args.length >= 1 && isElementLike(args[0])) {
+  if (args.length >= 2 && isElementLike(args[0])) {
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
@@ -129,6 +123,7 @@ export function removeClass(...args: any[]): any {
       const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
       element.classList.remove(...splitClassNames);
     }
+    return;
   } else {
     const classNames = args;
     return ((element: HTMLElement) => {

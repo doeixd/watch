@@ -2,7 +2,7 @@
 
 import type { ElementHandler, SelectorRegistry, UnmountRegistry, UnmountHandler, WatchController, ManagedInstance, WatchTarget, ElementMatcher, TypedGeneratorContext } from '../types';
 import { getElementStateSnapshot } from './state';
-import { executeGenerator, executeCleanup } from './context';
+import { executeGenerator } from './context';
 
 // Global state
 let globalObserver: MutationObserver | null = null;
@@ -24,12 +24,11 @@ export function initializeObserver(): void {
   
   globalObserver = new MutationObserver(processMutations);
   
-  // Start observing immediately for test environment compatibility
-  startObserving();
-  
-  // Also set up the fallback for browser environments
+  // Wait for DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startObserving);
+  } else {
+    startObserving();
   }
 }
 
@@ -153,9 +152,6 @@ function processElements(elements: Set<HTMLElement>): void {
 // Process removed elements for cleanup
 function processRemovedElements(elements: Set<HTMLElement>): void {
   elements.forEach(element => {
-    // Execute cleanup functions registered via cleanup()
-    executeCleanup(element);
-    
     // Use unified trigger function for all unmount handling
     try {
       // Import trigger function from events-hybrid
@@ -296,9 +292,6 @@ export function getOrCreateController<El extends HTMLElement>(
         behaviorCleanupFns.add(cleanup);
       },
       destroy: () => {
-        // Execute cleanup for all managed instances
-        instances.forEach((_, el) => executeCleanup(el));
-        
         behaviorCleanupFns.forEach(fn => fn());
         behaviorCleanupFns.clear();
         instances.clear();

@@ -161,7 +161,8 @@ export async function executeGenerator<El extends HTMLElement, T = any>(
   
   try {
     // Execute generator in typed context
-    const generator = generatorFn();
+    // @ts-ignore
+    const generator = generatorFn(generatorContext);
     
     // Handle both sync and async generators
     returnValue = await executeGeneratorSequence(generator, element);

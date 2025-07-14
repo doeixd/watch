@@ -1,811 +1,488 @@
 /**
- * @deprecated This module is deprecated. Use the unified event system from the main index instead.
- * All functionality has been moved to the unified event handling system.
+ * @module watch-selector/events
+ *
+ * # The Unified Event System
+ *
+ * This module provides a powerful, unified API for handling DOM and lifecycle
+ * events. It seamlessly supports both standalone usage (on a specific DOM
+ * element) and usage within a `watch()` generator context.
+ *
+ * ## Key Features
+ *
+ * - **Full Type Safety:** Event objects and their `detail` payloads are
+ *   correctly and automatically typed.
+ * - **Generator-Powered Handlers:** Event handlers can be generators, allowing
+ *   you to `yield` other library functions for complex, asynchronous flows.
+ * - **Robust Feature Set:** Includes event delegation, debouncing, throttling,
+ *   event filtering, and async generator queuing.
+ * - **Automatic Cleanup:** All listeners are automatically cleaned up when their
+ *   associated element is removed from the DOM.
+ * - **Standalone & Generator Compatibility:** The same functions work identically
+ *   everywhere, with or without a `watch()` context.
  */
 
-// Event handling with dual API support
-
-import type { 
-  ElementFn, 
-  ElementEventHandler,
-  CustomEventHandler,
-  EventHandler,
-  WatchEventListenerOptions,
-  EventName, 
-  AttributeChange, 
-  TextChange, 
-  VisibilityChange, 
+import type {
+  ElementFn,
+  CleanupFunction,
+  HybridEventOptions,
+  HybridEventHandler,
+  HybridCustomEventHandler,
+  AttributeChange,
+  TextChange,
+  VisibilityChange,
   ResizeChange,
-  CleanupFunction
-} from '../types.ts';
+} from '../types';
+import { executeGenerator, getCurrentContext, createCleanupFunction, pushContext, popContext, executeCleanup } from '../core/context';
+
+// ==================== MAIN 'on' FUNCTION ====================
+
+// --- Overloads for strong type inference and API documentation ---
+
+// 1. Standard DOM events (e.g., 'click', 'input')
+export function on<El extends Element, K extends keyof HTMLElementEventMap>(element: El, event: K, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): CleanupFunction;
+export function on<El extends Element, K extends keyof HTMLElementEventMap>(event: K, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+
+// 2. CustomEvents with a specific detail type T
+export function on<El extends Element, T>(element: El, event: CustomEvent<T>, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): CleanupFunction;
+export function on<El extends Element, T>(event: CustomEvent<T>, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+
+// 3. Custom event strings, requiring a generic for the detail type T
+export function on<T = any, El extends Element = HTMLElement>(element: El, eventType: string, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): CleanupFunction;
+export function on<T = any, El extends Element = HTMLElement>(eventType: string, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
 
 /**
- * Type helper to infer CustomEvent detail type from CustomEvent instance
+ * # on() - The Unified Event Listener
+ *
+ * Attaches a powerful, context-aware event listener to an element. It supports
+ * standard DOM events, CustomEvents, and a rich set of features like delegation,
+ * debouncing, throttling, and generator-based handlers.
+ *
+ * This function is the foundation of all event handling in the library.
+ *
+ * @example
+ * // Standard click handler (type of `event` is MouseEvent)
+ * yield on('click', (event) => console.log(event.clientX));
+ *
+ * @example
+ * // Custom event with typed detail
+ * const userEvent = createCustomEvent('user:login', { id: 1, name: 'John' });
+ * yield on(userEvent, (event) => console.log(event.detail.name)); // event.detail is {id, name}
+ *
+ * @example
+ * // Generator handler for complex interactions
+ * yield on('click', function* (event) {
+ *   yield addClass('loading');
+ *   const data = yield* fetch('/api/data');
+ *   yield updateUI(data);
+ *   yield removeClass('loading');
+ * });
+ *
+ * @example
+ * // Standalone usage with delegation
+ * const container = document.getElementById('container');
+ * const cleanup = on(container, 'click', (event, delegatedEl) => {
+ *   console.log('Clicked on:', delegatedEl.textContent);
+ * }, { delegate: '.item' });
  */
-export type InferCustomEventDetail<T> = T extends CustomEvent<infer D> ? D : any;
+export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(...args: any[]): any {
+  // 1. UNIFIED ARGUMENT PARSING
+  const isDirectUsage = args[0] instanceof Element;
+  const element = isDirectUsage ? args[0] as El : null;
+  const eventOrType = (isDirectUsage ? args[1] : args[0]) as K | string | CustomEvent<T>;
+  const handler = (isDirectUsage ? args[2] : args[1]) as HybridEventHandler<El, K> | HybridCustomEventHandler<El, T>;
+  const options = (isDirectUsage ? args[3] : args[2]) as HybridEventOptions || {};
 
-/**
- * Create a typed CustomEvent with proper type inference
- * This is a helper function to create CustomEvents with full type safety
- */
-export function createCustomEvent<T = any>(
-  type: string,
-  detail: T,
-  options?: EventInit
-): CustomEvent<T> {
-  return new CustomEvent(type, {
-    detail,
-    bubbles: true,
-    cancelable: true,
-    ...options
-  });
+  // 2. CREATE THE UNIFIED ELEMENT FUNCTION
+  const elementFn: ElementFn<El, CleanupFunction> = (el: El) => {
+    const eventType = getEventType(eventOrType);
+    const inGeneratorContext = !!getCurrentContext();
+    const enhancedHandler = createEnhancedHandler(el as unknown as HTMLElement, handler, inGeneratorContext, options);
+    const finalHandler = applyTimingModifiers(enhancedHandler, options);
+    const cleanup = setupEventListener(el, eventType, finalHandler, options);
+
+    if (inGeneratorContext) {
+      createCleanupFunction(el as unknown as HTMLElement)(cleanup);
+    }
+    return cleanup;
+  };
+
+  // 3. EXECUTE OR RETURN
+  return isDirectUsage && element ? elementFn(element) : elementFn;
 }
 
-/**
- * # Enhanced `on()` Function - Advanced Event Handling
- * 
- * The `on()` function provides comprehensive event handling with support for:
- * - Standard DOM events with full type safety
- * - CustomEvent objects with automatic type inference
- * - Event delegation and filtering
- * - AbortSignal support for cleanup
- * - Debouncing and throttling
- * - All native addEventListener options
- * 
- * ## Features
- * 
- * ### 1. Standard DOM Events
- * ```typescript
- * watch('button', function* () {
- *   yield on('click', (event, button) => {
- *     console.log('Button clicked!', event.clientX, event.clientY);
- *   });
- * });
- * ```
- * 
- * ### 2. CustomEvent Support
- * ```typescript
- * const customEvent = new CustomEvent('my-event', { detail: { userId: 123 } });
- * 
- * watch('.widget', function* () {
- *   // Type is automatically inferred from the CustomEvent
- *   yield on(customEvent, (event, element) => {
- *     console.log('User ID:', event.detail.userId); // ✅ Type-safe
- *   });
- * });
- * ```
- * 
- * ### 3. Event Delegation
- * ```typescript
- * watch('.container', function* () {
- *   yield on('click', handler, {
- *     delegate: '.button' // Only handle clicks on buttons inside container
- *   });
- * });
- * ```
- * 
- * ### 4. AbortSignal Support
- * ```typescript
- * const controller = new AbortController();
- * 
- * watch('.element', function* () {
- *   yield on('click', handler, {
- *     signal: controller.signal
- *   });
- * });
- * 
- * // Later: controller.abort(); // Automatically removes listeners
- * ```
- * 
- * ### 5. Debouncing and Throttling
- * ```typescript
- * watch('input', function* () {
- *   yield on('input', handler, {
- *     debounce: 300 // Debounce input events
- *   });
- *   
- *   yield on('scroll', handler, {
- *     throttle: 16 // Throttle scroll events (60fps)
- *   });
- * });
- * ```
- * 
- * ### 6. Event Filtering
- * ```typescript
- * watch('.list', function* () {
- *   yield on('click', handler, {
- *     filter: (event, element) => {
- *       // Only handle clicks with Ctrl key
- *       return event.ctrlKey;
- *     }
- *   });
- * });
- * ```
- */
+// ==================== INTERNAL HELPERS (Unified & Improved) ====================
 
-// 1. Standard DOM events with element
-export function on<El extends HTMLElement, K extends keyof HTMLElementEventMap>(
-  element: El, 
-  event: K, 
-  handler: ElementEventHandler<El, K>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-
-// 2. Standard DOM events for generator
-export function on<El extends HTMLElement, K extends keyof HTMLElementEventMap>(
-  event: K,
-  handler: ElementEventHandler<El, K>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-
-// 3. CustomEvent with element
-export function on<El extends HTMLElement, T = any>(
+function createEnhancedHandler<El extends HTMLElement, K extends keyof HTMLElementEventMap, T>(
   element: El,
-  event: CustomEvent<T>,
-  handler: CustomEventHandler<El, T>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-
-// 4. CustomEvent for generator
-export function on<El extends HTMLElement, T = any>(
-  event: CustomEvent<T>,
-  handler: CustomEventHandler<El, T>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-
-// 5. Custom event type string with typed detail
-export function on<El extends HTMLElement, T = any>(
-  element: El,
-  eventType: string,
-  handler: CustomEventHandler<El, T>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-
-// 6. Custom event type string for generator
-export function on<El extends HTMLElement, T = any>(
-  eventType: string,
-  handler: CustomEventHandler<El, T>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-
-// Implementation
-export function on<El extends HTMLElement>(...args: any[]): any {
-  // Helper functions for debouncing and throttling
-  const debounce = (func: Function, wait: number) => {
-    let timeout: number;
-    return (...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), wait);
-    };
-  };
-
-  const throttle = (func: Function, limit: number) => {
-    let inThrottle: boolean;
-    return (...args: any[]) => {
-      if (!inThrottle) {
-        func(...args);
-        inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
-      }
-    };
-  };
-
-  // Determine if this is direct usage (element provided) or generator usage
-  const isDirectUsage = args.length >= 3 && typeof args[0] === 'object' && 'nodeType' in args[0];
-  
-  if (isDirectUsage) {
-    const [element, eventOrEventType, handler, options = {}] = args as [El, any, any, WatchEventListenerOptions];
-    
-    return setupEventListener(element, eventOrEventType, handler, options);
-  } else {
-    const [eventOrEventType, handler, options = {}] = args as [any, any, WatchEventListenerOptions];
-    
-    return ((element: El) => {
-      return setupEventListener(element, eventOrEventType, handler, options);
-    }) as ElementFn<El, CleanupFunction>;
-  }
-
-  function setupEventListener(
-    element: El,
-    eventOrEventType: any,
-    handler: any,
-    options: WatchEventListenerOptions
-  ): CleanupFunction {
-    let eventType: string;
-    let isCustomEvent = false;
-    
-    // Determine event type with comprehensive validation
-    if (typeof eventOrEventType === 'string') {
-      if (!eventOrEventType.trim()) {
-        throw new Error('Event type cannot be empty');
-      }
-      eventType = eventOrEventType;
-    } else if (eventOrEventType instanceof CustomEvent) {
-      eventType = eventOrEventType.type;
-      isCustomEvent = true;
-    } else if (eventOrEventType && typeof eventOrEventType === 'object' && 'type' in eventOrEventType) {
-      // Handle Event-like objects
-      eventType = eventOrEventType.type;
-      isCustomEvent = true;
-    } else {
-      throw new Error('Event must be a string, CustomEvent instance, or Event-like object with a type property');
-    }
-
-    // Validate handler
-    if (typeof handler !== 'function') {
-      throw new Error('Event handler must be a function');
-    }
-
-    // Validate element
-    if (!element || typeof element.addEventListener !== 'function') {
-      throw new Error('Element must be a valid DOM element with addEventListener method');
-    }
-
-    // Wrap handler with enhancements
-    let wrappedHandler = (e: Event) => {
-      // Apply filter if provided
-      if (options.filter && !options.filter(e, element)) {
-        return;
-      }
-
-      // Handle delegation
+  handler: HybridEventHandler<El, K> | HybridCustomEventHandler<El, T>,
+  inGeneratorContext: boolean,
+  options: HybridEventOptions
+): (event: Event) => Promise<void> {
+  return async (event: Event) => {
+    try {
+      let targetElement: El = element;
       if (options.delegate) {
-        const target = e.target as HTMLElement;
-        
-        if (!target || typeof target.closest !== 'function') {
-          return; // Skip if target is not a valid Element
-        }
-        
-        try {
-          const delegateTarget = target.closest(options.delegate);
-          
-          if (!delegateTarget || !element.contains(delegateTarget)) {
-            return;
-          }
-          
-          // Call handler with the delegated target
-          handler(e, delegateTarget as El);
-        } catch (error) {
-          // Invalid selector for delegation, fall back to normal handling
-          console.warn(`Invalid delegation selector "${options.delegate}":`, error);
-          handler(e, element);
-        }
-      } else {
-        // Normal event handling
-        try {
-          handler(e, element);
-        } catch (error) {
-          console.error('Error in event handler:', error);
-        }
+        const delegateTarget = (event.target as Element)?.closest?.(options.delegate);
+        if (!delegateTarget || !element.contains(delegateTarget)) return;
+        targetElement = delegateTarget as El;
       }
-    };
 
-    // Apply debouncing if specified
-    if (options.debounce) {
-      wrappedHandler = debounce(wrappedHandler, options.debounce);
+      if (options.filter && !options.filter(event, targetElement as unknown as HTMLElement)) return;
+
+      let result: any;
+      const context = getCurrentContext() || { element: targetElement, selector: 'event', index: 0, array: [targetElement] };
+      
+      pushContext(context);
+      try {
+        result = (handler as Function)(event, targetElement);
+      } finally {
+        // Only pop the context if we are in standalone mode (i.e., we pushed a temporary one).
+        if (!inGeneratorContext) popContext();
+      }
+      
+      if (result && typeof result.next === 'function') {
+        const queueMode = options.queue || 'all';
+        if (queueMode === 'none') {
+          executeGenerator(targetElement as unknown as HTMLElement, 'event', 0, [targetElement as unknown as HTMLElement], () => result).catch(e => console.error("Error in concurrent generator", e));
+        } else {
+          await handleQueuedExecution(targetElement, queueMode, () => executeGenerator(targetElement as unknown as HTMLElement, 'event', 0, [targetElement as unknown as HTMLElement], () => result));
+        }
+      } else if (result && typeof result.then === 'function') {
+        await result;
+      }
+    } catch (error) {
+      console.error('Error in event handler:', error);
+    }
+  };
+}
+
+const elementQueues = new WeakMap<Element, Promise<any>>();
+async function handleQueuedExecution<El extends Element>(
+  element: El,
+  queueMode: 'latest' | 'all',
+  executor: () => Promise<any>
+): Promise<void> {
+  let executionPromise: Promise<any>;
+  const lastPromise = elementQueues.get(element) || Promise.resolve();
+
+  if (queueMode === 'all') {
+    executionPromise = lastPromise.then(executor, executor);
+  } else { // 'latest'
+    executionPromise = executor();
+  }
+  
+  elementQueues.set(element, executionPromise);
+  
+  try {
+    await executionPromise;
+  } finally {
+    if (elementQueues.get(element) === executionPromise) {
+      elementQueues.delete(element);
+    }
+  }
+}
+
+function applyTimingModifiers(handler: (event: Event) => Promise<void>, options: HybridEventOptions): (event: Event) => void {
+  if (options.debounce) return debounce(handler, options.debounce);
+  if (options.throttle) return throttle(handler, options.throttle);
+  return (event: Event) => { handler(event).catch(e => console.error("Async event handler error:", e)); };
+}
+
+function setupEventListener(element: Element, eventType: string, handler: (event: Event) => void, options: HybridEventOptions): CleanupFunction {
+  const listenerOptions: AddEventListenerOptions = {
+    capture: options.delegate ? (options.delegatePhase === 'capture') : options.capture,
+    once: options.once,
+    passive: options.passive,
+    signal: options.signal
+  };
+  element.addEventListener(eventType, handler, listenerOptions);
+  return () => {
+    if (options.signal?.aborted) return;
+    element.removeEventListener(eventType, handler, listenerOptions);
+  };
+}
+
+function getEventType<T>(eventOrType: string | CustomEvent<T>): string {
+  if (typeof eventOrType === 'string') return eventOrType;
+  if (eventOrType instanceof CustomEvent) return eventOrType.type;
+  throw new Error('Invalid event type provided.');
+}
+
+function debounce(func: (event: Event) => Promise<void>, options: number | { wait: number; leading?: boolean; trailing?: boolean }) {
+  const config = typeof options === 'number' ? { wait: options, trailing: true, leading: false } : { trailing: true, leading: false, ...options };
+  let timeoutId: any;
+  let lastArgs: [Event] | null = null;
+  let isLeading = true;
+
+  return (event: Event) => {
+    lastArgs = [event];
+    clearTimeout(timeoutId);
+
+    if (config.leading && isLeading) {
+      isLeading = false;
+      func(...lastArgs).catch(e => console.error("Error in debounced handler:", e));
     }
 
-    // Apply throttling if specified
-    if (options.throttle) {
-      wrappedHandler = throttle(wrappedHandler, options.throttle);
+    timeoutId = setTimeout(() => {
+      if (config.trailing && lastArgs && !config.leading) {
+        func(...lastArgs).catch(e => console.error("Error in debounced handler:", e));
+      }
+      isLeading = true;
+      lastArgs = null;
+    }, config.wait);
+  };
+}
+
+function throttle(func: (event: Event) => Promise<void>, options: number | { limit: number; }) {
+  const limit = typeof options === 'number' ? options : options.limit;
+  let inThrottle = false;
+  return (event: Event) => {
+    if (!inThrottle) {
+      func(event).catch(e => console.error("Error in throttled handler:", e));
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
     }
-
-    // Create clean addEventListener options (without our custom properties)
-    const listenerOptions: AddEventListenerOptions = {
-      capture: options.capture,
-      once: options.once,
-      passive: options.passive,
-      signal: options.signal
-    };
-
-    // Add event listener
-    element.addEventListener(eventType, wrappedHandler, listenerOptions);
-
-    // Return cleanup function
-    return () => {
-      element.removeEventListener(eventType, wrappedHandler, listenerOptions);
-    };
-  }
+  };
 }
 
-// CUSTOM EVENT DISPATCHING
-export function emit<El extends HTMLElement>(
-  element: El,
-  eventName: string,
-  detail?: any,
-  options?: EventInit
-): void;
-export function emit<El extends HTMLElement = HTMLElement>(
-  eventName: string,
-  detail?: any,
-  options?: EventInit
-): ElementFn<El>;
-export function emit<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, eventName, detail, options] = args as [El, string, any, EventInit?];
-    
-    const event = new CustomEvent(eventName, {
-      detail,
-      bubbles: true,
-      cancelable: true,
-      ...options
-    });
-    
-    element.dispatchEvent(event);
+// ==================== SHORTCUTS and UTILITIES ====================
+
+/**
+ * @internal
+ * A generic factory to create event shortcut functions like `click`, `input`, etc.
+ * This reduces code duplication and ensures all shortcuts share the same robust logic.
+ */
+function createEventShortcut<K extends keyof HTMLElementEventMap>(eventType: K) {
+  function shortcut<El extends Element>(element: El, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): CleanupFunction;
+  function shortcut<El extends Element>(handler: HybridEventHandler<El, K>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+  function shortcut(...args: any[]): any {
+    if (args[0] instanceof Element) {
+      const [element, handler, options] = args;
+      return on(element, eventType, handler, options);
+    }
+    const [handler, options] = args;
+    return on(eventType, handler, options);
+  }
+  return shortcut;
+}
+
+/** Attaches a `click` event listener. A convenient shortcut for `on('click', ...)`. */
+export const click = createEventShortcut('click');
+/** Attaches an `input` event listener. A convenient shortcut for `on('input', ...)`. */
+export const input = createEventShortcut('input');
+/** Attaches a `change` event listener. A convenient shortcut for `on('change', ...)`. */
+export const change = createEventShortcut('change');
+/** Attaches a `submit` event listener. A convenient shortcut for `on('submit', ...)`. */
+export const submit = createEventShortcut('submit');
+
+/**
+ * Creates a reusable event behavior that can be yielded within a `watch` generator.
+ * This is useful for encapsulating complex or repeated event logic.
+ *
+ * @example
+ * const rippleEffect = createEventBehavior('click', function*() {
+ *   yield addClass('ripple');
+ *   yield delay(500);
+ *   yield removeClass('ripple');
+ * });
+ *
+ * watch('.material-button', function*() {
+ *   yield* rippleEffect();
+ * });
+ */
+export function createEventBehavior<K extends keyof HTMLElementEventMap, T = any>(
+  eventType: K | string,
+  behavior: HybridEventHandler<Element, K> | HybridCustomEventHandler<Element, T>,
+  options?: HybridEventOptions
+): () => Generator<ElementFn<Element, CleanupFunction>, void, unknown> {
+  return function* () {
+    yield on(eventType as K, behavior as HybridEventHandler<Element, K>, options);
+  };
+}
+
+/**
+ * Composes multiple event handlers into a single handler. The handlers are executed
+ * in the order they are provided. This is useful for layering multiple pieces of
+ * logic onto a single event.
+ *
+ * @example
+ * const logClick = (event) => console.log('Clicked!');
+ * const trackClick = (event) => analytics.track('click');
+ * const composedHandler = composeEventHandlers(logClick, trackClick);
+ * yield click(composedHandler);
+ */
+export function composeEventHandlers<K extends keyof HTMLElementEventMap>(
+  ...handlers: HybridEventHandler<Element, K>[]
+): HybridEventHandler<Element, K> {
+  return async function* (event: HTMLElementEventMap[K], element?: Element) {
+    for (const handler of handlers) {
+      const result = (handler as Function)(event, element);
+      if (result && typeof result.next === 'function') {
+        yield* result;
+      } else if (result && typeof result.then === 'function') {
+        await result;
+      }
+    }
+  };
+}
+
+/**
+ * A helper for creating a delegated event listener. This is a convenient alternative
+ * to using the `delegate` option in `on()`.
+ *
+ * @example
+ * // These two are equivalent:
+ * yield delegate('.list-item', 'click', handler);
+ * yield on('click', handler, { delegate: '.list-item' });
+ *
+ * @param selector The CSS selector for child elements to target.
+ * @param eventType The name of the event to listen for.
+ * @param handler The function to call when the event occurs on a matching child.
+ * @param options Additional event listener options.
+ */
+export function delegate<K extends keyof HTMLElementEventMap, T = any>(
+  selector: string,
+  eventType: K | string,
+  handler: HybridEventHandler<Element, K> | HybridCustomEventHandler<Element, T>,
+  options?: Omit<HybridEventOptions, 'delegate'>
+): ElementFn<Element, CleanupFunction> {
+  return on(eventType as K, handler as HybridEventHandler<Element, K>, { ...options, delegate: selector });
+}
+
+/**
+ * Creates a new `CustomEvent` with full type safety for the `detail` payload.
+ *
+ * @param type The name of the custom event.
+ * @param detail The data payload to include with the event.
+ * @param options Standard `EventInit` options.
+ * @returns A new, typed `CustomEvent` instance.
+ */
+export function createCustomEvent<T = any>(type: string, detail: T, options?: EventInit): CustomEvent<T> {
+  return new CustomEvent(type, { detail, bubbles: true, cancelable: true, ...options });
+}
+
+/**
+ * Dispatches a `CustomEvent` from an element.
+ *
+ * @example
+ * // Inside a generator:
+ * yield emit('user:action', { action: 'save' });
+ *
+ * @example
+ * // Standalone:
+ * emit(document.body, 'app:ready');
+ */
+export function emit<El extends Element>(element: El, eventName: string, detail?: any, options?: EventInit): void;
+export function emit<El extends Element = HTMLElement>(eventName: string, detail?: any, options?: EventInit): ElementFn<El>;
+export function emit(...args: any[]): any {
+  if (args[0] instanceof Element) {
+    const [element, eventName, detail, options] = args;
+    element.dispatchEvent(createCustomEvent(eventName, detail, options));
   } else {
-    const [eventName, detail, options] = args as [string, any, EventInit?];
-    
-    return ((element: El) => {
-      const event = new CustomEvent(eventName, {
-        detail,
-        bubbles: true,
-        cancelable: true,
-        ...options
-      });
-      
-      element.dispatchEvent(event);
-    }) as ElementFn<El>;
+    const [eventName, detail, options] = args;
+    return (element: Element) => element.dispatchEvent(createCustomEvent(eventName, detail, options));
   }
 }
 
-// ATTRIBUTE OBSERVATION - Watch for attribute changes
-export function onAttr<El extends HTMLElement>(
-  element: El,
-  filter: string | RegExp,
-  handler: (change: AttributeChange & { element: El }) => void
-): CleanupFunction;
-export function onAttr<El extends HTMLElement>(
-  filter: string | RegExp,
-  handler: (change: AttributeChange & { element: El }) => void
-): ElementFn<El, CleanupFunction>;
-export function onAttr<El extends HTMLElement>(...args: any[]): any {
-  if (args.length === 3) {
-    const [element, filter, handler] = args as [El, string | RegExp, (change: AttributeChange & { element: El }) => void];
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.target === element) {
-          const attributeName = mutation.attributeName!;
-          let shouldHandle = false;
-          
-          if (typeof filter === 'string') {
-            shouldHandle = attributeName === filter;
-          } else {
-            shouldHandle = filter.test(attributeName);
-          }
-          
-          if (shouldHandle) {
-            handler({
-              attributeName,
-              oldValue: mutation.oldValue,
-              newValue: element.getAttribute(attributeName),
-              element
-            });
-          }
+// ==================== OBSERVER-BASED EVENTS ====================
+
+function createObserverEvent<T, O, C>(
+  ObserverClass: new (cb: (entries: T[]) => void, opts?: O) => { observe: (el: Element, opts?: any) => void; disconnect: () => void },
+  getChangeData: (entry: T, element: Element) => C
+) {
+  function observe(element: Element, handler: (change: C) => void, options?: O): CleanupFunction;
+  function observe(handler: (change: C) => void, options?: O): ElementFn<Element, CleanupFunction>;
+  function observe(...args: any[]): any {
+    const setup = (element: Element, handler: (change: C) => void, options?: O) => {
+      const observer = new ObserverClass((entries) => {
+        for (const entry of entries) {
+          handler(getChangeData(entry, element));
         }
-      });
-    });
-    
-    observer.observe(element, {
-      attributes: true,
-      attributeOldValue: true,
-      attributeFilter: typeof filter === 'string' ? [filter] : undefined
-    });
-    
-    return () => observer.disconnect();
-  } else {
-    const [filter, handler] = args as [string | RegExp, (change: AttributeChange & { element: El }) => void];
-    
-    return ((element: El) => {
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'attributes' && mutation.target === element) {
-            const attributeName = mutation.attributeName!;
-            let shouldHandle = false;
-            
-            if (typeof filter === 'string') {
-              shouldHandle = attributeName === filter;
-            } else {
-              shouldHandle = filter.test(attributeName);
-            }
-            
-            if (shouldHandle) {
-              handler({
-                attributeName,
-                oldValue: mutation.oldValue,
-                newValue: element.getAttribute(attributeName),
-                element
-              });
-            }
-          }
-        });
-      });
-      
-      observer.observe(element, {
-        attributes: true,
-        attributeOldValue: true,
-        attributeFilter: typeof filter === 'string' ? [filter] : undefined
-      });
-      
-      return () => observer.disconnect();
-    }) as ElementFn<El, CleanupFunction>;
-  }
-}
-
-// TEXT CONTENT OBSERVATION - Watch for text changes
-export function onText<El extends HTMLElement>(
-  element: El,
-  handler: (change: TextChange & { element: El }) => void
-): CleanupFunction;
-export function onText<El extends HTMLElement>(
-  handler: (change: TextChange & { element: El }) => void
-): ElementFn<El, CleanupFunction>;
-export function onText<El extends HTMLElement>(...args: any[]): any {
-  if (args.length === 2) {
-    const [element, handler] = args as [El, (change: TextChange & { element: El }) => void];
-    let oldText = element.textContent || '';
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' || mutation.type === 'characterData') {
-          const newText = element.textContent || '';
-          if (newText !== oldText) {
-            handler({
-              oldText,
-              newText,
-              element
-            });
-            oldText = newText;
-          }
-        }
-      });
-    });
-    
-    observer.observe(element, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      characterDataOldValue: true
-    });
-    
-    return () => observer.disconnect();
-  } else {
-    const [handler] = args as [(change: TextChange & { element: El }) => void];
-    
-    return ((element: El) => {
-      let oldText = element.textContent || '';
-      
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'childList' || mutation.type === 'characterData') {
-            const newText = element.textContent || '';
-            if (newText !== oldText) {
-              handler({
-                oldText,
-                newText,
-                element
-              });
-              oldText = newText;
-            }
-          }
-        });
-      });
-      
-      observer.observe(element, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        characterDataOldValue: true
-      });
-      
-      return () => observer.disconnect();
-    }) as ElementFn<El, CleanupFunction>;
-  }
-}
-
-// VISIBILITY OBSERVATION - Watch for visibility changes
-export function onVisible<El extends HTMLElement>(
-  element: El,
-  handler: (change: VisibilityChange & { element: El }) => void,
-  options?: IntersectionObserverInit
-): CleanupFunction;
-export function onVisible<El extends HTMLElement>(
-  handler: (change: VisibilityChange & { element: El }) => void,
-  options?: IntersectionObserverInit
-): ElementFn<El, CleanupFunction>;
-export function onVisible<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, handler, options] = args as [El, (change: VisibilityChange & { element: El }) => void, IntersectionObserverInit?];
-    
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.target === element) {
-          handler({
-            isVisible: entry.isIntersecting,
-            intersectionRatio: entry.intersectionRatio,
-            boundingClientRect: entry.boundingClientRect,
-            element
-          });
-        }
-      });
-    }, options);
-    
-    observer.observe(element);
-    return () => observer.disconnect();
-  } else {
-    const [handler, options] = args as [(change: VisibilityChange & { element: El }) => void, IntersectionObserverInit?];
-    
-    return ((element: El) => {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.target === element) {
-            handler({
-              isVisible: entry.isIntersecting,
-              intersectionRatio: entry.intersectionRatio,
-              boundingClientRect: entry.boundingClientRect,
-              element
-            });
-          }
-        });
       }, options);
-      
-      observer.observe(element);
+      observer.observe(element, options);
       return () => observer.disconnect();
-    }) as ElementFn<El, CleanupFunction>;
-  }
-}
-
-// RESIZE OBSERVATION - Watch for size changes
-export function onResize<El extends HTMLElement>(
-  element: El,
-  handler: (change: ResizeChange & { element: El }) => void
-): CleanupFunction;
-export function onResize<El extends HTMLElement>(
-  handler: (change: ResizeChange & { element: El }) => void
-): ElementFn<El, CleanupFunction>;
-export function onResize<El extends HTMLElement>(...args: any[]): any {
-  if (args.length === 2) {
-    const [element, handler] = args as [El, (change: ResizeChange & { element: El }) => void];
-    
-    const observer = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.target === element) {
-          handler({
-            contentRect: entry.contentRect,
-            borderBoxSize: entry.borderBoxSize,
-            contentBoxSize: entry.contentBoxSize,
-            element
-          });
-        }
-      });
-    });
-    
-    observer.observe(element);
-    return () => observer.disconnect();
-  } else {
-    const [handler] = args as [(change: ResizeChange & { element: El }) => void];
-    
-    return ((element: El) => {
-      const observer = new ResizeObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.target === element) {
-            handler({
-              contentRect: entry.contentRect,
-              borderBoxSize: entry.borderBoxSize,
-              contentBoxSize: entry.contentBoxSize,
-              element
-            });
-          }
-        });
-      });
-      
-      observer.observe(element);
-      return () => observer.disconnect();
-    }) as ElementFn<El, CleanupFunction>;
-  }
-}
-
-// LIFECYCLE EVENTS - Mount and unmount
-export function onMount<El extends HTMLElement>(
-  element: El,
-  handler: (element: El) => void
-): CleanupFunction;
-export function onMount<El extends HTMLElement>(
-  handler: (element: El) => void
-): ElementFn<El, CleanupFunction>;
-export function onMount<El extends HTMLElement>(...args: any[]): any {
-  if (args.length === 2) {
-    const [element, handler] = args as [El, (element: El) => void];
-    
-    // Call immediately for existing elements
-    handler(element);
-    
-    // Return no-op cleanup since mount is immediate
-    return () => {};
-  } else {
-    const [handler] = args as [(element: El) => void];
-    
-    return ((element: El) => {
-      handler(element);
-      return () => {};
-    }) as ElementFn<El, CleanupFunction>;
-  }
-}
-
-export function onUnmount<El extends HTMLElement>(
-  element: El,
-  handler: (element: El) => void
-): CleanupFunction;
-export function onUnmount<El extends HTMLElement>(
-  handler: (element: El) => void
-): ElementFn<El, CleanupFunction>;
-export function onUnmount<El extends HTMLElement>(...args: any[]): any {
-  if (args.length === 2) {
-    const [element, handler] = args as [El, (element: El) => void];
-    
-    // Store unmount handler for later execution
-    if (!unmountHandlers.has(element)) {
-      unmountHandlers.set(element, new Set());
-    }
-    unmountHandlers.get(element)!.add(handler);
-    
-    return () => {
-      unmountHandlers.get(element)?.delete(handler);
     };
-  } else {
-    const [handler] = args as [(element: El) => void];
-    
-    return ((element: El) => {
-      if (!unmountHandlers.has(element)) {
-        unmountHandlers.set(element, new Set());
-      }
-      unmountHandlers.get(element)!.add(handler);
-      
-      return () => {
-        unmountHandlers.get(element)?.delete(handler);
-      };
-    }) as ElementFn<El, CleanupFunction>;
+    if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+    return (element: Element) => setup(element, args[0], args[1]);
   }
+  return observe;
 }
 
-// Global unmount handler storage
-const unmountHandlers = new WeakMap<HTMLElement, Set<(element: HTMLElement) => void>>();
+/** Listens for changes to an element's attributes. */
+export const onAttr = createObserverEvent<MutationRecord, MutationObserverInit, AttributeChange & {element: Element}>(
+  MutationObserver,
+  (entry, element) => ({
+    attributeName: entry.attributeName!, oldValue: entry.oldValue, newValue: element.getAttribute(entry.attributeName!), element,
+  })
+);
 
-// Helper to trigger unmount handlers when elements are removed
-export function triggerUnmountHandlers(element: HTMLElement): void {
-  const handlers = unmountHandlers.get(element);
-  if (handlers) {
-    handlers.forEach(handler => handler(element));
-    unmountHandlers.delete(element);
+/** Listens for changes to an element's `textContent`. */
+export const onText = createObserverEvent<MutationRecord, MutationObserverInit, TextChange & {element: Element}>(
+  MutationObserver,
+  (entry, element) => ({
+    oldText: entry.oldValue || '', newText: element.textContent || '', element,
+  })
+);
+
+/** Listens for when an element becomes visible or hidden in the viewport. */
+export const onVisible = createObserverEvent<IntersectionObserverEntry, IntersectionObserverInit, VisibilityChange & {element: Element}>(
+  IntersectionObserver,
+  (entry, element) => ({
+    isVisible: entry.isIntersecting, intersectionRatio: entry.intersectionRatio, boundingClientRect: entry.boundingClientRect, element,
+  })
+);
+
+/** Listens for changes to an element's size. */
+export const onResize = createObserverEvent<ResizeObserverEntry, ResizeObserverOptions, ResizeChange & {element: Element}>(
+  ResizeObserver,
+  (entry, element) => ({
+    contentRect: entry.contentRect, borderBoxSize: entry.borderBoxSize, contentBoxSize: entry.contentBoxSize, element,
+  })
+);
+
+// ==================== LIFECYCLE EVENTS ====================
+
+/**
+ * Triggers a handler immediately when an element is first processed by `watch`.
+ * This is effectively a "setup" or "initialization" hook.
+ */
+export function onMount<El extends Element>(element: El, handler: (element: El) => void): CleanupFunction;
+export function onMount<El extends Element>(handler: (element: El) => void): ElementFn<El, CleanupFunction>;
+export function onMount(...args: any[]): any {
+  if (args[0] instanceof Element) {
+    const [element, handler] = args;
+    handler(element);
+  } else {
+    const [handler] = args;
+    return (element: Element) => handler(element);
   }
+  return () => {}; // onMount is immediate, so its cleanup is a no-op.
+}
+
+const unmountHandlers = new WeakMap<Element, Set<(element: Element) => void>>();
+
+/** @internal Triggers all registered unmount and general cleanup handlers for an element. */
+export function triggerUnmountHandlers(element: Element): void {
+  if(element instanceof HTMLElement) executeCleanup(element); // General cleanup only for HTMLElements
+  unmountHandlers.get(element)?.forEach(handler => handler(element));
+  unmountHandlers.delete(element);
 }
 
 /**
- * # Event Shortcuts - Common Event Handlers
- * 
- * Convenient shortcuts for the most commonly used DOM events.
- * These are equivalent to using `on()` with specific event types.
- * 
- * ## Available Shortcuts
- * - `click()` - Mouse click events
- * - `change()` - Form change events
- * - `input()` - Form input events
- * - `submit()` - Form submission events
- * 
- * ## Usage
- * 
- * ```typescript
- * // These are equivalent:
- * yield click(handler);
- * yield on('click', handler);
- * 
- * // Direct usage
- * const cleanup = click(button, handler);
- * const cleanup = on(button, 'click', handler);
- * ```
+ * Registers a handler to be called when an element is removed from the DOM.
+ * This is the primary "cleanup" hook for releasing resources or finalizing state.
  */
-
-/**
- * # click() - Click Event Shortcut
- * 
- * Convenient shortcut for handling click events with full type safety.
- * 
- * ## Usage
- * 
- * ```typescript
- * // Generator usage
- * watch('button', function* () {
- *   yield click((event, button) => {
- *     console.log('Button clicked!', button.textContent);
- *   });
- * });
- * 
- * // Direct usage
- * const cleanup = click(button, (event, button) => {
- *   console.log('Clicked!');
- * });
- * 
- * // With options
- * yield click(handler, { once: true });
- * ```
- * 
- * @param element - Element to add click listener to (direct mode)
- * @param handler - Click event handler
- * @param options - AddEventListener options
- * @returns Cleanup function (direct mode) or ElementFn (generator mode)
- */
-export function click<El extends HTMLElement>(
-  element: El,
-  handler: ElementEventHandler<El, 'click'>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-export function click<El extends HTMLElement>(
-  handler: ElementEventHandler<El, 'click'>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-export function click<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, handler, options] = args as [El, ElementEventHandler<El, 'click'>, WatchEventListenerOptions?];
-    return on(element, 'click', handler, options);
-  } else {
-    const [handler, options] = args as [ElementEventHandler<El, 'click'>, WatchEventListenerOptions?];
-    return on('click', handler, options);
+export function onUnmount<El extends Element>(element: El, handler: (element: El) => void): CleanupFunction;
+export function onUnmount<El extends Element>(handler: (element: El) => void): ElementFn<El, CleanupFunction>;
+export function onUnmount(...args: any[]): any {
+  const setup = (element: Element, handler: (el: Element) => void) => {
+    if (!unmountHandlers.has(element)) unmountHandlers.set(element, new Set());
+    const handlers = unmountHandlers.get(element)!;
+    handlers.add(handler);
+    return () => { handlers.delete(handler); };
+  };
+  if (args[0] instanceof Element) {
+    return setup(args[0], args[1]);
   }
-}
-
-export function change<El extends HTMLElement>(
-  element: El,
-  handler: ElementEventHandler<El, 'change'>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-export function change<El extends HTMLElement>(
-  handler: ElementEventHandler<El, 'change'>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-export function change<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, handler, options] = args as [El, ElementEventHandler<El, 'change'>, WatchEventListenerOptions?];
-    return on(element, 'change', handler, options);
-  } else {
-    const [handler, options] = args as [ElementEventHandler<El, 'change'>, WatchEventListenerOptions?];
-    return on('change', handler, options);
-  }
-}
-
-export function input<El extends HTMLElement>(
-  element: El,
-  handler: ElementEventHandler<El, 'input'>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-export function input<El extends HTMLElement>(
-  handler: ElementEventHandler<El, 'input'>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-export function input<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, handler, options] = args as [El, ElementEventHandler<El, 'input'>, WatchEventListenerOptions?];
-    return on(element, 'input', handler, options);
-  } else {
-    const [handler, options] = args as [ElementEventHandler<El, 'input'>, WatchEventListenerOptions?];
-    return on('input', handler, options);
-  }
-}
-
-export function submit<El extends HTMLElement>(
-  element: El,
-  handler: ElementEventHandler<El, 'submit'>,
-  options?: WatchEventListenerOptions
-): CleanupFunction;
-export function submit<El extends HTMLElement>(
-  handler: ElementEventHandler<El, 'submit'>,
-  options?: WatchEventListenerOptions
-): ElementFn<El, CleanupFunction>;
-export function submit<El extends HTMLElement>(...args: any[]): any {
-  if (args.length >= 2 && typeof args[0] === 'object' && 'nodeType' in args[0]) {
-    const [element, handler, options] = args as [El, ElementEventHandler<El, 'submit'>, WatchEventListenerOptions?];
-    return on(element, 'submit', handler, options);
-  } else {
-    const [handler, options] = args as [ElementEventHandler<El, 'submit'>, WatchEventListenerOptions?];
-    return on('submit', handler, options);
-  }
+  return (element: Element) => setup(element, args[0]);
 }

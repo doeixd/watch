@@ -279,7 +279,7 @@ export {
   // Lifecycle events
   onMount,
   onUnmount
-} from './api/events-hybrid';
+} from './api/events';
 
 // Context functions for use within generators
 export {

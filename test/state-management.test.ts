@@ -32,15 +32,19 @@ function waitForMutation(ms: number = 50): Promise<void> {
 }
 
 describe('State Management System', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '';
     vi.clearAllMocks();
-    clearAllState();
+    await runOn(document.body, function* () {
+      clearAllState();
+    });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     document.body.innerHTML = '';
-    clearAllState();
+    await runOn(document.body, function* () {
+      clearAllState();
+    });
   });
 
   describe('Basic State Operations', () => {

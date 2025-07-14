@@ -44,7 +44,7 @@
     "watch": "pridepack watch",
     "start": "pridepack start",
     "dev": "pridepack dev",
-    "test": "vitest --run --reporter=json --outputFile=test-results.json"
+    "test": "vitest --run --reporter=default --reporter=json --outputFile=test-results.json"
   },
   "private": false,
   "description": "Runs a function when a selector is added to dom",

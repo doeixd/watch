@@ -409,20 +409,47 @@ function createObserverEvent<T, O, C>(
 }
 
 /** Listens for changes to an element's attributes. */
-export const onAttr = createObserverEvent<MutationRecord, MutationObserverInit, AttributeChange & {element: Element}>(
-  MutationObserver,
-  (entry, element) => ({
-    attributeName: entry.attributeName!, oldValue: entry.oldValue, newValue: element.getAttribute(entry.attributeName!), element,
-  })
-);
+export function onAttr(element: Element, handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit): CleanupFunction;
+export function onAttr(handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit): ElementFn<Element, CleanupFunction>;
+export function onAttr(...args: any[]): any {
+  const setup = (element: Element, handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit) => {
+    const observer = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        handler({
+          attributeName: entry.attributeName!, 
+          oldValue: entry.oldValue, 
+          newValue: element.getAttribute(entry.attributeName!), 
+          element,
+        });
+      }
+    });
+    observer.observe(element, { attributes: true, attributeOldValue: true, ...options });
+    return () => observer.disconnect();
+  };
+  if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+  return (element: Element) => setup(element, args[0], args[1]);
+}
 
 /** Listens for changes to an element's `textContent`. */
-export const onText = createObserverEvent<MutationRecord, MutationObserverInit, TextChange & {element: Element}>(
-  MutationObserver,
-  (entry, element) => ({
-    oldText: entry.oldValue || '', newText: element.textContent || '', element,
-  })
-);
+export function onText(element: Element, handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit): CleanupFunction;
+export function onText(handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit): ElementFn<Element, CleanupFunction>;
+export function onText(...args: any[]): any {
+  const setup = (element: Element, handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit) => {
+    const observer = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        handler({
+          oldText: entry.oldValue || '', 
+          newText: element.textContent || '', 
+          element,
+        });
+      }
+    });
+    observer.observe(element, { characterData: true, subtree: true, characterDataOldValue: true, ...options });
+    return () => observer.disconnect();
+  };
+  if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+  return (element: Element) => setup(element, args[0], args[1]);
+}
 
 /** Listens for when an element becomes visible or hidden in the viewport. */
 export const onVisible = createObserverEvent<IntersectionObserverEntry, IntersectionObserverInit, VisibilityChange & {element: Element}>(

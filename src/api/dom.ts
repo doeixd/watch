@@ -92,7 +92,7 @@ export function addClass(element: HTMLElement, ...classNames: string[]): void;
 export function addClass(selector: string, ...classNames: string[]): void;
 export function addClass<El extends HTMLElement = HTMLElement>(...classNames: string[]): ElementFn<El>;
 export function addClass(...args: any[]): any {
-  if (args.length >= 2 && isElementLike(args[0])) {
+  if (args.length >= 1 && isElementLike(args[0])) {
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
@@ -100,7 +100,6 @@ export function addClass(...args: any[]): any {
       const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
       element.classList.add(...splitClassNames);
     }
-    return;
   } else {
     const classNames = args;
     return ((element: HTMLElement) => {
@@ -115,7 +114,7 @@ export function removeClass(element: HTMLElement, ...classNames: string[]): void
 export function removeClass(selector: string, ...classNames: string[]): void;
 export function removeClass<El extends HTMLElement = HTMLElement>(...classNames: string[]): ElementFn<El>;
 export function removeClass(...args: any[]): any {
-  if (args.length >= 2 && isElementLike(args[0])) {
+  if (args.length >= 1 && isElementLike(args[0])) {
     const [elementLike, ...classNames] = args;
     const element = resolveElement(elementLike);
     if (element) {
@@ -123,7 +122,6 @@ export function removeClass(...args: any[]): any {
       const splitClassNames = classNames.flatMap(name => name.split(/\s+/).filter(Boolean));
       element.classList.remove(...splitClassNames);
     }
-    return;
   } else {
     const classNames = args;
     return ((element: HTMLElement) => {

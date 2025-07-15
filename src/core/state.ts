@@ -22,27 +22,255 @@ function getElementState(ctx?: TypedGeneratorContext<any>): Record<string, any> 
 }
 
 // Basic state functions
+
+/**
+ * Gets the value of a state key for the current element context.
+ * 
+ * This function retrieves state that is associated with the current element in a watch
+ * generator. Each element maintains its own isolated state that persists across DOM
+ * changes and re-renders. The state is automatically cleaned up when the element is
+ * removed from the DOM.
+ * 
+ * @template T - The type of the state value
+ * @param key - The state key to retrieve
+ * @param ctx - Optional context (usually auto-detected in generators)
+ * @returns The state value, or undefined if not set
+ * 
+ * @example Basic usage in a generator
+ * ```typescript
+ * import { watch, getState, setState, click } from 'watch-selector';
+ * 
+ * watch('.counter', function* () {
+ *   // Get current count, defaulting to 0
+ *   const count = getState<number>('count') || 0;
+ *   
+ *   yield click(function* () {
+ *     const newCount = getState<number>('count') || 0;
+ *     setState('count', newCount + 1);
+ *   });
+ * });
+ * ```
+ * 
+ * @example Type-safe state access
+ * ```typescript
+ * import { watch, getState, setState } from 'watch-selector';
+ * 
+ * interface UserData {
+ *   name: string;
+ *   age: number;
+ * }
+ * 
+ * watch('.user-profile', function* () {
+ *   // Type-safe state access
+ *   const user = getState<UserData>('user');
+ *   if (user) {
+ *     console.log(`${user.name} is ${user.age} years old`);
+ *   }
+ * });
+ * ```
+ */
 export function getState<T = any>(key: string, ctx?: TypedGeneratorContext<any>): T {
   const state = getElementState(ctx);
   return state[key] as T;
 }
 
+/**
+ * Sets a state value for the current element context.
+ * 
+ * This function sets state that is associated with the current element in a watch
+ * generator. The state is isolated per element instance and persists across DOM
+ * changes. This enables you to maintain component-like state for each element
+ * independently.
+ * 
+ * @template T - The type of the state value
+ * @param key - The state key to set
+ * @param value - The value to set
+ * @param ctx - Optional context (usually auto-detected in generators)
+ * 
+ * @example Counter with persistent state
+ * ```typescript
+ * import { watch, getState, setState, click, text } from 'watch-selector';
+ * 
+ * watch('.counter', function* () {
+ *   // Initialize counter state
+ *   const initialCount = getState<number>('count') || 0;
+ *   setState('count', initialCount);
+ *   
+ *   yield click(function* () {
+ *     const current = getState<number>('count') || 0;
+ *     setState('count', current + 1);
+ *     yield text(`Count: ${current + 1}`);
+ *   });
+ * });
+ * ```
+ * 
+ * @example Complex state objects
+ * ```typescript
+ * import { watch, setState, getState } from 'watch-selector';
+ * 
+ * interface FormState {
+ *   isValid: boolean;
+ *   errors: string[];
+ *   data: Record<string, any>;
+ * }
+ * 
+ * watch('.form', function* () {
+ *   // Set initial form state
+ *   setState<FormState>('form', {
+ *     isValid: false,
+ *     errors: [],
+ *     data: {}
+ *   });
+ * });
+ * ```
+ */
 export function setState<T = any>(key: string, value: T, ctx?: TypedGeneratorContext<any>): void {
   const state = getElementState(ctx);
   state[key] = value;
 }
 
+/**
+ * Updates a state value using an updater function.
+ * 
+ * This function allows you to update state based on the current value, similar to
+ * React's setState with a function. It's particularly useful for complex state
+ * updates, immutable updates, or when you need to avoid race conditions.
+ * 
+ * @template T - The type of the state value
+ * @param key - The state key to update
+ * @param updater - Function that receives current value and returns new value
+ * @param ctx - Optional context (usually auto-detected in generators)
+ * 
+ * @example Incrementing a counter
+ * ```typescript
+ * import { watch, updateState, click, text } from 'watch-selector';
+ * 
+ * watch('.counter', function* () {
+ *   yield click(function* () {
+ *     updateState<number>('count', current => (current || 0) + 1);
+ *     const newCount = getState<number>('count');
+ *     yield text(`Count: ${newCount}`);
+ *   });
+ * });
+ * ```
+ * 
+ * @example Updating arrays immutably
+ * ```typescript
+ * import { watch, updateState, click } from 'watch-selector';
+ * 
+ * watch('.todo-list', function* () {
+ *   yield click('.add-item', function* () {
+ *     updateState<string[]>('items', current => [
+ *       ...(current || []),
+ *       'New item'
+ *     ]);
+ *   });
+ *   
+ *   yield click('.remove-item', function* () {
+ *     updateState<string[]>('items', current => 
+ *       (current || []).filter((_, index) => index !== 0)
+ *     );
+ *   });
+ * });
+ * ```
+ */
 export function updateState<T = any>(key: string, updater: (current: T) => T, ctx?: TypedGeneratorContext<any>): void {
   const state = getElementState(ctx);
   const current = state[key] as T;
   state[key] = updater(current);
 }
 
+/**
+ * Checks if a state key exists for the current element context.
+ * 
+ * This function checks whether a specific state key has been set for the current
+ * element. It's useful for conditionally initializing state or checking if
+ * optional state has been provided.
+ * 
+ * @param key - The state key to check
+ * @param ctx - Optional context (usually auto-detected in generators)
+ * @returns True if the key exists, false otherwise
+ * 
+ * @example Conditional state initialization
+ * ```typescript
+ * import { watch, hasState, setState, getState } from 'watch-selector';
+ * 
+ * watch('.component', function* () {
+ *   // Initialize state only if not already set
+ *   if (!hasState('initialized')) {
+ *     setState('count', 0);
+ *     setState('initialized', true);
+ *   }
+ *   
+ *   const count = getState<number>('count');
+ *   console.log('Current count:', count);
+ * });
+ * ```
+ * 
+ * @example Optional state handling
+ * ```typescript
+ * import { watch, hasState, getState } from 'watch-selector';
+ * 
+ * watch('.user-widget', function* () {
+ *   if (hasState('user')) {
+ *     const user = getState<User>('user');
+ *     // Handle user data
+ *   } else {
+ *     // Show loading state or initialize
+ *   }
+ * });
+ * ```
+ */
 export function hasState(key: string, ctx?: TypedGeneratorContext<any>): boolean {
   const state = getElementState(ctx);
   return key in state;
 }
 
+/**
+ * Deletes a state key from the current element context.
+ * 
+ * This function removes a state key and its associated value from the current
+ * element's state. This is useful for cleaning up temporary state or resetting
+ * specific parts of the component state.
+ * 
+ * @param key - The state key to delete
+ * @param ctx - Optional context (usually auto-detected in generators)
+ * 
+ * @example Cleaning up temporary state
+ * ```typescript
+ * import { watch, setState, deleteState, click } from 'watch-selector';
+ * 
+ * watch('.form', function* () {
+ *   yield click('.submit', function* () {
+ *     // Set loading state
+ *     setState('isLoading', true);
+ *     
+ *     try {
+ *       await submitForm();
+ *       // Clear loading state on success
+ *       deleteState('isLoading');
+ *     } catch (error) {
+ *       deleteState('isLoading');
+ *       setState('error', error.message);
+ *     }
+ *   });
+ * });
+ * ```
+ * 
+ * @example Reset functionality
+ * ```typescript
+ * import { watch, deleteState, click } from 'watch-selector';
+ * 
+ * watch('.counter', function* () {
+ *   yield click('.reset', function* () {
+ *     // Remove all counter-related state
+ *     deleteState('count');
+ *     deleteState('lastIncrement');
+ *     deleteState('history');
+ *   });
+ * });
+ * ```
+ */
 export function deleteState(key: string, ctx?: TypedGeneratorContext<any>): void {
   const state = getElementState(ctx);
   delete state[key];

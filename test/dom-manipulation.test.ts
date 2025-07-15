@@ -21,13 +21,15 @@ import {
   hide,
   query,
   queryAll,
-  parent,
-  children,
-  siblings,
   batchAll,
   createChildWatcher,
   child
 } from '../src/api/dom';
+import { 
+  parent, 
+  children, 
+  siblings 
+} from '../src/core/generator';
 
 // Test utilities
 function createTestElement(tag: string = 'div', attributes: Record<string, string> = {}): HTMLElement {
@@ -735,28 +737,28 @@ describe('DOM Manipulation Functions', () => {
     describe('parent() - Parent element access', () => {
       it('should get parent element directly', () => {
         const grandparent = createTestElement('div', { class: 'grandparent' });
-        const parent = createTestElement('div', { class: 'parent' });
+        const parentElement = createTestElement('div', { class: 'parent' });
         const child = createTestElement('span', { class: 'child' });
         
-        grandparent.appendChild(parent);
-        parent.appendChild(child);
+        grandparent.appendChild(parentElement);
+        parentElement.appendChild(child);
         
         const result = parent(child);
         expect(result?.classList.contains('parent')).toBe(true);
       });
 
       it('should get parent via generator context', async () => {
-        const parent = createTestElement('div', { class: 'parent' });
+        const parentElement = createTestElement('div', { class: 'parent' });
         const child = createTestElement('span', { class: 'child' });
-        parent.appendChild(child);
+        parentElement.appendChild(child);
         
-        let parentElement: HTMLElement | null = null;
+        let foundParent: HTMLElement | null = null;
         
         await runOn(child, function* () {
-          parentElement = parent();
+          foundParent = parent();
         });
 
-        expect(parentElement?.classList.contains('parent')).toBe(true);
+        expect(foundParent?.classList.contains('parent')).toBe(true);
       });
     });
 
@@ -777,12 +779,12 @@ describe('DOM Manipulation Functions', () => {
       });
 
       it('should get children via generator context', async () => {
-        const parent = createTestElement('div');
-        parent.innerHTML = '<span>A</span><span>B</span>';
+        const parentElement = createTestElement('div');
+        parentElement.innerHTML = '<span>A</span><span>B</span>';
         
         let childElements: HTMLElement[] = [];
         
-        await runOn(parent, function* () {
+        await runOn(parentElement, function* () {
           childElements = children();
         });
 
@@ -810,14 +812,14 @@ describe('DOM Manipulation Functions', () => {
       });
 
       it('should get siblings via generator context', async () => {
-        const parent = createTestElement('div');
-        parent.innerHTML = `
+        const parentElement = createTestElement('div');
+        parentElement.innerHTML = `
           <span>Before</span>
           <div class="target">Target</div>
           <span>After</span>
         `;
         
-        const target = parent.querySelector('.target') as HTMLElement;
+        const target = parentElement.querySelector('.target') as HTMLElement;
         let siblingElements: HTMLElement[] = [];
         
         await runOn(target, function* () {
@@ -862,7 +864,7 @@ describe('DOM Manipulation Functions', () => {
         container.innerHTML = '<div></div><div></div><div></div>';
         
         await runOn(container, function* () {
-          const divs = queryAll('div');
+          const divs = yield queryAll('div');
           yield batchAll(divs, [
             addClass('batch-test'),
             data('processed', 'true')

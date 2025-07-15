@@ -76,20 +76,20 @@ describe('Event System', () => {
     });
 
     it('should handle multiple event types', async () => {
-      const input = createTestElement('input') as HTMLInputElement;
+      const inputElement = createTestElement('input') as HTMLInputElement;
       const changeHandler = vi.fn();
       const inputHandler = vi.fn();
       const focusHandler = vi.fn();
       
-      await runOn(input, function* () {
+      await runOn(inputElement, function* () {
         yield change(changeHandler);
         yield input(inputHandler);
         yield on('focus', focusHandler);
       });
 
-      input.dispatchEvent(createTestEvent('change'));
-      input.dispatchEvent(createTestEvent('input'));
-      input.dispatchEvent(createTestEvent('focus'));
+      inputElement.dispatchEvent(createTestEvent('change'));
+      inputElement.dispatchEvent(createTestEvent('input'));
+      inputElement.dispatchEvent(createTestEvent('focus'));
 
       expect(changeHandler).toHaveBeenCalledTimes(1);
       expect(inputHandler).toHaveBeenCalledTimes(1);

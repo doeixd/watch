@@ -266,13 +266,207 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(eventType: K) 
   return shortcut;
 }
 
-/** Attaches a `click` event listener. A convenient shortcut for `on('click', ...)`. */
+/**
+ * Attaches a click event listener using the dual API pattern.
+ * 
+ * This is a convenient shortcut for `on('click', ...)` that provides the same dual
+ * API functionality. It works both directly with elements and within watch generators,
+ * supporting advanced features like debouncing, delegation, and queue management.
+ * 
+ * @example Direct usage
+ * ```typescript
+ * import { click } from 'watch-selector';
+ * 
+ * const button = document.getElementById('my-button');
+ * click(button, (event) => {
+ *   console.log('Button clicked!');
+ * });
+ * ```
+ * 
+ * @example Generator usage
+ * ```typescript
+ * import { watch, click, text } from 'watch-selector';
+ * 
+ * watch('button', function* () {
+ *   yield click(function* (event) {
+ *     yield text('Clicked!');
+ *   });
+ * });
+ * ```
+ * 
+ * @example Advanced options
+ * ```typescript
+ * import { watch, click, addClass, removeClass } from 'watch-selector';
+ * 
+ * watch('.button', function* () {
+ *   yield click(function* (event) {
+ *     yield addClass('clicked');
+ *     yield delay(150);
+ *     yield removeClass('clicked');
+ *   }, {
+ *     debounce: { wait: 300 },
+ *     queue: 'latest'
+ *   });
+ * });
+ * ```
+ */
 export const click = createEventShortcut('click');
-/** Attaches an `input` event listener. A convenient shortcut for `on('input', ...)`. */
+
+/**
+ * Attaches an input event listener using the dual API pattern.
+ * 
+ * This is a convenient shortcut for `on('input', ...)` that's particularly useful
+ * for handling real-time input changes in forms. It supports advanced features
+ * like debouncing, which is commonly needed for search inputs or live validation.
+ * 
+ * @example Real-time search
+ * ```typescript
+ * import { watch, input, text } from 'watch-selector';
+ * 
+ * watch('.search-input', function* () {
+ *   yield input(function* (event) {
+ *     const query = (event.target as HTMLInputElement).value;
+ *     const results = await searchAPI(query);
+ *     yield text(`.results`, `Found ${results.length} results`);
+ *   }, {
+ *     debounce: { wait: 300 }
+ *   });
+ * });
+ * ```
+ * 
+ * @example Form validation
+ * ```typescript
+ * import { watch, input, addClass, removeClass } from 'watch-selector';
+ * 
+ * watch('.email-input', function* () {
+ *   yield input(function* (event) {
+ *     const email = (event.target as HTMLInputElement).value;
+ *     const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+ *     
+ *     if (isValid) {
+ *       yield addClass('valid');
+ *       yield removeClass('invalid');
+ *     } else {
+ *       yield addClass('invalid');
+ *       yield removeClass('valid');
+ *     }
+ *   });
+ * });
+ * ```
+ */
 export const input = createEventShortcut('input');
-/** Attaches a `change` event listener. A convenient shortcut for `on('change', ...)`. */
+
+/**
+ * Attaches a change event listener using the dual API pattern.
+ * 
+ * This is a convenient shortcut for `on('change', ...)` that's ideal for handling
+ * discrete changes in form elements like selects, checkboxes, and radio buttons.
+ * Unlike input events, change events fire when the user finishes changing a value.
+ * 
+ * @example Select dropdown handler
+ * ```typescript
+ * import { watch, change, text } from 'watch-selector';
+ * 
+ * watch('.category-select', function* () {
+ *   yield change(function* (event) {
+ *     const select = event.target as HTMLSelectElement;
+ *     const category = select.value;
+ *     yield text('.selected-category', `Selected: ${category}`);
+ *   });
+ * });
+ * ```
+ * 
+ * @example Checkbox handling
+ * ```typescript
+ * import { watch, change, addClass, removeClass } from 'watch-selector';
+ * 
+ * watch('.feature-toggle', function* () {
+ *   yield change(function* (event) {
+ *     const checkbox = event.target as HTMLInputElement;
+ *     const container = self();
+ *     
+ *     if (checkbox.checked) {
+ *       yield addClass('feature-enabled');
+ *       yield removeClass('feature-disabled');
+ *     } else {
+ *       yield addClass('feature-disabled');
+ *       yield removeClass('feature-enabled');
+ *     }
+ *   });
+ * });
+ * ```
+ */
 export const change = createEventShortcut('change');
-/** Attaches a `submit` event listener. A convenient shortcut for `on('submit', ...)`. */
+
+/**
+ * Attaches a submit event listener using the dual API pattern.
+ * 
+ * This is a convenient shortcut for `on('submit', ...)` that's specifically designed
+ * for handling form submissions. It automatically provides access to the form element
+ * and is commonly used with preventDefault() to handle submissions via JavaScript.
+ * 
+ * @example Form submission with validation
+ * ```typescript
+ * import { watch, submit, addClass, removeClass, text } from 'watch-selector';
+ * 
+ * watch('.contact-form', function* () {
+ *   yield submit(function* (event) {
+ *     event.preventDefault();
+ *     
+ *     const form = event.target as HTMLFormElement;
+ *     const formData = new FormData(form);
+ *     
+ *     // Show loading state
+ *     yield addClass('loading');
+ *     yield text('.submit-btn', 'Submitting...');
+ *     
+ *     try {
+ *       const response = await fetch('/api/contact', {
+ *         method: 'POST',
+ *         body: formData
+ *       });
+ *       
+ *       if (response.ok) {
+ *         yield text('.message', 'Form submitted successfully!');
+ *         form.reset();
+ *       } else {
+ *         yield text('.message', 'Submission failed. Please try again.');
+ *       }
+ *     } catch (error) {
+ *       yield text('.message', 'Network error. Please try again.');
+ *     } finally {
+ *       yield removeClass('loading');
+ *       yield text('.submit-btn', 'Submit');
+ *     }
+ *   });
+ * });
+ * ```
+ * 
+ * @example Multi-step form
+ * ```typescript
+ * import { watch, submit, getState, setState } from 'watch-selector';
+ * 
+ * watch('.multi-step-form', function* () {
+ *   setState('currentStep', 1);
+ *   
+ *   yield submit(function* (event) {
+ *     event.preventDefault();
+ *     
+ *     const currentStep = getState<number>('currentStep');
+ *     const form = event.target as HTMLFormElement;
+ *     
+ *     if (currentStep < 3) {
+ *       // Validate current step and advance
+ *       setState('currentStep', currentStep + 1);
+ *       yield showStep(currentStep + 1);
+ *     } else {
+ *       // Final submission
+ *       yield submitForm(form);
+ *     }
+ *   });
+ * });
+ * ```
+ */
 export const submit = createEventShortcut('submit');
 
 /**

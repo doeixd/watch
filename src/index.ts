@@ -236,9 +236,9 @@ export {
   // DOM traversal
   query,
   queryAll,
-  parent,
-  children,
-  siblings,
+  parent as parentDOM,
+  children as childrenDOM,
+  siblings as siblingsDOM,
   
   // Batch operations
   batchAll,
@@ -291,7 +291,10 @@ export {
   createGenerator,
   gen,
   watchGenerator,
-  getParentContext
+  getParentContext,
+  parent as parentContext,
+  children as childrenContext,
+  siblings as siblingsContext
 } from './core/generator';
 
 // Context factory functions

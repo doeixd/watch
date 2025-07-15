@@ -155,8 +155,8 @@ export function getParentContext<
 }
 
 // Import the functions from context.ts to avoid duplication
-import { self as selfFn, el, cleanup, ctx } from './context';
-export { el, cleanup, ctx };
+import { self as selfFn, el, cleanup, ctx, parent, children, siblings } from './context';
+export { el, cleanup, ctx, parent, children, siblings };
 
 // Add the all function that doesn't exist in context.ts
 export function all<T extends HTMLElement = HTMLElement>(selector: string, ctx?: TypedGeneratorContext<any>): T[] {

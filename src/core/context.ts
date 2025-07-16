@@ -107,9 +107,20 @@ export function executeCleanup<El extends HTMLElement>(element: El): void {
   if (cleanups) {
     cleanups.forEach(fn => {
       try {
+        // Set the context temporarily for the cleanup function to work
+        const cleanupContext = {
+          element,
+          selector: '',
+          index: 0,
+          array: [element] as readonly El[]
+        };
+        pushContext(cleanupContext);
         fn();
       } catch (e) {
         console.error('Error during cleanup:', e);
+      } finally {
+        // Clear the context after cleanup
+        popContext();
       }
     });
     cleanupRegistry.delete(element);
@@ -208,6 +219,8 @@ export async function executeGenerator<El extends HTMLElement, T = GeneratorCont
     returnValue = await executeGeneratorSequence(generator, element);
   } catch (e) {
     console.error('Error in generator execution:', e);
+    // Re-throw the error to preserve promise rejection behavior
+    throw e;
   } finally {
     // Pop context from stack
     popContext();
@@ -231,7 +244,8 @@ async function executeGeneratorSequence<El extends HTMLElement>(
       result = await generator.next(resultValue);
     } catch (e) {
       console.error('Error executing yielded value:', e);
-      result = await generator.next();
+      // Re-throw the error to preserve promise rejection behavior
+      throw e;
     }
   }
   
@@ -474,7 +488,7 @@ export function parent<T extends HTMLElement = HTMLElement>(selector?: string, c
   if (!context) {
     throw new Error('parent() can only be called within a generator context');
   }
-  return selector ? context.element.closest<T>(selector) : (context.element.parentElement as T | null);
+  return selector ? context.element.closest(selector) as T | null : (context.element.parentElement as T | null);
 }
 
 export function children<T extends HTMLElement = HTMLElement>(selector?: string, ctx?: TypedGeneratorContext<any>): T[] {

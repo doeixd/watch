@@ -4,13 +4,14 @@ import type { TypedState, CleanupFunction, TypedGeneratorContext } from '../type
 import { getCurrentContext } from './context';
 
 // Global state storage per element
-const elementStates = new WeakMap<HTMLElement, Record<string, any>>();
+let elementStates = new WeakMap<HTMLElement, Record<string, any>>();
 
 // Get state for current element
 function getElementState(ctx?: TypedGeneratorContext<any>): Record<string, any> {
   const context = getCurrentContext(ctx);
   if (!context) {
-    throw new Error('State functions can only be called within a generator context');
+    // Return empty object for invalid context instead of throwing
+    return {};
   }
   
   const element = context.element;
@@ -125,8 +126,28 @@ export function getState<T = any>(key: string, ctx?: TypedGeneratorContext<any>)
  * ```
  */
 export function setState<T = any>(key: string, value: T, ctx?: TypedGeneratorContext<any>): void {
+  const oldValue = getState<T>(key, ctx);
   const state = getElementState(ctx);
   state[key] = value;
+  
+  // Trigger watchers only if value changed
+  if (value !== oldValue) {
+    if (batchDepth > 0) {
+      // Store changes for later batch execution
+      batchedUpdates.set(key, { newValue: value, oldValue });
+    } else {
+      const watchers = stateWatchers.get(key);
+      if (watchers) {
+        watchers.forEach(callback => {
+          try {
+            callback(value, oldValue);
+          } catch (e) {
+            console.error('Error in state watcher:', e);
+          }
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -175,9 +196,30 @@ export function setState<T = any>(key: string, value: T, ctx?: TypedGeneratorCon
  * ```
  */
 export function updateState<T = any>(key: string, updater: (current: T) => T, ctx?: TypedGeneratorContext<any>): void {
+  const oldValue = getState<T>(key, ctx);
   const state = getElementState(ctx);
   const current = state[key] as T;
-  state[key] = updater(current);
+  const newValue = updater(current);
+  state[key] = newValue;
+  
+  // Trigger watchers only if value changed
+  if (newValue !== oldValue) {
+    if (batchDepth > 0) {
+      // Store changes for later batch execution
+      batchedUpdates.set(key, { newValue, oldValue });
+    } else {
+      const watchers = stateWatchers.get(key);
+      if (watchers) {
+        watchers.forEach(callback => {
+          try {
+            callback(newValue, oldValue);
+          } catch (e) {
+            console.error('Error in state watcher:', e);
+          }
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -315,7 +357,15 @@ export function deleteState(key: string, ctx?: TypedGeneratorContext<any>): void
  * @param initialValue - Optional initial value
  * @returns Typed state manager object
  */
-export function createTypedState<T>(key: string, _initialValue?: T): TypedState<T> {
+export function createTypedState<T>(key: string, initialValue?: T): TypedState<T> {
+  // Initialize state if initial value is provided
+  if (initialValue !== undefined) {
+    const state = getElementState();
+    if (!(key in state)) {
+      state[key] = initialValue;
+    }
+  }
+
   return {
     get(): T {
       const state = getElementState();
@@ -398,38 +448,42 @@ let computedCounter = 0;
 export function createComputed<T>(
   fn: () => T,
   dependencies: string[] = []
-): () => T {
+): { get(): T } {
   const computedId = ++computedCounter;
   const resultKey = `__computed_${computedId}`;
   const depsKey = `__computed_deps_${computedId}`;
   
-  return function(): T {
-    const state = getElementState();
-    
-    // Get current dependency values
-    const currentDeps = dependencies.map(dep => state[dep]);
-    const lastDeps = state[depsKey] as any[];
-    
-    // Check if dependencies changed
-    const depsChanged = !lastDeps || 
-      currentDeps.length !== lastDeps.length ||
-      !currentDeps.every((dep, i) => dep === lastDeps[i]);
-    
-    if (depsChanged) {
-      // Recompute
-      const result = fn();
-      state[resultKey] = result;
-      state[depsKey] = currentDeps;
-      return result;
+  return {
+    get(): T {
+      const state = getElementState();
+      
+      // Get current dependency values
+      const currentDeps = dependencies.map(dep => state[dep]);
+      const lastDeps = state[depsKey] as any[];
+      
+      // Check if dependencies changed
+      const depsChanged = !lastDeps || 
+        currentDeps.length !== lastDeps.length ||
+        !currentDeps.every((dep, i) => dep === lastDeps[i]);
+      
+      if (depsChanged) {
+        // Recompute
+        const result = fn();
+        state[resultKey] = result;
+        state[depsKey] = currentDeps;
+        return result;
+      }
+      
+      // Return cached result
+      return state[resultKey] as T;
     }
-    
-    // Return cached result
-    return state[resultKey] as T;
   };
 }
 
 // Reactive state that triggers callbacks on change
 const stateWatchers = new Map<string, Set<(newValue: any, oldValue: any) => void>>();
+let batchDepth = 0;
+let batchedUpdates = new Map<string, { newValue: any, oldValue: any }>();
 
 export function watchState<T>(
   key: string,
@@ -453,33 +507,52 @@ export function watchState<T>(
 // Enhanced setState that triggers watchers
 export function setStateReactive<T>(key: string, value: T): void {
   const oldValue = getState<T>(key);
-  setState(key, value);
+  const state = getElementState();
+  state[key] = value;
   
-  // Trigger watchers
-  const watchers = stateWatchers.get(key);
-  if (watchers) {
-    watchers.forEach(callback => {
-      try {
-        callback(value, oldValue);
-      } catch (e) {
-        console.error('Error in state watcher:', e);
-      }
-    });
+  // Trigger watchers only if value changed
+  if (value !== oldValue) {
+    const watchers = stateWatchers.get(key);
+    if (watchers) {
+      watchers.forEach(callback => {
+        try {
+          callback(value, oldValue);
+        } catch (e) {
+          console.error('Error in state watcher:', e);
+        }
+      });
+    }
   }
 }
 
 // Batch state updates
 export function batchStateUpdates(updates: () => void): void {
-  // Disable watchers temporarily
-  const originalWatchers = new Map(stateWatchers);
-  stateWatchers.clear();
+  batchDepth++;
+  if (batchDepth === 1) {
+    batchedUpdates.clear();
+  }
   
   try {
     updates();
   } finally {
-    // Restore watchers and trigger them
-    for (const [key, watchers] of originalWatchers) {
-      stateWatchers.set(key, watchers);
+    batchDepth--;
+    
+    if (batchDepth === 0) {
+      // Trigger watchers for all batched changes
+      for (const [key, { newValue, oldValue }] of batchedUpdates) {
+        const watchers = stateWatchers.get(key);
+        if (watchers) {
+          watchers.forEach(callback => {
+            try {
+              callback(newValue, oldValue);
+            } catch (e) {
+              console.error('Error in state watcher:', e);
+            }
+          });
+        }
+      }
+      
+      batchedUpdates.clear();
     }
   }
 }
@@ -490,7 +563,7 @@ export function createPersistedState<T>(
   initialValue: T,
   storageKey?: string
 ): TypedState<T> {
-  const actualStorageKey = storageKey || `watch_state_${key}`;
+  const actualStorageKey = storageKey || key;
   
   // Try to load from localStorage
   let storedValue: T = initialValue;
@@ -520,23 +593,38 @@ export function createPersistedState<T>(
   return typedState;
 }
 
-// Clear all state for current element
+// Clear all state for current element or globally
 export function clearAllState(): void {
   const context = getCurrentContext();
-  if (!context) {
-    throw new Error('clearAllState can only be called within a generator context');
+  if (context) {
+    // Clear state for current element
+    elementStates.delete(context.element);
+  } else {
+    // Clear all state globally
+    elementStates = new WeakMap();
   }
-  
-  elementStates.delete(context.element);
 }
 
 // Debug helpers
 export function debugState(): Record<string, any> {
-  return { ...getElementState() };
+  const state = { ...getElementState() };
+  console.log('State:', state);
+  return state;
 }
 
-export function logState(prefix = 'State:'): void {
-  console.log(prefix, debugState());
+export function logState(keyOrPrefix?: string): void {
+  if (keyOrPrefix && keyOrPrefix !== 'State:') {
+    // If it looks like a key (not the default prefix), log that specific key
+    const state = getElementState();
+    if (keyOrPrefix in state) {
+      console.log(`State[${keyOrPrefix}]:`, state[keyOrPrefix]);
+    } else {
+      console.log(`State[${keyOrPrefix}]:`, undefined);
+    }
+  } else {
+    // Default behavior - log all state
+    console.log(keyOrPrefix || 'State:', debugState());
+  }
 }
 
 /**

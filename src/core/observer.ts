@@ -2,7 +2,7 @@
 
 import type { ElementHandler, SelectorRegistry, UnmountRegistry, UnmountHandler, WatchController, ManagedInstance, WatchTarget, ElementMatcher, TypedGeneratorContext } from '../types';
 import { getElementStateSnapshot } from './state';
-import { executeGenerator } from './context';
+import { executeGenerator, executeCleanup } from './context';
 import { triggerUnmountHandlers } from '../api/events';
 
 // Global state
@@ -292,6 +292,11 @@ export function getOrCreateController<El extends HTMLElement>(
         behaviorCleanupFns.add(cleanup);
       },
       destroy: () => {
+        // Execute cleanup functions for all managed elements
+        instances.forEach((_, element) => {
+          executeCleanup(element);
+        });
+        
         behaviorCleanupFns.forEach(fn => fn());
         behaviorCleanupFns.clear();
         instances.clear();

@@ -4,6 +4,7 @@ import { text, addClass, removeClass } from '../src/api/dom';
 import { click, on } from '../src/api/events';
 import { setState, getState } from '../src/core/state';
 import { self, el, cleanup } from '../src/core/generator';
+import { cleanup as observerCleanup } from '../src/core/observer';
 
 // Test utilities
 function createTestElement(tag: string = 'div', attributes: Record<string, string> = {}): HTMLElement {
@@ -29,12 +30,14 @@ function waitForMutation(ms: number = 50): Promise<void> {
 describe('Core Watch Function', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    observerCleanup();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     // Clean up any remaining observers
     document.body.innerHTML = '';
+    observerCleanup();
   });
 
   describe('String Selector Overload', () => {

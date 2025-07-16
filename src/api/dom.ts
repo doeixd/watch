@@ -146,7 +146,7 @@ function _is_text_selector_get(args: any[]): boolean {
 
 function _is_text_generator(args: any[]): boolean {
   // Everything else is generator mode
-  return args.length <= 1 && !args[0]?.instanceof?.(HTMLElement) && (args.length === 0 || !_looksLikeSelector(args[0]));
+  return args.length <= 1 && !(args[0] instanceof HTMLElement) && (args.length === 0 || !_looksLikeSelector(args[0]));
 }
 
 function _looksLikeSelector(str: string): boolean {
@@ -157,10 +157,12 @@ function _looksLikeSelector(str: string): boolean {
     return false;
   }
   
-  // Common selector patterns
+  // Common selector patterns (excluding plain tag names to avoid false positives)
+  // Only spaces that are part of combinators (like "div > span") should be considered selectors
   return str.includes('.') || str.includes('#') || str.includes('[') || 
          str.includes(':') || str.includes('>') || str.includes('+') || 
-         str.includes('~') || str.includes('*') || /^[a-zA-Z][a-zA-Z0-9]*$/.test(str);
+         str.includes('~') || str.includes('*') || 
+         (str.includes(' ') && (str.includes('>') || str.includes('+') || str.includes('~') || str.includes('.')));
 }
 
 // TEXT CONTENT
@@ -276,6 +278,7 @@ export function text(...args: any[]): any {
     return element ? _impl_text_get(element) : null;
   }
   
+  // Generator mode - use the proper check
   if (_is_text_generator(args)) {
     const [content] = args;
     if (content === undefined) {
@@ -285,7 +288,8 @@ export function text(...args: any[]): any {
     }
   }
   
-  return (element: HTMLElement) => _impl_text_get(element);
+  // Fallback - shouldn't reach here
+  throw new Error('Invalid arguments for text function');
 }
 
 // Internal implementations for html function
@@ -429,12 +433,6 @@ export function toggleClass(element: HTMLElement, className: string, force?: boo
 export function toggleClass(selector: string, className: string, force?: boolean): boolean;
 export function toggleClass<El extends HTMLElement = HTMLElement>(className: string, force?: boolean): ElementFn<El, boolean>;
 export function toggleClass(...args: any[]): any {
-  if (args.length >= 2 && isElementLike(args[0])) {
-    const [elementLike, className, force] = args;
-    const element = resolveElement(elementLike);
-    return element ? _impl_toggleClass(element, className, force) : false;
-  }
-  
   if (args.length >= 2 && args[0] instanceof HTMLElement) {
     const [element, className, force] = args;
     return _impl_toggleClass(element, className, force);

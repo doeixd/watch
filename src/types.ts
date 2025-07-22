@@ -1,72 +1,136 @@
 // Core types for Watch v5
 
 // Element type inference from selectors
-export type ElementFromSelector<S extends string> = 
-  S extends `input[type="text"]${string}` ? HTMLInputElement :
-  S extends `input[type="email"]${string}` ? HTMLInputElement :
-  S extends `input[type="password"]${string}` ? HTMLInputElement :
-  S extends `input[type="search"]${string}` ? HTMLInputElement :
-  S extends `input[type="tel"]${string}` ? HTMLInputElement :
-  S extends `input[type="url"]${string}` ? HTMLInputElement :
-  S extends `input[type="number"]${string}` ? HTMLInputElement :
-  S extends `input[type="range"]${string}` ? HTMLInputElement :
-  S extends `input[type="date"]${string}` ? HTMLInputElement :
-  S extends `input[type="time"]${string}` ? HTMLInputElement :
-  S extends `input[type="datetime-local"]${string}` ? HTMLInputElement :
-  S extends `input[type="month"]${string}` ? HTMLInputElement :
-  S extends `input[type="week"]${string}` ? HTMLInputElement :
-  S extends `input[type="color"]${string}` ? HTMLInputElement :
-  S extends `input[type="file"]${string}` ? HTMLInputElement :
-  S extends `input[type="hidden"]${string}` ? HTMLInputElement :
-  S extends `input[type="checkbox"]${string}` ? HTMLInputElement :
-  S extends `input[type="radio"]${string}` ? HTMLInputElement :
-  S extends `input[type="submit"]${string}` ? HTMLInputElement :
-  S extends `input[type="reset"]${string}` ? HTMLInputElement :
-  S extends `input[type="button"]${string}` ? HTMLInputElement :
-  S extends `input[type="image"]${string}` ? HTMLInputElement :
-  S extends `input${string}` ? HTMLInputElement :
-  S extends `button${string}` ? HTMLButtonElement :
-  S extends `form${string}` ? HTMLFormElement :
-  S extends `a${string}` ? HTMLAnchorElement :
-  S extends `img${string}` ? HTMLImageElement :
-  S extends `select${string}` ? HTMLSelectElement :
-  S extends `textarea${string}` ? HTMLTextAreaElement :
-  S extends `div${string}` ? HTMLDivElement :
-  S extends `span${string}` ? HTMLSpanElement :
-  S extends `p${string}` ? HTMLParagraphElement :
-  S extends `h1${string}` ? HTMLHeadingElement :
-  S extends `h2${string}` ? HTMLHeadingElement :
-  S extends `h3${string}` ? HTMLHeadingElement :
-  S extends `h4${string}` ? HTMLHeadingElement :
-  S extends `h5${string}` ? HTMLHeadingElement :
-  S extends `h6${string}` ? HTMLHeadingElement :
-  S extends `ul${string}` ? HTMLUListElement :
-  S extends `ol${string}` ? HTMLOListElement :
-  S extends `li${string}` ? HTMLLIElement :
-  S extends `table${string}` ? HTMLTableElement :
-  S extends `tr${string}` ? HTMLTableRowElement :
-  S extends `td${string}` ? HTMLTableCellElement :
-  S extends `th${string}` ? HTMLTableCellElement :
-  S extends `thead${string}` ? HTMLTableSectionElement :
-  S extends `tbody${string}` ? HTMLTableSectionElement :
-  S extends `tfoot${string}` ? HTMLTableSectionElement :
-  S extends `canvas${string}` ? HTMLCanvasElement :
-  S extends `video${string}` ? HTMLVideoElement :
-  S extends `audio${string}` ? HTMLAudioElement :
-  S extends `iframe${string}` ? HTMLIFrameElement :
-  S extends `script${string}` ? HTMLScriptElement :
-  S extends `link${string}` ? HTMLLinkElement :
-  S extends `style${string}` ? HTMLStyleElement :
-  S extends `meta${string}` ? HTMLMetaElement :
-  S extends `title${string}` ? HTMLTitleElement :
-  S extends `head${string}` ? HTMLHeadElement :
-  S extends `body${string}` ? HTMLBodyElement :
-  S extends `html${string}` ? HTMLHtmlElement :
-  HTMLElement;
+export type ElementFromSelector<S extends string> =
+  S extends `input[type="text"]${string}`
+    ? HTMLInputElement
+    : S extends `input[type="email"]${string}`
+      ? HTMLInputElement
+      : S extends `input[type="password"]${string}`
+        ? HTMLInputElement
+        : S extends `input[type="search"]${string}`
+          ? HTMLInputElement
+          : S extends `input[type="tel"]${string}`
+            ? HTMLInputElement
+            : S extends `input[type="url"]${string}`
+              ? HTMLInputElement
+              : S extends `input[type="number"]${string}`
+                ? HTMLInputElement
+                : S extends `input[type="range"]${string}`
+                  ? HTMLInputElement
+                  : S extends `input[type="date"]${string}`
+                    ? HTMLInputElement
+                    : S extends `input[type="time"]${string}`
+                      ? HTMLInputElement
+                      : S extends `input[type="datetime-local"]${string}`
+                        ? HTMLInputElement
+                        : S extends `input[type="month"]${string}`
+                          ? HTMLInputElement
+                          : S extends `input[type="week"]${string}`
+                            ? HTMLInputElement
+                            : S extends `input[type="color"]${string}`
+                              ? HTMLInputElement
+                              : S extends `input[type="file"]${string}`
+                                ? HTMLInputElement
+                                : S extends `input[type="hidden"]${string}`
+                                  ? HTMLInputElement
+                                  : S extends `input[type="checkbox"]${string}`
+                                    ? HTMLInputElement
+                                    : S extends `input[type="radio"]${string}`
+                                      ? HTMLInputElement
+                                      : S extends `input[type="submit"]${string}`
+                                        ? HTMLInputElement
+                                        : S extends `input[type="reset"]${string}`
+                                          ? HTMLInputElement
+                                          : S extends `input[type="button"]${string}`
+                                            ? HTMLInputElement
+                                            : S extends `input[type="image"]${string}`
+                                              ? HTMLInputElement
+                                              : S extends `input${string}`
+                                                ? HTMLInputElement
+                                                : S extends `button${string}`
+                                                  ? HTMLButtonElement
+                                                  : S extends `form${string}`
+                                                    ? HTMLFormElement
+                                                    : S extends `a${string}`
+                                                      ? HTMLAnchorElement
+                                                      : S extends `img${string}`
+                                                        ? HTMLImageElement
+                                                        : S extends `select${string}`
+                                                          ? HTMLSelectElement
+                                                          : S extends `textarea${string}`
+                                                            ? HTMLTextAreaElement
+                                                            : S extends `div${string}`
+                                                              ? HTMLDivElement
+                                                              : S extends `span${string}`
+                                                                ? HTMLSpanElement
+                                                                : S extends `p${string}`
+                                                                  ? HTMLParagraphElement
+                                                                  : S extends `h1${string}`
+                                                                    ? HTMLHeadingElement
+                                                                    : S extends `h2${string}`
+                                                                      ? HTMLHeadingElement
+                                                                      : S extends `h3${string}`
+                                                                        ? HTMLHeadingElement
+                                                                        : S extends `h4${string}`
+                                                                          ? HTMLHeadingElement
+                                                                          : S extends `h5${string}`
+                                                                            ? HTMLHeadingElement
+                                                                            : S extends `h6${string}`
+                                                                              ? HTMLHeadingElement
+                                                                              : S extends `ul${string}`
+                                                                                ? HTMLUListElement
+                                                                                : S extends `ol${string}`
+                                                                                  ? HTMLOListElement
+                                                                                  : S extends `li${string}`
+                                                                                    ? HTMLLIElement
+                                                                                    : S extends `table${string}`
+                                                                                      ? HTMLTableElement
+                                                                                      : S extends `tr${string}`
+                                                                                        ? HTMLTableRowElement
+                                                                                        : S extends `td${string}`
+                                                                                          ? HTMLTableCellElement
+                                                                                          : S extends `th${string}`
+                                                                                            ? HTMLTableCellElement
+                                                                                            : S extends `thead${string}`
+                                                                                              ? HTMLTableSectionElement
+                                                                                              : S extends `tbody${string}`
+                                                                                                ? HTMLTableSectionElement
+                                                                                                : S extends `tfoot${string}`
+                                                                                                  ? HTMLTableSectionElement
+                                                                                                  : S extends `canvas${string}`
+                                                                                                    ? HTMLCanvasElement
+                                                                                                    : S extends `video${string}`
+                                                                                                      ? HTMLVideoElement
+                                                                                                      : S extends `audio${string}`
+                                                                                                        ? HTMLAudioElement
+                                                                                                        : S extends `iframe${string}`
+                                                                                                          ? HTMLIFrameElement
+                                                                                                          : S extends `script${string}`
+                                                                                                            ? HTMLScriptElement
+                                                                                                            : S extends `link${string}`
+                                                                                                              ? HTMLLinkElement
+                                                                                                              : S extends `style${string}`
+                                                                                                                ? HTMLStyleElement
+                                                                                                                : S extends `meta${string}`
+                                                                                                                  ? HTMLMetaElement
+                                                                                                                  : S extends `title${string}`
+                                                                                                                    ? HTMLTitleElement
+                                                                                                                    : S extends `head${string}`
+                                                                                                                      ? HTMLHeadElement
+                                                                                                                      : S extends `body${string}`
+                                                                                                                        ? HTMLBodyElement
+                                                                                                                        : S extends `html${string}`
+                                                                                                                          ? HTMLHtmlElement
+                                                                                                                          : HTMLElement;
 
 // Handler types
-export type ElementHandler<El extends HTMLElement = HTMLElement> = (element: El) => void;
-export type ElementFn<El extends Element = HTMLElement, T = void> = (element: El) => T;
+export type ElementHandler<El extends HTMLElement = HTMLElement> = (
+  element: El,
+) => void;
+export type ElementFn<El extends Element = HTMLElement, T = void> = (
+  element: El,
+) => T;
 
 // Selector type
 export type Selector = string;
@@ -89,12 +153,12 @@ export type ElementProxy<El extends HTMLElement = HTMLElement> = El & {
 export type SelfFunction<El extends HTMLElement = HTMLElement> = () => El;
 
 // Generator function type - element type is inferred and maintained throughout
-export type GeneratorFunction<El extends HTMLElement = HTMLElement, T = void> = 
+export type GeneratorFunction<El extends HTMLElement = HTMLElement, T = void> =
   | (() => Generator<ElementFn<El, any>, T, unknown>)
   | (() => AsyncGenerator<ElementFn<El, any>, T, unknown>);
 
 // Generator yield types - expanded to support more patterns
-export type GeneratorYield<El extends HTMLElement = HTMLElement> = 
+export type GeneratorYield<El extends HTMLElement = HTMLElement> =
   | ElementFn<El, any>
   | Promise<ElementFn<El, any>>
   | Generator<ElementFn<El, any>, void, unknown>
@@ -102,13 +166,17 @@ export type GeneratorYield<El extends HTMLElement = HTMLElement> =
   | Promise<any>;
 
 // Parent context type for child components
-export interface ParentContext<ParentEl extends HTMLElement = HTMLElement, ParentApi = any> {
+export interface ParentContext<
+  ParentEl extends HTMLElement = HTMLElement,
+  ParentApi = any,
+> {
   element: ParentEl;
   api: ParentApi;
 }
 
 // Context function type - returns typed context
-export type ContextFunction<El extends HTMLElement = HTMLElement> = () => WatchContext<El>;
+export type ContextFunction<El extends HTMLElement = HTMLElement> =
+  () => WatchContext<El>;
 
 // Type-safe generator context that maintains element type through inference
 export interface TypedGeneratorContext<El extends HTMLElement = HTMLElement> {
@@ -117,10 +185,10 @@ export interface TypedGeneratorContext<El extends HTMLElement = HTMLElement> {
   el<T extends HTMLElement = HTMLElement>(selector: string): T | null;
   all<T extends HTMLElement = HTMLElement>(selector: string): T[];
   cleanup(fn: CleanupFunction): void;
-  
+
   // Context access
   ctx(): WatchContext<El>;
-  
+
   // Element info
   readonly element: El;
   readonly selector: string;
@@ -132,31 +200,31 @@ export interface TypedGeneratorContext<El extends HTMLElement = HTMLElement> {
 export interface PreDefinedWatchContext<
   S extends string = string,
   El extends HTMLElement = ElementFromSelector<S>,
-  Options extends Record<string, unknown> = Record<string, unknown>
+  Options extends Record<string, unknown> = Record<string, unknown>,
 > {
   readonly selector: S;
   readonly elementType: El;
   readonly options: Options;
-  readonly __brand: 'PreDefinedWatchContext';
+  readonly __brand: "PreDefinedWatchContext";
 }
 
 // Options for creating watch contexts
 export interface WatchContextOptions extends Record<string, unknown> {
   // Debounce setup function calls
   debounce?: number;
-  
-  // Throttle setup function calls  
+
+  // Throttle setup function calls
   throttle?: number;
-  
+
   // Only run once
   once?: boolean;
-  
+
   // Custom data to attach to context
   data?: Record<string, unknown>;
-  
+
   // Custom element filter function
   filter?: (element: HTMLElement) => boolean;
-  
+
   // Priority for execution order
   priority?: number;
 }
@@ -166,7 +234,7 @@ export type DualAPI<
   DirectArgs extends readonly unknown[],
   GeneratorArgs extends readonly unknown[],
   El extends HTMLElement = HTMLElement,
-  ReturnType = void
+  ReturnType = void,
 > = {
   (...args: [...DirectArgs, El]): ReturnType;
   (...args: GeneratorArgs): ElementFn<El, ReturnType>;
@@ -175,20 +243,20 @@ export type DualAPI<
 // Event handler type that receives element as second parameter
 export type ElementEventHandler<
   El extends HTMLElement = HTMLElement,
-  K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap
+  K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap,
 > = (event: HTMLElementEventMap[K], element: El) => void;
 
 // Custom event handler type for CustomEvent support
 export type CustomEventHandler<
   El extends HTMLElement = HTMLElement,
-  T = any
+  T = any,
 > = (event: CustomEvent<T>, element: El) => void;
 
 // Union type for all possible event handlers
 export type EventHandler<
   El extends HTMLElement = HTMLElement,
   K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap,
-  T = any
+  T = any,
 > = ElementEventHandler<El, K> | CustomEventHandler<El, T>;
 
 // Enhanced event listener options with delegation support
@@ -204,21 +272,41 @@ export interface WatchEventListenerOptions extends AddEventListenerOptions {
 }
 
 // Hybrid event handler types that support both regular functions and generators
-export type HybridEventHandler<El extends Element = HTMLElement, K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap> = 
+export type HybridEventHandler<
+  El extends Element = HTMLElement,
+  K extends keyof HTMLElementEventMap = keyof HTMLElementEventMap,
+> =
   | ((event: HTMLElementEventMap[K], element?: El) => void)
   | ((event: HTMLElementEventMap[K], element?: El) => Promise<void>)
-  | ((event: HTMLElementEventMap[K], element?: El) => Generator<ElementFn<El>, void, unknown>)
-  | ((event: HTMLElementEventMap[K], element?: El) => AsyncGenerator<ElementFn<El>, void, unknown>)
+  | ((
+      event: HTMLElementEventMap[K],
+      element?: El,
+    ) => Generator<ElementFn<El>, void, unknown>)
+  | ((
+      event: HTMLElementEventMap[K],
+      element?: El,
+    ) => AsyncGenerator<ElementFn<El>, void, unknown>)
   | ((event: HTMLElementEventMap[K]) => void)
   | ((event: HTMLElementEventMap[K]) => Promise<void>)
   | ((event: HTMLElementEventMap[K]) => Generator<ElementFn<El>, void, unknown>)
-  | ((event: HTMLElementEventMap[K]) => AsyncGenerator<ElementFn<El>, void, unknown>);
+  | ((
+      event: HTMLElementEventMap[K],
+    ) => AsyncGenerator<ElementFn<El>, void, unknown>);
 
-export type HybridCustomEventHandler<El extends Element = HTMLElement, T = any> = 
+export type HybridCustomEventHandler<
+  El extends Element = HTMLElement,
+  T = any,
+> =
   | ((event: CustomEvent<T>, element?: El) => void)
   | ((event: CustomEvent<T>, element?: El) => Promise<void>)
-  | ((event: CustomEvent<T>, element?: El) => Generator<ElementFn<El>, void, unknown>)
-  | ((event: CustomEvent<T>, element?: El) => AsyncGenerator<ElementFn<El>, void, unknown>)
+  | ((
+      event: CustomEvent<T>,
+      element?: El,
+    ) => Generator<ElementFn<El>, void, unknown>)
+  | ((
+      event: CustomEvent<T>,
+      element?: El,
+    ) => AsyncGenerator<ElementFn<El>, void, unknown>)
   | ((event: CustomEvent<T>) => void)
   | ((event: CustomEvent<T>) => Promise<void>)
   | ((event: CustomEvent<T>) => Generator<ElementFn<El>, void, unknown>)
@@ -234,7 +322,7 @@ export interface DebounceOptions {
   trailing?: boolean;
 }
 
-// Throttle configuration options  
+// Throttle configuration options
 export interface ThrottleOptions {
   /** Limit in milliseconds */
   limit: number;
@@ -245,11 +333,12 @@ export interface ThrottleOptions {
 }
 
 // Enhanced options for hybrid event handling
-export interface HybridEventOptions extends Omit<AddEventListenerOptions, 'signal'> {
+export interface HybridEventOptions
+  extends Omit<AddEventListenerOptions, "signal"> {
   /** Enable delegation - listen on parent and match against selector */
   delegate?: string;
   /** Delegation phase - bubble (default) or capture */
-  delegatePhase?: 'bubble' | 'capture';
+  delegatePhase?: "bubble" | "capture";
   /** Debounce configuration */
   debounce?: number | DebounceOptions;
   /** Throttle configuration */
@@ -259,11 +348,14 @@ export interface HybridEventOptions extends Omit<AddEventListenerOptions, 'signa
   /** AbortSignal for cleanup */
   signal?: AbortSignal;
   /** Queue concurrent async generators: 'latest' | 'all' | 'none' (default: 'all') */
-  queue?: 'latest' | 'all' | 'none';
+  queue?: "latest" | "all" | "none";
 }
 
 // Form element types
-export type FormElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+export type FormElement =
+  | HTMLInputElement
+  | HTMLSelectElement
+  | HTMLTextAreaElement;
 
 // Utility types
 export type Prettify<T> = {
@@ -273,23 +365,28 @@ export type Prettify<T> = {
 // CSS property name type
 export type CSSPropertyName = keyof CSSStyleDeclaration;
 
-// Attribute name type  
+// Attribute name type
 export type AttributeName = string;
 
 // Data attribute key type
 export type DataAttributeKey = string;
 
 // Event name type
-export type EventName<_El extends HTMLElement = HTMLElement> = keyof HTMLElementEventMap;
+export type EventName<_El extends HTMLElement = HTMLElement> =
+  keyof HTMLElementEventMap;
 
 // Matcher function type
-export type ElementMatcher<El extends HTMLElement = HTMLElement> = (element: HTMLElement) => element is El;
+export type ElementMatcher<El extends HTMLElement = HTMLElement> = (
+  element: HTMLElement,
+) => element is El;
 
 // Enhanced matcher function with more control
-export type AdvancedMatcher = (element: HTMLElement) => 'skip' | 'observe' | 'queue';
+export type AdvancedMatcher = (
+  element: HTMLElement,
+) => "skip" | "observe" | "queue";
 
 // Watch target types - now with advanced matcher and special objects
-export type WatchTarget<El extends HTMLElement = HTMLElement> = 
+export type WatchTarget<El extends HTMLElement = HTMLElement> =
   | string
   | El
   | El[]
@@ -325,8 +422,12 @@ export interface ResizeChange {
 }
 
 // Lifecycle event types
-export type MountHandler<El extends HTMLElement = HTMLElement> = (element: El) => void;
-export type UnmountHandler<El extends HTMLElement = HTMLElement> = (element: El) => void;
+export type MountHandler<El extends HTMLElement = HTMLElement> = (
+  element: El,
+) => void;
+export type UnmountHandler<El extends HTMLElement = HTMLElement> = (
+  element: El,
+) => void;
 
 // Cleanup function type
 export type CleanupFunction = () => void;
@@ -343,6 +444,82 @@ export type TypedState<T = any> = {
   init(value: T): void;
 };
 
+// ============================================================================
+// NEW GENERATOR API TYPES - Phase 1: Foundational Types
+// ============================================================================
+
+// An "Operation" is a pure function that describes work to be done.
+// It receives a WatchContext and returns a result (sync or async).
+export type Operation<TReturn, El extends HTMLElement = HTMLElement> = (
+  context: WatchContext<El>,
+) => TReturn | Promise<TReturn>;
+
+// A "Workflow" is what users write with the new API - an async generator
+// that yields Operations and returns a final value.
+export type Workflow<TReturn = void> = AsyncGenerator<
+  Operation<any, any>,
+  TReturn,
+  any
+>;
+
+// Enhanced WatchContext for the new pattern - extends existing for compatibility
+export interface EnhancedWatchContext<El extends HTMLElement = HTMLElement>
+  extends WatchContext<El> {
+  // Core context properties (readonly for immutability)
+  readonly element: El;
+  readonly selector: string;
+  readonly index: number;
+  readonly array: readonly El[];
+
+  // State management interface
+  readonly state: {
+    get<T>(key: string, defaultValue?: T): T;
+    set<T>(key: string, value: T): void;
+    update<T>(key: string, updater: (current: T) => T): void;
+    has(key: string): boolean;
+    delete(key: string): boolean;
+    watch<T>(
+      key: string,
+      callback: (newValue: T, oldValue: T) => void,
+    ): () => void;
+  };
+
+  // Parent context for hierarchical operations
+  readonly parentContext?: EnhancedWatchContext;
+
+  // Enhanced cleanup registry
+  readonly cleanup: (fn: () => void) => void;
+
+  // Observer registration
+  readonly addObserver: (
+    observer: MutationObserver | IntersectionObserver | ResizeObserver,
+  ) => void;
+}
+
+// Type alias for the new context pattern
+export type OperationContext<El extends HTMLElement = HTMLElement> =
+  EnhancedWatchContext<El>;
+
+// Generator operation result - what gets yielded in workflows
+export type OperationResult<T = any> = T;
+
+// Enhanced generator function type for the new API
+export type WorkflowFunction<El extends HTMLElement = HTMLElement, T = void> = (
+  context: OperationContext<El>,
+) => Workflow<T>;
+
+// Operation factory type - functions that return operations
+export type OperationFactory<
+  TArgs extends readonly unknown[],
+  TReturn,
+  El extends HTMLElement = HTMLElement,
+> = (...args: TArgs) => Operation<TReturn, El>;
+
+// Workflow composer type - for composing multiple workflows
+export type WorkflowComposer<El extends HTMLElement = HTMLElement> = (
+  ...workflows: WorkflowFunction<El>[]
+) => WorkflowFunction<El>;
+
 /**
  * Represents a managed instance of a watched element, providing access to
  * its element and a snapshot of its state for introspection purposes.
@@ -356,28 +533,34 @@ export interface ManagedInstance {
  * The controller object returned by the watch() function. It provides a handle
  * to the watch operation, enabling advanced control like behavior layering,
  * instance introspection, and manual destruction.
- * 
+ *
  * For backward compatibility, controllers are callable as cleanup functions.
  */
 export interface WatchController<El extends HTMLElement = HTMLElement> {
   /** The original subject (selector, element, etc.) that this controller manages. */
   readonly subject: WatchTarget<El>;
-  
+
   /** Returns a read-only Map of the current elements being managed by this watcher. */
   getInstances(): ReadonlyMap<El, ManagedInstance>;
-  
+
   /**
    * Adds a new behavior "layer" to the watched elements. This generator will be
    * executed on all current and future elements matched by this controller.
    */
-  layer(generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El, any>, any, unknown>): void;
-  
+  layer(
+    generator: (
+      ctx: TypedGeneratorContext<El>,
+    ) =>
+      | Generator<ElementFn<El, any>, any, unknown>
+      | AsyncGenerator<any, any, unknown>,
+  ): void;
+
   /**
    * Destroys this watch operation entirely, cleaning up all its layered behaviors
    * and removing all listeners and observers for all managed instances.
    */
   destroy(): void;
-  
+
   /**
    * Backward compatibility: Allow controller to be called as a cleanup function
    */
@@ -392,7 +575,7 @@ export interface WatchedInstance<El extends HTMLElement = HTMLElement> {
   cleanupFns: (() => void)[];
 }
 
-// Shared configuration for all instances of a watch subject  
+// Shared configuration for all instances of a watch subject
 export interface WatchConfig<El extends HTMLElement = HTMLElement> {
   subject: WatchTarget<El>;
   parentScope: HTMLElement;
@@ -408,20 +591,20 @@ export interface WatchContext<El extends HTMLElement = HTMLElement> {
   selector: string;
   index: number;
   array: readonly El[];
-  
+
   // Enhanced state management
   state: Record<string, any>;
   observers: Set<MutationObserver | IntersectionObserver | ResizeObserver>;
-  
+
   // Proxy element access
   el: ElementProxy<El>;
-  
+
   // Self function
   self: SelfFunction<El>;
-  
+
   // Enhanced cleanup registration
   cleanup: (fn: CleanupFunction) => void;
-  addObserver: (observer: MutationObserver | IntersectionObserver | ResizeObserver) => void;
+  addObserver: (
+    observer: MutationObserver | IntersectionObserver | ResizeObserver,
+  ) => void;
 }
-
-

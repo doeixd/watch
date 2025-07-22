@@ -31,24 +31,58 @@ import type {
   TextChange,
   VisibilityChange,
   ResizeChange,
-} from '../types';
-import { executeGenerator, getCurrentContext, createCleanupFunction, pushContext, popContext, executeCleanup } from '../core/context';
+} from "../types";
+import {
+  executeGenerator,
+  getCurrentContext,
+  createCleanupFunction,
+  pushContext,
+  popContext,
+  executeCleanup,
+} from "../core/context";
 
 // ==================== MAIN 'on' FUNCTION ====================
 
 // --- Overloads for strong type inference and API documentation ---
 
 // 1. Standard DOM events (e.g., 'click', 'input')
-export function on<El extends Element, K extends keyof HTMLElementEventMap>(element: El, event: K, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): CleanupFunction;
-export function on<El extends Element, K extends keyof HTMLElementEventMap>(event: K, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+export function on<El extends Element, K extends keyof HTMLElementEventMap>(
+  element: El,
+  event: K,
+  handler: HybridEventHandler<El, K>,
+  options?: HybridEventOptions,
+): CleanupFunction;
+export function on<El extends Element, K extends keyof HTMLElementEventMap>(
+  event: K,
+  handler: HybridEventHandler<El, K>,
+  options?: HybridEventOptions,
+): ElementFn<El, CleanupFunction>;
 
 // 2. CustomEvents with a specific detail type T
-export function on<El extends Element, T>(element: El, event: CustomEvent<T>, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): CleanupFunction;
-export function on<El extends Element, T>(event: CustomEvent<T>, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+export function on<El extends Element, T>(
+  element: El,
+  event: CustomEvent<T>,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): CleanupFunction;
+export function on<El extends Element, T>(
+  event: CustomEvent<T>,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): ElementFn<El, CleanupFunction>;
 
 // 3. Custom event strings, requiring a generic for the detail type T
-export function on<T = any, El extends Element = HTMLElement>(element: El, eventType: string, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): CleanupFunction;
-export function on<T = any, El extends Element = HTMLElement>(eventType: string, handler: HybridCustomEventHandler<El, T>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+export function on<T = any, El extends Element = HTMLElement>(
+  element: El,
+  eventType: string,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): CleanupFunction;
+export function on<T = any, El extends Element = HTMLElement>(
+  eventType: string,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): ElementFn<El, CleanupFunction>;
 
 /**
  * # on() - The Unified Event Listener
@@ -84,19 +118,32 @@ export function on<T = any, El extends Element = HTMLElement>(eventType: string,
  *   console.log('Clicked on:', delegatedEl.textContent);
  * }, { delegate: '.item' });
  */
-export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(...args: any[]): any {
+export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(
+  ...args: any[]
+): any {
   // 1. UNIFIED ARGUMENT PARSING
   const isDirectUsage = args[0] instanceof Element;
-  const element = isDirectUsage ? args[0] as El : null;
-  const eventOrType = (isDirectUsage ? args[1] : args[0]) as K | string | CustomEvent<T>;
-  const handler = (isDirectUsage ? args[2] : args[1]) as HybridEventHandler<El, K> | HybridCustomEventHandler<El, T>;
-  const options = (isDirectUsage ? args[3] : args[2]) as HybridEventOptions || {};
+  const element = isDirectUsage ? (args[0] as El) : null;
+  const eventOrType = (isDirectUsage ? args[1] : args[0]) as
+    | K
+    | string
+    | CustomEvent<T>;
+  const handler = (isDirectUsage ? args[2] : args[1]) as
+    | HybridEventHandler<El, K>
+    | HybridCustomEventHandler<El, T>;
+  const options =
+    ((isDirectUsage ? args[3] : args[2]) as HybridEventOptions) || {};
 
   // 2. CREATE THE UNIFIED ELEMENT FUNCTION
   const elementFn: ElementFn<El, CleanupFunction> = (el: El) => {
     const eventType = getEventType(eventOrType);
     const inGeneratorContext = !!getCurrentContext();
-    const enhancedHandler = createEnhancedHandler(el as unknown as HTMLElement, handler, inGeneratorContext, options);
+    const enhancedHandler = createEnhancedHandler(
+      el as unknown as HTMLElement,
+      handler,
+      inGeneratorContext,
+      options,
+    );
     const finalHandler = applyTimingModifiers(enhancedHandler, options);
     const cleanup = setupEventListener(el, eventType, finalHandler, options);
 
@@ -112,26 +159,41 @@ export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(.
 
 // ==================== INTERNAL HELPERS (Unified & Improved) ====================
 
-function createEnhancedHandler<El extends HTMLElement, K extends keyof HTMLElementEventMap, T>(
+function createEnhancedHandler<
+  El extends HTMLElement,
+  K extends keyof HTMLElementEventMap,
+  T,
+>(
   element: El,
   handler: HybridEventHandler<El, K> | HybridCustomEventHandler<El, T>,
   inGeneratorContext: boolean,
-  options: HybridEventOptions
+  options: HybridEventOptions,
 ): (event: Event) => Promise<void> {
   return async (event: Event) => {
     try {
       let targetElement: El = element;
       if (options.delegate) {
-        const delegateTarget = (event.target as Element)?.closest?.(options.delegate);
+        const delegateTarget = (event.target as Element)?.closest?.(
+          options.delegate,
+        );
         if (!delegateTarget || !element.contains(delegateTarget)) return;
         targetElement = delegateTarget as El;
       }
 
-      if (options.filter && !options.filter(event, targetElement as unknown as HTMLElement)) return;
+      if (
+        options.filter &&
+        !options.filter(event, targetElement as unknown as HTMLElement)
+      )
+        return;
 
       let result: any;
-      const context = getCurrentContext() || { element: targetElement, selector: 'event', index: 0, array: [targetElement] };
-      
+      const context = getCurrentContext() || {
+        element: targetElement,
+        selector: "event",
+        index: 0,
+        array: [targetElement],
+      };
+
       pushContext(context);
       try {
         result = (handler as Function)(event, targetElement);
@@ -139,19 +201,33 @@ function createEnhancedHandler<El extends HTMLElement, K extends keyof HTMLEleme
         // Only pop the context if we are in standalone mode (i.e., we pushed a temporary one).
         if (!inGeneratorContext) popContext();
       }
-      
-      if (result && typeof result.next === 'function') {
-        const queueMode = options.queue || 'all';
-        if (queueMode === 'none') {
-          executeGenerator(targetElement as unknown as HTMLElement, 'event', 0, [targetElement as unknown as HTMLElement], () => result).catch(e => console.error("Error in concurrent generator", e));
+
+      if (result && typeof result.next === "function") {
+        const queueMode = options.queue || "all";
+        if (queueMode === "none") {
+          executeGenerator(
+            targetElement as unknown as HTMLElement,
+            "event",
+            0,
+            [targetElement as unknown as HTMLElement],
+            () => result,
+          ).catch((e) => console.error("Error in concurrent generator", e));
         } else {
-          await handleQueuedExecution(targetElement, queueMode, () => executeGenerator(targetElement as unknown as HTMLElement, 'event', 0, [targetElement as unknown as HTMLElement], () => result));
+          await handleQueuedExecution(targetElement, queueMode, () =>
+            executeGenerator(
+              targetElement as unknown as HTMLElement,
+              "event",
+              0,
+              [targetElement as unknown as HTMLElement],
+              () => result,
+            ),
+          );
         }
-      } else if (result && typeof result.then === 'function') {
+      } else if (result && typeof result.then === "function") {
         await result;
       }
     } catch (error) {
-      console.error('Error in event handler:', error);
+      console.error("Error in event handler:", error);
     }
   };
 }
@@ -159,20 +235,21 @@ function createEnhancedHandler<El extends HTMLElement, K extends keyof HTMLEleme
 const elementQueues = new WeakMap<Element, Promise<any>>();
 async function handleQueuedExecution<El extends Element>(
   element: El,
-  queueMode: 'latest' | 'all',
-  executor: () => Promise<any>
+  queueMode: "latest" | "all",
+  executor: () => Promise<any>,
 ): Promise<void> {
   let executionPromise: Promise<any>;
   const lastPromise = elementQueues.get(element) || Promise.resolve();
 
-  if (queueMode === 'all') {
+  if (queueMode === "all") {
     executionPromise = lastPromise.then(executor, executor);
-  } else { // 'latest'
+  } else {
+    // 'latest'
     executionPromise = executor();
   }
-  
+
   elementQueues.set(element, executionPromise);
-  
+
   try {
     await executionPromise;
   } finally {
@@ -182,18 +259,30 @@ async function handleQueuedExecution<El extends Element>(
   }
 }
 
-function applyTimingModifiers(handler: (event: Event) => Promise<void>, options: HybridEventOptions): (event: Event) => void {
+function applyTimingModifiers(
+  handler: (event: Event) => Promise<void>,
+  options: HybridEventOptions,
+): (event: Event) => void {
   if (options.debounce) return debounce(handler, options.debounce);
   if (options.throttle) return throttle(handler, options.throttle);
-  return (event: Event) => { handler(event).catch(e => console.error("Async event handler error:", e)); };
+  return (event: Event) => {
+    handler(event).catch((e) => console.error("Async event handler error:", e));
+  };
 }
 
-function setupEventListener(element: Element, eventType: string, handler: (event: Event) => void, options: HybridEventOptions): CleanupFunction {
+function setupEventListener(
+  element: Element,
+  eventType: string,
+  handler: (event: Event) => void,
+  options: HybridEventOptions,
+): CleanupFunction {
   const listenerOptions: AddEventListenerOptions = {
-    capture: options.delegate ? (options.delegatePhase === 'capture') : options.capture,
+    capture: options.delegate
+      ? options.delegatePhase === "capture"
+      : options.capture,
     once: options.once,
     passive: options.passive,
-    signal: options.signal
+    signal: options.signal,
   };
   element.addEventListener(eventType, handler, listenerOptions);
   return () => {
@@ -203,13 +292,19 @@ function setupEventListener(element: Element, eventType: string, handler: (event
 }
 
 function getEventType<T>(eventOrType: string | CustomEvent<T>): string {
-  if (typeof eventOrType === 'string') return eventOrType;
+  if (typeof eventOrType === "string") return eventOrType;
   if (eventOrType instanceof CustomEvent) return eventOrType.type;
-  throw new Error('Invalid event type provided.');
+  throw new Error("Invalid event type provided.");
 }
 
-function debounce(func: (event: Event) => Promise<void>, options: number | { wait: number; leading?: boolean; trailing?: boolean }) {
-  const config = typeof options === 'number' ? { wait: options, trailing: true, leading: false } : { trailing: true, leading: false, ...options };
+function debounce(
+  func: (event: Event) => Promise<void>,
+  options: number | { wait: number; leading?: boolean; trailing?: boolean },
+) {
+  const config =
+    typeof options === "number"
+      ? { wait: options, trailing: true, leading: false }
+      : { trailing: true, leading: false, ...options };
   let timeoutId: any;
   let lastArgs: [Event] | null = null;
   let isLeading = true;
@@ -220,12 +315,16 @@ function debounce(func: (event: Event) => Promise<void>, options: number | { wai
 
     if (config.leading && isLeading) {
       isLeading = false;
-      func(...lastArgs).catch(e => console.error("Error in debounced handler:", e));
+      func(...lastArgs).catch((e) =>
+        console.error("Error in debounced handler:", e),
+      );
     }
 
     timeoutId = setTimeout(() => {
       if (config.trailing && lastArgs && !config.leading) {
-        func(...lastArgs).catch(e => console.error("Error in debounced handler:", e));
+        func(...lastArgs).catch((e) =>
+          console.error("Error in debounced handler:", e),
+        );
       }
       isLeading = true;
       lastArgs = null;
@@ -233,14 +332,17 @@ function debounce(func: (event: Event) => Promise<void>, options: number | { wai
   };
 }
 
-function throttle(func: (event: Event) => Promise<void>, options: number | { limit: number; }) {
-  const limit = typeof options === 'number' ? options : options.limit;
+function throttle(
+  func: (event: Event) => Promise<void>,
+  options: number | { limit: number },
+) {
+  const limit = typeof options === "number" ? options : options.limit;
   let inThrottle = false;
   return (event: Event) => {
     if (!inThrottle) {
-      func(event).catch(e => console.error("Error in throttled handler:", e));
+      func(event).catch((e) => console.error("Error in throttled handler:", e));
       inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+      setTimeout(() => (inThrottle = false), limit);
     }
   };
 }
@@ -252,9 +354,18 @@ function throttle(func: (event: Event) => Promise<void>, options: number | { lim
  * A generic factory to create event shortcut functions like `click`, `input`, etc.
  * This reduces code duplication and ensures all shortcuts share the same robust logic.
  */
-function createEventShortcut<K extends keyof HTMLElementEventMap>(eventType: K) {
-  function shortcut<El extends Element>(element: El, handler: HybridEventHandler<El, K>, options?: HybridEventOptions): CleanupFunction;
-  function shortcut<El extends Element>(handler: HybridEventHandler<El, K>, options?: HybridEventOptions): ElementFn<El, CleanupFunction>;
+function createEventShortcut<K extends keyof HTMLElementEventMap>(
+  eventType: K,
+) {
+  function shortcut<El extends Element>(
+    element: El,
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): CleanupFunction;
+  function shortcut<El extends Element>(
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): ElementFn<El, CleanupFunction>;
   function shortcut(...args: any[]): any {
     if (args[0] instanceof Element) {
       const [element, handler, options] = args;
@@ -268,36 +379,69 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(eventType: K) 
 
 /**
  * Attaches a click event listener using the dual API pattern.
- * 
+ *
  * This is a convenient shortcut for `on('click', ...)` that provides the same dual
  * API functionality. It works both directly with elements and within watch generators,
  * supporting advanced features like debouncing, delegation, and queue management.
- * 
+ *
+ * @param element - HTMLElement to attach listener to (direct API)
+ * @param handler - Event handler function (can be a generator)
+ * @param options - Advanced event options
+ * @returns CleanupFunction when used directly, ElementFn when in generator mode
+ *
  * @example Direct usage
  * ```typescript
  * import { click } from 'watch-selector';
- * 
+ *
  * const button = document.getElementById('my-button');
- * click(button, (event) => {
- *   console.log('Button clicked!');
+ * const cleanup = click(button, (event) => {
+ *   console.log('Button clicked!', event.target);
  * });
+ *
+ * // Later cleanup
+ * cleanup();
  * ```
- * 
- * @example Generator usage
+ *
+ * @example Generator usage within watch
  * ```typescript
- * import { watch, click, text } from 'watch-selector';
- * 
+ * import { watch, click, text, addClass } from 'watch-selector';
+ *
  * watch('button', function* () {
  *   yield click(function* (event) {
+ *     yield addClass('clicked');
  *     yield text('Clicked!');
  *   });
  * });
  * ```
- * 
- * @example Advanced options
+ *
+ * @example Advanced options with debouncing
  * ```typescript
  * import { watch, click, addClass, removeClass } from 'watch-selector';
- * 
+ *
+ * watch('.rapid-click-btn', function* () {
+ *   yield click(function* (event) {
+ *     yield addClass('processing');
+ *     // Process click
+ *     yield removeClass('processing');
+ *   }, {
+ *     debounce: { wait: 300, leading: true, trailing: false },
+ *     queue: 'latest' // Cancel previous processing
+ *   });
+ * });
+ * ```
+ *
+ * @example Event delegation for dynamic content
+ * ```typescript
+ * import { click } from 'watch-selector';
+ *
+ * const container = document.getElementById('dynamic-list');
+ * click(container, (event, delegatedElement) => {
+ *   console.log('Clicked item:', delegatedElement.textContent);
+ * }, {
+ *   delegate: '.list-item' // Handle clicks on any .list-item inside container
+ * });
+ * ```
+ *
  * watch('.button', function* () {
  *   yield click(function* (event) {
  *     yield addClass('clicked');
@@ -310,19 +454,63 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(eventType: K) 
  * });
  * ```
  */
-export const click = createEventShortcut('click');
+export const click = createEventShortcut("click");
 
 /**
  * Attaches an input event listener using the dual API pattern.
- * 
+ *
  * This is a convenient shortcut for `on('input', ...)` that's particularly useful
  * for handling real-time input changes in forms. It supports advanced features
  * like debouncing, which is commonly needed for search inputs or live validation.
- * 
- * @example Real-time search
+ *
+ * @param element - HTMLElement to attach listener to (direct API)
+ * @param handler - Event handler function (can be a generator)
+ * @param options - Advanced event options including debouncing
+ * @returns CleanupFunction when used directly, ElementFn when in generator mode
+ *
+ * @example Real-time search with debouncing
  * ```typescript
  * import { watch, input, text } from 'watch-selector';
- * 
+ *
+ * watch('#search-input', function* () {
+ *   yield input(function* (event) {
+ *     const query = (event.target as HTMLInputElement).value;
+ *     if (query.length > 2) {
+ *       const results = yield* searchAPI(query);
+ *       yield* updateResults(results);
+ *     }
+ *   }, {
+ *     debounce: { wait: 300, trailing: true }
+ *   });
+ * });
+ * ```
+ *
+ * @example Form validation
+ * ```typescript
+ * import { watch, input, addClass, removeClass, attr } from 'watch-selector';
+ *
+ * watch('input[required]', function* () {
+ *   yield input(function* (event) {
+ *     const input = event.target as HTMLInputElement;
+ *     const isValid = input.checkValidity();
+ *
+ *     if (isValid) {
+ *       yield removeClass('invalid');
+ *       yield addClass('valid');
+ *       yield attr('aria-invalid', 'false');
+ *     } else {
+ *       yield removeClass('valid');
+ *       yield addClass('invalid');
+ *       yield attr('aria-invalid', 'true');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Character counter
+ * ```typescript
+ * import { watch, input, text } from 'watch-selector';
+ *
  * watch('.search-input', function* () {
  *   yield input(function* (event) {
  *     const query = (event.target as HTMLInputElement).value;
@@ -333,16 +521,16 @@ export const click = createEventShortcut('click');
  *   });
  * });
  * ```
- * 
+ *
  * @example Form validation
  * ```typescript
  * import { watch, input, addClass, removeClass } from 'watch-selector';
- * 
+ *
  * watch('.email-input', function* () {
  *   yield input(function* (event) {
  *     const email = (event.target as HTMLInputElement).value;
  *     const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
- *     
+ *
  *     if (isValid) {
  *       yield addClass('valid');
  *       yield removeClass('invalid');
@@ -354,19 +542,60 @@ export const click = createEventShortcut('click');
  * });
  * ```
  */
-export const input = createEventShortcut('input');
+export const input = createEventShortcut("input");
 
 /**
  * Attaches a change event listener using the dual API pattern.
- * 
+ *
  * This is a convenient shortcut for `on('change', ...)` that's ideal for handling
  * discrete changes in form elements like selects, checkboxes, and radio buttons.
  * Unlike input events, change events fire when the user finishes changing a value.
- * 
+ *
+ * @param element - HTMLElement to attach listener to (direct API)
+ * @param handler - Event handler function (can be a generator)
+ * @param options - Advanced event options
+ * @returns CleanupFunction when used directly, ElementFn when in generator mode
+ *
  * @example Select dropdown handler
  * ```typescript
- * import { watch, change, text } from 'watch-selector';
- * 
+ * import { watch, change, text, addClass, removeClass } from 'watch-selector';
+ *
+ * watch('#theme-selector', function* () {
+ *   yield change(function* (event) {
+ *     const select = event.target as HTMLSelectElement;
+ *     const theme = select.value;
+ *
+ *     // Update UI based on selection
+ *     yield removeClass('theme-light theme-dark theme-auto');
+ *     yield addClass(`theme-${theme}`);
+ *     yield text('#current-theme', `Current theme: ${theme}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Checkbox toggle
+ * ```typescript
+ * import { watch, change, toggleClass, attr } from 'watch-selector';
+ *
+ * watch('#newsletter-checkbox', function* () {
+ *   yield change(function* (event) {
+ *     const checkbox = event.target as HTMLInputElement;
+ *     const isChecked = checkbox.checked;
+ *
+ *     yield toggleClass('subscribed', isChecked);
+ *     yield attr('aria-pressed', isChecked.toString());
+ *
+ *     // Update related UI
+ *     const statusText = isChecked ? 'Subscribed' : 'Not subscribed';
+ *     yield text('#subscription-status', statusText);
+ *   });
+ * });
+ * ```
+ *
+ * @example Radio button group
+ * ```typescript
+ * import { watch, change, text, removeClass, addClass } from 'watch-selector';
+ *
  * watch('.category-select', function* () {
  *   yield change(function* (event) {
  *     const select = event.target as HTMLSelectElement;
@@ -375,16 +604,16 @@ export const input = createEventShortcut('input');
  *   });
  * });
  * ```
- * 
+ *
  * @example Checkbox handling
  * ```typescript
  * import { watch, change, addClass, removeClass } from 'watch-selector';
- * 
+ *
  * watch('.feature-toggle', function* () {
  *   yield change(function* (event) {
  *     const checkbox = event.target as HTMLInputElement;
  *     const container = self();
- *     
+ *
  *     if (checkbox.checked) {
  *       yield addClass('feature-enabled');
  *       yield removeClass('feature-disabled');
@@ -396,36 +625,99 @@ export const input = createEventShortcut('input');
  * });
  * ```
  */
-export const change = createEventShortcut('change');
+export const change = createEventShortcut("change");
 
 /**
  * Attaches a submit event listener using the dual API pattern.
- * 
+ *
  * This is a convenient shortcut for `on('submit', ...)` that's specifically designed
  * for handling form submissions. It automatically provides access to the form element
  * and is commonly used with preventDefault() to handle submissions via JavaScript.
- * 
+ *
+ * @param element - HTMLFormElement to attach listener to (direct API)
+ * @param handler - Event handler function (can be a generator)
+ * @param options - Advanced event options
+ * @returns CleanupFunction when used directly, ElementFn when in generator mode
+ *
  * @example Form submission with validation
  * ```typescript
  * import { watch, submit, addClass, removeClass, text } from 'watch-selector';
- * 
+ *
+ * watch('#contact-form', function* () {
+ *   yield submit(function* (event) {
+ *     event.preventDefault();
+ *
+ *     const form = event.target as HTMLFormElement;
+ *     const formData = new FormData(form);
+ *
+ *     // Show loading state
+ *     yield addClass('submitting');
+ *     yield text('#submit-btn', 'Sending...');
+ *
+ *     try {
+ *       const response = yield* submitForm(formData);
+ *
+ *       if (response.ok) {
+ *         yield addClass('success');
+ *         yield text('#message', 'Form submitted successfully!');
+ *         form.reset();
+ *       } else {
+ *         yield addClass('error');
+ *         yield text('#message', 'Submission failed. Please try again.');
+ *       }
+ *     } catch (error) {
+ *       yield addClass('error');
+ *       yield text('#message', 'Network error. Please check your connection.');
+ *     } finally {
+ *       yield removeClass('submitting');
+ *       yield text('#submit-btn', 'Submit');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Form validation before submission
+ * ```typescript
+ * import { watch, submit, hasClass, text } from 'watch-selector';
+ *
+ * watch('form', function* () {
+ *   yield submit(function* (event) {
+ *     const form = event.target as HTMLFormElement;
+ *     const hasErrors = yield hasClass('has-validation-errors');
+ *
+ *     if (hasErrors) {
+ *       event.preventDefault();
+ *       yield text('.error-message', 'Please fix validation errors before submitting');
+ *       return;
+ *     }
+ *
+ *     // Allow form to submit normally or handle with AJAX
+ *     yield text('.status', 'Submitting form...');
+ *   });
+ * });
+ * ```
+ *
+ * @example Multi-step form submission
+ * ```typescript
+ * import { watch, submit, getState, setState, addClass, removeClass } from 'watch-selector';
+ *
  * watch('.contact-form', function* () {
  *   yield submit(function* (event) {
  *     event.preventDefault();
- *     
+ *
  *     const form = event.target as HTMLFormElement;
  *     const formData = new FormData(form);
- *     
+ *
  *     // Show loading state
  *     yield addClass('loading');
  *     yield text('.submit-btn', 'Submitting...');
- *     
+ *
  *     try {
  *       const response = await fetch('/api/contact', {
  *         method: 'POST',
  *         body: formData
  *       });
- *       
+ *
  *       if (response.ok) {
  *         yield text('.message', 'Form submitted successfully!');
  *         form.reset();
@@ -441,20 +733,20 @@ export const change = createEventShortcut('change');
  *   });
  * });
  * ```
- * 
+ *
  * @example Multi-step form
  * ```typescript
  * import { watch, submit, getState, setState } from 'watch-selector';
- * 
+ *
  * watch('.multi-step-form', function* () {
  *   setState('currentStep', 1);
- *   
+ *
  *   yield submit(function* (event) {
  *     event.preventDefault();
- *     
+ *
  *     const currentStep = getState<number>('currentStep');
  *     const form = event.target as HTMLFormElement;
- *     
+ *
  *     if (currentStep < 3) {
  *       // Validate current step and advance
  *       setState('currentStep', currentStep + 1);
@@ -467,7 +759,7 @@ export const change = createEventShortcut('change');
  * });
  * ```
  */
-export const submit = createEventShortcut('submit');
+export const submit = createEventShortcut("submit");
 
 /**
  * Creates a reusable event behavior that can be yielded within a `watch` generator.
@@ -484,13 +776,22 @@ export const submit = createEventShortcut('submit');
  *   yield* rippleEffect();
  * });
  */
-export function createEventBehavior<K extends keyof HTMLElementEventMap, T = any>(
+export function createEventBehavior<
+  K extends keyof HTMLElementEventMap,
+  T = any,
+>(
   eventType: K | string,
-  behavior: HybridEventHandler<Element, K> | HybridCustomEventHandler<Element, T>,
-  options?: HybridEventOptions
+  behavior:
+    | HybridEventHandler<Element, K>
+    | HybridCustomEventHandler<Element, T>,
+  options?: HybridEventOptions,
 ): () => Generator<ElementFn<Element, CleanupFunction>, void, unknown> {
   return function* () {
-    yield on(eventType as K, behavior as HybridEventHandler<Element, K>, options);
+    yield on(
+      eventType as K,
+      behavior as HybridEventHandler<Element, K>,
+      options,
+    );
   };
 }
 
@@ -511,9 +812,9 @@ export function composeEventHandlers<K extends keyof HTMLElementEventMap>(
   return async function* (event: HTMLElementEventMap[K], element?: Element) {
     for (const handler of handlers) {
       const result = (handler as Function)(event, element);
-      if (result && typeof result.next === 'function') {
+      if (result && typeof result.next === "function") {
         yield* result;
-      } else if (result && typeof result.then === 'function') {
+      } else if (result && typeof result.then === "function") {
         await result;
       }
     }
@@ -537,10 +838,15 @@ export function composeEventHandlers<K extends keyof HTMLElementEventMap>(
 export function delegate<K extends keyof HTMLElementEventMap, T = any>(
   selector: string,
   eventType: K | string,
-  handler: HybridEventHandler<Element, K> | HybridCustomEventHandler<Element, T>,
-  options?: Omit<HybridEventOptions, 'delegate'>
+  handler:
+    | HybridEventHandler<Element, K>
+    | HybridCustomEventHandler<Element, T>,
+  options?: Omit<HybridEventOptions, "delegate">,
 ): ElementFn<Element, CleanupFunction> {
-  return on(eventType as K, handler as HybridEventHandler<Element, K>, { ...options, delegate: selector });
+  return on(eventType as K, handler as HybridEventHandler<Element, K>, {
+    ...options,
+    delegate: selector,
+  });
 }
 
 /**
@@ -551,8 +857,17 @@ export function delegate<K extends keyof HTMLElementEventMap, T = any>(
  * @param options Standard `EventInit` options.
  * @returns A new, typed `CustomEvent` instance.
  */
-export function createCustomEvent<T = any>(type: string, detail: T, options?: EventInit): CustomEvent<T> {
-  return new CustomEvent(type, { detail, bubbles: true, cancelable: true, ...options });
+export function createCustomEvent<T = any>(
+  type: string,
+  detail: T,
+  options?: EventInit,
+): CustomEvent<T> {
+  return new CustomEvent(type, {
+    detail,
+    bubbles: true,
+    cancelable: true,
+    ...options,
+  });
 }
 
 /**
@@ -566,28 +881,52 @@ export function createCustomEvent<T = any>(type: string, detail: T, options?: Ev
  * // Standalone:
  * emit(document.body, 'app:ready');
  */
-export function emit<El extends Element>(element: El, eventName: string, detail?: any, options?: EventInit): void;
-export function emit<El extends Element = HTMLElement>(eventName: string, detail?: any, options?: EventInit): ElementFn<El>;
+export function emit<El extends Element>(
+  element: El,
+  eventName: string,
+  detail?: any,
+  options?: EventInit,
+): void;
+export function emit<El extends Element = HTMLElement>(
+  eventName: string,
+  detail?: any,
+  options?: EventInit,
+): ElementFn<El>;
 export function emit(...args: any[]): any {
   if (args[0] instanceof Element) {
     const [element, eventName, detail, options] = args;
     element.dispatchEvent(createCustomEvent(eventName, detail, options));
   } else {
     const [eventName, detail, options] = args;
-    return (element: Element) => element.dispatchEvent(createCustomEvent(eventName, detail, options));
+    return (element: Element) =>
+      element.dispatchEvent(createCustomEvent(eventName, detail, options));
   }
 }
 
 // ==================== OBSERVER-BASED EVENTS ====================
 
 function createObserverEvent<T, O, C>(
-  ObserverClass: new (cb: (entries: T[]) => void, opts?: O) => { observe: (el: Element, opts?: any) => void; disconnect: () => void },
-  getChangeData: (entry: T, element: Element) => C
+  ObserverClass: new (
+    cb: (entries: T[]) => void,
+    opts?: O,
+  ) => { observe: (el: Element, opts?: any) => void; disconnect: () => void },
+  getChangeData: (entry: T, element: Element) => C,
 ) {
-  function observe(element: Element, handler: (change: C) => void, options?: O): CleanupFunction;
-  function observe(handler: (change: C) => void, options?: O): ElementFn<Element, CleanupFunction>;
+  function observe(
+    element: Element,
+    handler: (change: C) => void,
+    options?: O,
+  ): CleanupFunction;
+  function observe(
+    handler: (change: C) => void,
+    options?: O,
+  ): ElementFn<Element, CleanupFunction>;
   function observe(...args: any[]): any {
-    const setup = (element: Element, handler: (change: C) => void, options?: O) => {
+    const setup = (
+      element: Element,
+      handler: (change: C) => void,
+      options?: O,
+    ) => {
       const observer = new ObserverClass((entries) => {
         for (const entry of entries) {
           handler(getChangeData(entry, element));
@@ -603,21 +942,36 @@ function createObserverEvent<T, O, C>(
 }
 
 /** Listens for changes to an element's attributes. */
-export function onAttr(element: Element, handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit): CleanupFunction;
-export function onAttr(handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit): ElementFn<Element, CleanupFunction>;
+export function onAttr(
+  element: Element,
+  handler: (change: AttributeChange & { element: Element }) => void,
+  options?: MutationObserverInit,
+): CleanupFunction;
+export function onAttr(
+  handler: (change: AttributeChange & { element: Element }) => void,
+  options?: MutationObserverInit,
+): ElementFn<Element, CleanupFunction>;
 export function onAttr(...args: any[]): any {
-  const setup = (element: Element, handler: (change: AttributeChange & {element: Element}) => void, options?: MutationObserverInit) => {
+  const setup = (
+    element: Element,
+    handler: (change: AttributeChange & { element: Element }) => void,
+    options?: MutationObserverInit,
+  ) => {
     const observer = new MutationObserver((entries) => {
       for (const entry of entries) {
         handler({
-          attributeName: entry.attributeName!, 
-          oldValue: entry.oldValue, 
-          newValue: element.getAttribute(entry.attributeName!), 
+          attributeName: entry.attributeName!,
+          oldValue: entry.oldValue,
+          newValue: element.getAttribute(entry.attributeName!),
           element,
         });
       }
     });
-    observer.observe(element, { attributes: true, attributeOldValue: true, ...options });
+    observer.observe(element, {
+      attributes: true,
+      attributeOldValue: true,
+      ...options,
+    });
     return () => observer.disconnect();
   };
   if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
@@ -625,20 +979,36 @@ export function onAttr(...args: any[]): any {
 }
 
 /** Listens for changes to an element's `textContent`. */
-export function onText(element: Element, handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit): CleanupFunction;
-export function onText(handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit): ElementFn<Element, CleanupFunction>;
+export function onText(
+  element: Element,
+  handler: (change: TextChange & { element: Element }) => void,
+  options?: MutationObserverInit,
+): CleanupFunction;
+export function onText(
+  handler: (change: TextChange & { element: Element }) => void,
+  options?: MutationObserverInit,
+): ElementFn<Element, CleanupFunction>;
 export function onText(...args: any[]): any {
-  const setup = (element: Element, handler: (change: TextChange & {element: Element}) => void, options?: MutationObserverInit) => {
+  const setup = (
+    element: Element,
+    handler: (change: TextChange & { element: Element }) => void,
+    options?: MutationObserverInit,
+  ) => {
     const observer = new MutationObserver((entries) => {
       for (const entry of entries) {
         handler({
-          oldText: entry.oldValue || '', 
-          newText: element.textContent || '', 
+          oldText: entry.oldValue || "",
+          newText: element.textContent || "",
           element,
         });
       }
     });
-    observer.observe(element, { characterData: true, subtree: true, characterDataOldValue: true, ...options });
+    observer.observe(element, {
+      characterData: true,
+      subtree: true,
+      characterDataOldValue: true,
+      ...options,
+    });
     return () => observer.disconnect();
   };
   if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
@@ -646,20 +1016,28 @@ export function onText(...args: any[]): any {
 }
 
 /** Listens for when an element becomes visible or hidden in the viewport. */
-export const onVisible = createObserverEvent<IntersectionObserverEntry, IntersectionObserverInit, VisibilityChange & {element: Element}>(
-  IntersectionObserver,
-  (entry, element) => ({
-    isVisible: entry.isIntersecting, intersectionRatio: entry.intersectionRatio, boundingClientRect: entry.boundingClientRect, element,
-  })
-);
+export const onVisible = createObserverEvent<
+  IntersectionObserverEntry,
+  IntersectionObserverInit,
+  VisibilityChange & { element: Element }
+>(IntersectionObserver, (entry, element) => ({
+  isVisible: entry.isIntersecting,
+  intersectionRatio: entry.intersectionRatio,
+  boundingClientRect: entry.boundingClientRect,
+  element,
+}));
 
 /** Listens for changes to an element's size. */
-export const onResize = createObserverEvent<ResizeObserverEntry, ResizeObserverOptions, ResizeChange & {element: Element}>(
-  ResizeObserver,
-  (entry, element) => ({
-    contentRect: entry.contentRect, borderBoxSize: entry.borderBoxSize, contentBoxSize: entry.contentBoxSize, element,
-  })
-);
+export const onResize = createObserverEvent<
+  ResizeObserverEntry,
+  ResizeObserverOptions,
+  ResizeChange & { element: Element }
+>(ResizeObserver, (entry, element) => ({
+  contentRect: entry.contentRect,
+  borderBoxSize: entry.borderBoxSize,
+  contentBoxSize: entry.contentBoxSize,
+  element,
+}));
 
 // ==================== LIFECYCLE EVENTS ====================
 
@@ -667,8 +1045,13 @@ export const onResize = createObserverEvent<ResizeObserverEntry, ResizeObserverO
  * Triggers a handler immediately when an element is first processed by `watch`.
  * This is effectively a "setup" or "initialization" hook.
  */
-export function onMount<El extends Element>(element: El, handler: (element: El) => void): CleanupFunction;
-export function onMount<El extends Element>(handler: (element: El) => void): ElementFn<El, CleanupFunction>;
+export function onMount<El extends Element>(
+  element: El,
+  handler: (element: El) => void,
+): CleanupFunction;
+export function onMount<El extends Element>(
+  handler: (element: El) => void,
+): ElementFn<El, CleanupFunction>;
 export function onMount(...args: any[]): any {
   if (args[0] instanceof Element) {
     const [element, handler] = args;
@@ -684,8 +1067,8 @@ const unmountHandlers = new WeakMap<Element, Set<(element: Element) => void>>();
 
 /** @internal Triggers all registered unmount and general cleanup handlers for an element. */
 export function triggerUnmountHandlers(element: Element): void {
-  if(element instanceof HTMLElement) executeCleanup(element); // General cleanup only for HTMLElements
-  unmountHandlers.get(element)?.forEach(handler => handler(element));
+  if (element instanceof HTMLElement) executeCleanup(element); // General cleanup only for HTMLElements
+  unmountHandlers.get(element)?.forEach((handler) => handler(element));
   unmountHandlers.delete(element);
 }
 
@@ -693,14 +1076,21 @@ export function triggerUnmountHandlers(element: Element): void {
  * Registers a handler to be called when an element is removed from the DOM.
  * This is the primary "cleanup" hook for releasing resources or finalizing state.
  */
-export function onUnmount<El extends Element>(element: El, handler: (element: El) => void): CleanupFunction;
-export function onUnmount<El extends Element>(handler: (element: El) => void): ElementFn<El, CleanupFunction>;
+export function onUnmount<El extends Element>(
+  element: El,
+  handler: (element: El) => void,
+): CleanupFunction;
+export function onUnmount<El extends Element>(
+  handler: (element: El) => void,
+): ElementFn<El, CleanupFunction>;
 export function onUnmount(...args: any[]): any {
   const setup = (element: Element, handler: (el: Element) => void) => {
     if (!unmountHandlers.has(element)) unmountHandlers.set(element, new Set());
     const handlers = unmountHandlers.get(element)!;
     handlers.add(handler);
-    return () => { handlers.delete(handler); };
+    return () => {
+      handlers.delete(handler);
+    };
   };
   if (args[0] instanceof Element) {
     return setup(args[0], args[1]);

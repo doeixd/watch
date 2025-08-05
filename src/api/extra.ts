@@ -451,3 +451,141 @@ export function render(
         };
     })();
 }
+
+
+
+// /**
+//  * A type representing the possible children for the tag function.
+//  * Can be a DOM node, a string, a number, null/undefined, or a nested array of other children.
+//  */
+// type TagChild = Node | string | number | null | undefined | TagChild[];
+
+// /**
+//  * Creates an HTML element programmatically with a flexible and concise syntax.
+//  *
+//  * This hyperscript-style function is a powerful utility for building DOM structures
+//  * in JavaScript without resorting to messy string concatenation. It's an ideal
+//  * companion for `watch-selector`'s rendering primitives like `For*` and `Show*`.
+//  *
+//  * @param name The tag name of the element to create (e.g., 'div', 'button', 'span').
+//  * @param args A rest parameter that can include:
+//  *   - **An attributes object**: A plain object where keys are attribute names.
+//  *   - **Children**: Strings, numbers, DOM nodes, or other `tag()` calls.
+//  *   - **Arrays of children**: Nested arrays are automatically flattened.
+//  * @returns The created HTMLElement.
+//  *
+//  * @example
+//  * // Basic usage
+//  * const myDiv = tag('div', { class: 'container' }, 'Hello World');
+//  * // <div class="container">Hello World</div>
+//  *
+//  * @example
+//  * // Nested structure with event handlers and styles
+//  * const app = tag('main', { id: 'app' },
+//  *   tag('h1', { style: { color: 'navy' } }, 'My App'),
+//  *   tag('p', 'This is a list of items:'),
+//  *   tag('ul',
+//  *     ['Item 1', 'Item 2', 'Item 3'].map(item => tag('li', item))
+//  *   ),
+//  *   tag('button',
+//  *     {
+//  *       id: 'action-btn',
+//  *       disabled: false,
+//  *       // Event handlers are automatically attached
+//  *       onclick: (e) => alert('Button clicked!'),
+//  *     },
+//  *     'Click Me'
+//  *   )
+//  * );
+//  * document.body.appendChild(app);
+//  *
+//  * @example
+//  * // Integration with watch-selector's `For*` primitive
+//  * watch('#user-list', function*() {
+//  *   const users = createState('users', [{id: 1, name: 'Alice'}, {id: 2, name: 'Bob'}]);
+//  *
+//  *   yield* For(
+//  *      users.get(),
+//  *      user => user.id,
+//  *      user => tag('div', { class: 'user-card' },
+//  *          tag('p', `ID: ${user.id}`),
+//  *          tag('strong', `Name: ${user.name}`)
+//  *      )
+//  *   );
+//  * });
+//  */
+// export function tag(
+//     name: string,
+//     ...args: (Record<string, any> | TagChild)[]
+// ): HTMLElement {
+//     const element = document.createElement(name);
+
+//     /**
+//      * Helper function to recursively append children to the element.
+//      * It handles strings, numbers, Nodes, and nested arrays.
+//      */
+//     function appendChildren(children: TagChild[]) {
+//         for (const child of children) {
+//             if (child === null || child === undefined) {
+//                 continue; // Ignore null/undefined children
+//             }
+
+//             if (Array.isArray(child)) {
+//                 // Recursively handle nested arrays
+//                 appendChildren(child);
+//             } else if (child instanceof Node) {
+//                 // Append DOM nodes directly
+//                 element.appendChild(child);
+//             } else {
+//                 // Convert strings, numbers, etc., to text nodes
+//                 element.appendChild(document.createTextNode(String(child)));
+//             }
+//         }
+//     }
+
+//     // Iterate through the arguments to process attributes and children
+//     for (const arg of args) {
+//         if (arg === null || arg === undefined) {
+//             continue;
+//         }
+
+//         if (Array.isArray(arg)) {
+//             // Argument is an array of children
+//             appendChildren(arg);
+//         } else if (arg instanceof Node) {
+//             // Argument is a single child node
+//             element.appendChild(arg);
+//         } else if (typeof arg === 'object' && arg.constructor === Object) {
+//             // Argument is a plain object, treat as attributes
+//             for (const key in arg) {
+//                 const value = arg[key];
+//                 if (value === null || value === undefined) continue;
+
+//                 // Handle special cases for attributes
+//                 if (key.startsWith('on') && typeof value === 'function') {
+//                     // Event listeners: onclick -> click
+//                     const eventName = key.substring(2).toLowerCase();
+//                     element.addEventListener(eventName, value);
+//                 } else if (key === 'style' && typeof value === 'object') {
+//                     // Style object: { color: 'red', fontSize: '16px' }
+//                     Object.assign(element.style, value);
+//                 } else if (key === 'class' || key === 'className') {
+//                     // Class attribute
+//                     element.className = String(value);
+//                 } else if (typeof value === 'boolean') {
+//                     // Boolean attributes: disabled, checked, etc.
+//                     // The `toggleAttribute` API correctly handles true/false.
+//                     element.toggleAttribute(key, value);
+//                 } else {
+//                     // All other attributes
+//                     element.setAttribute(key, String(value));
+//                 }
+//             }
+//         } else {
+//             // Argument is a primitive (string, number), treat as a child text node
+//             element.appendChild(document.createTextNode(String(arg)));
+//         }
+//     }
+
+//     return element;
+// }

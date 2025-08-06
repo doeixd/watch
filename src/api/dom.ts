@@ -424,29 +424,47 @@ export function removeClass(...args: any[]): any {
   };
 }
 
-// Internal implementations for toggleClass function
-function _impl_toggleClass(element: HTMLElement, className: string, force?: boolean): boolean {
+function _impl_toggleClass(
+  element: HTMLElement,
+  className: string,
+  force?: boolean,
+): boolean {
   return element.classList.toggle(className, force);
 }
 
-export function toggleClass(element: HTMLElement, className: string, force?: boolean): boolean;
-export function toggleClass(selector: string, className: string, force?: boolean): boolean;
-export function toggleClass<El extends HTMLElement = HTMLElement>(className: string, force?: boolean): ElementFn<El, boolean>;
+export function toggleClass(
+  element: HTMLElement,
+  className: string,
+  force?: boolean,
+): boolean;
+export function toggleClass(
+  selector: string,
+  className: string,
+  force?: boolean,
+): boolean;
+export function toggleClass<El extends HTMLElement = HTMLElement>(
+  className: string,
+  force?: boolean,
+): ElementFn<El, boolean>;
 export function toggleClass(...args: any[]): any {
-  if (args.length >= 2 && args[0] instanceof HTMLElement) {
-    const [element, className, force] = args;
-    return _impl_toggleClass(element, className, force);
+  // Direct call: toggleClass(element, 'class', true)
+  if (args.length >= 2 && isElementLike(args[0])) {
+    const [elementLike, className, force] = args;
+    const element = resolveElement(elementLike);
+    if (element) {
+      return _impl_toggleClass(element, className, force);
+    }
+    return false;
   }
-  
-  if (args.length >= 2 && typeof args[0] === 'string' && _looksLikeSelector(args[0])) {
-    const [selector, className, force] = args;
-    const element = resolveElement(selector);
-    return element ? _impl_toggleClass(element, className, force) : false;
+
+  // Generator mode: toggleClass('class', true)
+  if (args.length <= 2 && typeof args[0] === 'string') {
+    const [className, force] = args;
+    return (element: HTMLElement) => _impl_toggleClass(element, className, force);
   }
-  
-  // Generator mode
-  const [className, force] = args;
-  return (element: HTMLElement) => _impl_toggleClass(element, className, force);
+
+  // Fallback for safety, though should not be reached with correct usage
+  return (element: HTMLElement) => _impl_toggleClass(element, args[0], args[1]);
 }
 
 // Internal implementations for hasClass function

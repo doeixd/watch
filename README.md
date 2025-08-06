@@ -2517,6 +2517,16 @@ function* withErrorHandling(innerGen) {
 | `child` | `(selector, generator, ctx?) => Map<ChildEl, ChildApi>` | Alias for `createChildWatcher` - shorter and more intuitive (optionally pass context) |
 | `getParentContext` | `(ctx?) => { element: ParentEl, api: ParentApi } \| null` | Get the context of the parent watcher (optionally pass context) |
 
+### Declarative Rendering
+| Function | Type | Description |
+|----------|------|-------------|
+| `For` | `(data, keyFn, renderFn) => Workflow` | Efficiently renders a keyed list of data. |
+| `Show` | `(condition, renderFn) => Workflow` | Conditionally renders content in the DOM. |
+| `render` | `(componentGen, deps) => Workflow` | Creates a reactive component that re-renders on state changes. |
+| `tag` | `(name, ...args) => HTMLElement` | Creates an element programmatically (hyperscript-style). |
+| `tag` | `(name, builder) => Workflow` | Creates an element using a declarative, reactive generator builder. |
+| `reactive` | `(state) => ReactiveBinding` | Binds a `TypedState` object to a property in the `tag` builder. |
+
 ### WatchController Interface
 
 ```typescript
@@ -3064,6 +3074,121 @@ watch('.parent', function* () {
   
   // Adding children elsewhere doesn't trigger this observer
   // Only changes within this .parent element are monitored
+});
+```
+<br /> 
+
+## Declarative Rendering Primitives
+
+While Watch excels at enhancing existing HTML, it also provides a powerful suite of declarative, high-performance primitives for when you need to render dynamic content from scratch. These tools, inspired by modern frameworks, integrate seamlessly into the generator-based workflow.
+
+### Efficient List Rendering with `For`
+
+The `For` primitive renders a list of items with efficient, keyed reconciliation. It avoids re-rendering the entire list on every update by uniquely "keying" each item. When the data changes, `For` calculates the minimum number of DOM operations (additions, removals, and crucially, moves) needed to reflect the new state.
+
+```typescript
+import { watch, createState } from 'watch-selector';
+import { For } from 'watch-selector/extra'; // Note the import path
+
+watch('#todo-list', function*() {
+  const todos = createState('todos', [
+    { id: 1, text: 'Learn watch-selector', done: false },
+    { id: 2, text: 'Build awesome things', done: true },
+  ]);
+
+  // This will efficiently render and update the list
+  // whenever the 'todos' state changes.
+  yield* For(
+    todos.get(),
+    (todo) => todo.id, // Key function
+    (todo) => `<li class="${todo.done ? 'done' : ''}">${todo.text}</li>` // Render function
+  );
+
+  // When you reorder, add, or remove todos, only the necessary
+  // DOM nodes will be moved, added, or removed.
+});```
+
+### Conditional Rendering with `Show`
+
+`Show` is an efficient way to manage conditional UI. When the condition is true, it calls a render function and inserts the result into the DOM. When the condition becomes false, it removes the element. The render function is only called when the element needs to be created.
+
+```typescript
+import { watch, createState, click } from 'watch-selector';
+import { Show } from 'watch-selector/extra';
+
+watch('.auth-section', function*() {
+  const isLoggedIn = createState('isLoggedIn', false);
+
+  yield* Show(
+    isLoggedIn.get(),
+    () => `<div>Welcome back, user! <button class="logout">Logout</button></div>`
+  );
+
+  yield* Show(
+    !isLoggedIn.get(),
+    () => `<button class="login">Login</button>`
+  );
+
+  yield click('.login', () => isLoggedIn.set(true));
+  yield click('.logout', () => isLoggedIn.set(false));
+});
+```
+
+### Programmatic Element Creation with `tag`
+
+The `tag` function is a powerful hyperscript-style utility for building DOM structures in JavaScript without messy string concatenation. It has two modes: a simple, direct creation mode and an advanced, reactive generator builder.
+
+**1. Simple Hyperscript Style**
+
+```typescript
+import { tag } from 'watch-selector/tag';
+import { For } from 'watch-selector/extra';
+
+// Use `tag` inside a render function for `For`
+yield* For(
+  users.get(),
+  user => user.id,
+  user => tag('div', { class: 'user-card' },
+    tag('p', `ID: ${user.id}`),
+    tag('strong', `Name: ${user.name}`)
+  )
+);
+```
+
+**2. Advanced Reactive Builder**
+
+The real power of `tag` comes from its generator builder pattern, which lets you create reactive components where attributes and content are bound to state.
+
+```typescript
+import { watch, createState } from 'watch-selector';
+import { tag, reactive } from 'watch-selector/tag';
+
+watch('#app', function*() {
+  const name = createState('name', 'World');
+  const count = createState('count', 0);
+
+  // The builder receives a context `ctx` with reactive primitives
+  yield* tag('div', function* (ctx) {
+    yield ctx.addClass('container');
+    
+    // Bind text content to the `name` state
+    yield ctx.child(
+      'Hello, ', 
+      tag('strong', ctx => yield ctx.text(reactive(name)))
+    );
+
+    yield* tag('button', function* (ctx) {
+      // Bind the `disabled` property to a computed state
+      yield ctx.property('disabled', reactive(createComputed(() => count.get() >= 5, ['count'])));
+      
+      yield ctx.text(reactive(createComputed(() => 
+        count.get() >= 5 ? 'Max clicks reached' : `Click me (${count.get()})`, 
+        ['count']
+      )));
+      
+      yield ctx.on('click', () => count.update(c => c + 1));
+    });
+  });
 });
 ```
 

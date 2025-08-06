@@ -454,6 +454,178 @@ export function render(
 
 
 
+export const SWITCH_STATE_KEY = '__switchState__';
+
+export interface SwitchState {
+  element: HTMLElement | null;
+  activeCase: any;
+}
+
+export interface CaseDescriptor {
+  type: 'case';
+  match: any;
+  render: () => string | HTMLElement;
+}
+
+export interface DefaultDescriptor {
+  type: 'default';
+  render: () => string | HTMLElement;
+}
+
+export type SwitchCase = CaseDescriptor | DefaultDescriptor;
+
+/**
+ * Represents a single case for a `Switch` primitive.
+ * @param match The value to match against the Switch expression.
+ * @param renderFn The function to render if this case matches.
+ */
+export function Case(match: any, renderFn: () => string | HTMLElement): CaseDescriptor {
+  return { type: 'case', match, render: renderFn };
+}
+
+/**
+ * Represents the default case for a `Switch` primitive.
+ * @param renderFn The function to render if no other case matches.
+ */
+export function Default(renderFn: () => string | HTMLElement): DefaultDescriptor {
+  return { type: 'default', render: renderFn };
+}
+
+/**
+ * Conditionally renders one of several blocks of content, like a switch statement.
+ *
+ * It finds the first `Case` whose `match` value strictly equals the `expression`,
+ * and renders it. If no cases match, it renders the `Default` case. It efficiently
+ * replaces only the content that changes.
+ *
+ * @param expression The value to switch on.
+ * @param cases A series of `Case(...)` and an optional `Default(...)` descriptors.
+ * @returns A Workflow to be used with `yield*`.
+ *
+ * @example
+ * const tab = createState('activeTab', 'home');
+ *
+ * yield* Switch(tab.get(),
+ *   Case('home', () => `<div>Home Content</div>`),
+ *   Case('profile', () => tag('div', 'Profile Content')),
+ *   Case('settings', () => `<p>Settings</p>`),
+ *   Default(() => `<div>Select a tab</div>`)
+ * );
+ */
+export function Switch(expression: any, ...cases: SwitchCase[]): Workflow<void> {
+  return (async function*() {
+    yield (context: WatchContext) => {
+      const state: SwitchState | undefined = getState(SWITCH_STATE_KEY, context);
+
+      const defaultCase = cases.find(c => c.type === 'default') as DefaultDescriptor | undefined;
+      const matchingCase = cases.find(c => c.type === 'case' && c.match === expression) as CaseDescriptor | undefined;
+      const activeCase = matchingCase || defaultCase;
+
+      // Do nothing if the active case hasn't changed.
+      if (state && state.activeCase === activeCase) {
+        return;
+      }
+
+      // Remove the old element if it exists
+      if (state && state.element) {
+        state.element.remove();
+      }
+
+      // Render and append the new element
+      if (activeCase) {
+        const element = _createElement(activeCase.render());
+        context.element.appendChild(element);
+        setState(SWITCH_STATE_KEY, { element, activeCase }, context);
+      } else {
+        // No match and no default, clear the state
+        setState(SWITCH_STATE_KEY, { element: null, activeCase: null }, context);
+      }
+    };
+  })();
+}
+
+
+// --- Async Primitive ---
+
+const ASYNC_STATE_KEY = '__asyncState__';
+
+interface AsyncState {
+  element: HTMLElement | null;
+  status: 'pending' | 'success' | 'error';
+}
+
+interface AsyncTemplates<T> {
+  pending: () => string | HTMLElement;
+  success: (data: T) => string | HTMLElement;
+  error: (error: Error) => string | HTMLElement;
+}
+
+
+/**
+ * Handles the rendering lifecycle of a promise, showing different content
+ * for pending, success, and error states.
+ *
+ * @template T The type of the data the promise will resolve with.
+ * @param promise The promise to track.
+ * @param templates An object with render functions for `pending`, `success`, and `error` states.
+ * @returns A Workflow to be used with `yield*`.
+ *
+ * @example
+ * const userDataPromise = fetch('/api/user').then(res => res.json());
+ *
+ * yield* Async(userDataPromise, {
+ *   pending: () => `<div>Loading user...</div>`,
+ *   success: (user) => `<h1>Welcome, ${user.name}</h1>`,
+ *   error: (err) => `<p class="error">Failed to load user: ${err.message}</p>`
+ * });
+ */
+export function Async<T>(
+  promise: Promise<T>,
+  templates: AsyncTemplates<T>
+): Workflow<void> {
+  return (async function*() {
+    // This initial yield sets up the pending state immediately.
+    yield (context: WatchContext) => {
+      const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+
+      // Clean up previous element if it exists
+      if (state && state.element) {
+        state.element.remove();
+      }
+
+      const pendingElement = _createElement(templates.pending());
+      context.element.appendChild(pendingElement);
+      setState(ASYNC_STATE_KEY, { element: pendingElement, status: 'pending' }, context);
+    };
+
+    // This second yield waits for the promise to settle and then re-renders.
+    yield async (context: WatchContext) => {
+      try {
+        const data = await promise;
+        const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+        // Only render if the component hasn't been replaced by something else in the meantime
+        if (state?.status === 'pending') {
+            if (state.element) state.element.remove();
+            const successElement = _createElement(templates.success(data));
+            context.element.appendChild(successElement);
+            setState(ASYNC_STATE_KEY, { element: successElement, status: 'success' }, context);
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+        // Only render if the component hasn't been replaced by something else
+        if (state?.status === 'pending') {
+            if (state.element) state.element.remove();
+            const errorElement = _createElement(templates.error(error));
+            context.element.appendChild(errorElement);
+            setState(ASYNC_STATE_KEY, { element: errorElement, status: 'error' }, context);
+        }
+      }
+    };
+  })();
+}
+
+
 // /**
 //  * A type representing the possible children for the tag function.
 //  * Can be a DOM node, a string, a number, null/undefined, or a nested array of other children.

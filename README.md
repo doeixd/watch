@@ -2522,6 +2522,10 @@ function* withErrorHandling(innerGen) {
 |----------|------|-------------|
 | `For` | `(data, keyFn, renderFn) => Workflow` | Efficiently renders a keyed list of data. |
 | `Show` | `(condition, renderFn) => Workflow` | Conditionally renders content in the DOM. |
+| `Switch` | `(expression, ...cases) => Workflow` | Renders the first matching `Case` or a `Default`. |
+| `Case` | `(match, renderFn) => CaseDescriptor` | Defines a case for the `Switch` primitive. |
+| `Default`| `(renderFn) => DefaultDescriptor` | Defines the default case for the `Switch` primitive. |
+| `Async` | `(promise, templates) => Workflow` | Renders UI based on a promise's pending, success, and error states. |
 | `render` | `(componentGen, deps) => Workflow` | Creates a reactive component that re-renders on state changes. |
 | `tag` | `(name, ...args) => HTMLElement` | Creates an element programmatically (hyperscript-style). |
 | `tag` | `(name, builder) => Workflow` | Creates an element using a declarative, reactive generator builder. |

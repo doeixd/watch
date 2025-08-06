@@ -540,7 +540,6 @@ function _impl_toggleClass(
   className: string,
  
   force?: boolean,
-,
 ): boolean {
   return element.classList.toggle(className, force);
 }

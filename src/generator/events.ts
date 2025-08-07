@@ -7,6 +7,7 @@
  */
 
 import type { Workflow, WatchContext } from "../types";
+import { runOn } from "../watch";
 
 /**
  * Add a click event listener
@@ -31,24 +32,8 @@ export function click(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -85,24 +70,8 @@ export function input(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -139,24 +108,8 @@ export function change(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -193,24 +146,8 @@ export function submit(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;

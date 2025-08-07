@@ -10,10 +10,13 @@ import { runOn } from "../watch";
 import { cleanup, executeElementCleanup } from "../core/generator";
 import {
   getCurrentContext,
+  getCurrentElement,
   registerParentContext,
   unregisterParentContext,
 } from "../core/context";
 import { getState, setState } from "../core/state";
+import { detectContext, ApiContext } from "../core/detection";
+import { createDomWrapper } from "../core/api-wrapper";
 
 // Type guards and utilities
 
@@ -334,38 +337,114 @@ export function text<El extends HTMLElement = HTMLElement>(): ElementFn<
   string
 >;
 export function text(...args: any[]): any {
-  if (_is_text_direct_set(args)) {
-    const [elementLike, content] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_text_set(element, content);
+  const detection = detectContext(args, text);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: text(element, value) or text(selector, value)
+      const [target, content] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element && args.length === 2) {
+          // Setter with selector that doesn't match - just return
+          return;
+        } else if (!element && args.length === 1) {
+          // Getter with selector that doesn't match
+          return null;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (!element) {
+        // Handle null/undefined gracefully
+        return args.length === 2 ? undefined : null;
+      }
+
+      // Setter or getter?
+      if (args.length === 2) {
+        _impl_text_set(element, content);
+        return;
+      } else {
+        return _impl_text_get(element);
+      }
     }
-    return;
-  }
 
-  if (_is_text_direct_get(args)) {
-    const [element] = args;
-    return _impl_text_get(element);
-  }
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: yield text(value) or const val = yield text()
+      const [content] = args;
+      if (content === undefined) {
+        // Getter mode
+        return (element: HTMLElement) => _impl_text_get(element);
+      } else {
+        // Setter mode
+        return (element: HTMLElement) => {
+          _impl_text_set(element, content);
+        };
+      }
+    }
 
-  if (_is_text_selector_get(args)) {
-    const [selector] = args;
-    const element = resolveElement(selector);
-    return element ? _impl_text_get(element) : null;
-  }
+    case ApiContext.ASYNC_GENERATOR: {
+      // For now, handle async generators the same as sync
+      // In the future, we'll return proper Workflow objects
+      const [content] = args;
+      if (content === undefined) {
+        // Getter mode
+        return (element: HTMLElement) => _impl_text_get(element);
+      } else {
+        // Setter mode
+        return (element: HTMLElement) => {
+          _impl_text_set(element, content);
+        };
+      }
+    }
 
-  // Generator mode - use the proper check
-  if (_is_text_generator(args)) {
-    const [content] = args;
-    if (content === undefined) {
-      return (element: HTMLElement) => _impl_text_get(element);
-    } else {
-      return (element: HTMLElement) => _impl_text_set(element, content);
+    default: {
+      // Unknown context - try to determine based on arguments
+      // This maintains backwards compatibility
+      if (_is_text_direct_set(args)) {
+        const [elementLike, content] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_text_set(element, content);
+        }
+        return;
+      }
+
+      if (_is_text_direct_get(args)) {
+        const [element] = args;
+        return _impl_text_get(element);
+      }
+
+      if (_is_text_selector_get(args)) {
+        const [selector] = args;
+        const element = resolveElement(selector);
+        return element ? _impl_text_get(element) : null;
+      }
+
+      // Generator mode - use the proper check
+      if (_is_text_generator(args)) {
+        const [content] = args;
+        if (content === undefined) {
+          return (element: HTMLElement) => _impl_text_get(element);
+        } else {
+          return (element: HTMLElement) => _impl_text_set(element, content);
+        }
+      }
+
+      // Handle null/undefined gracefully
+      if (args[0] === null || args[0] === undefined) {
+        return args.length === 2 ? undefined : null;
+      }
+
+      throw new Error("Invalid arguments for text function");
     }
   }
-
-  // Fallback - shouldn't reach here
-  throw new Error("Invalid arguments for text function");
 }
 
 // Internal implementations for html function
@@ -390,40 +469,96 @@ export function html<El extends HTMLElement = HTMLElement>(): ElementFn<
   string
 >;
 export function html(...args: any[]): any {
-  if (args.length === 2 && isElementLike(args[0])) {
-    const [elementLike, content] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_html_set(element, content);
+  const detection = detectContext(args, html);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: html(element, value) or html(selector, value)
+      const [target, content] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element && args.length === 2) {
+          // Setter with selector that doesn't match - just return
+          return;
+        } else if (!element && args.length === 1) {
+          // Getter with selector that doesn't match
+          return null;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (!element) {
+        throw new Error(`Invalid target for html function`);
+      }
+
+      // Setter or getter?
+      if (args.length === 2) {
+        _impl_html_set(element, content);
+        return;
+      } else {
+        return _impl_html_get(element);
+      }
     }
-    return;
-  }
 
-  if (args.length === 1 && args[0] instanceof HTMLElement) {
-    const [element] = args;
-    return _impl_html_get(element);
-  }
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield html(value) or const val = yield html()
+      const [content] = args;
+      if (content === undefined) {
+        // Getter mode
+        return (element: HTMLElement) => _impl_html_get(element);
+      } else {
+        // Setter mode
+        return (element: HTMLElement) => {
+          _impl_html_set(element, content);
+        };
+      }
+    }
 
-  if (
-    args.length === 1 &&
-    typeof args[0] === "string" &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [selector] = args;
-    const element = resolveElement(selector);
-    return element ? _impl_html_get(element) : null;
-  }
+    default: {
+      // Fallback to original logic for unknown context
+      if (args.length === 2 && isElementLike(args[0])) {
+        const [elementLike, content] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_html_set(element, content);
+        }
+        return;
+      }
 
-  if (args.length <= 1) {
-    const [content] = args;
-    if (content === undefined) {
+      if (args.length === 1 && args[0] instanceof HTMLElement) {
+        const [element] = args;
+        return _impl_html_get(element);
+      }
+
+      if (
+        args.length === 1 &&
+        typeof args[0] === "string" &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector] = args;
+        const element = resolveElement(selector);
+        return element ? _impl_html_get(element) : null;
+      }
+
+      if (args.length <= 1) {
+        const [content] = args;
+        if (content === undefined) {
+          return (element: HTMLElement) => _impl_html_get(element);
+        } else {
+          return (element: HTMLElement) => _impl_html_set(element, content);
+        }
+      }
+
       return (element: HTMLElement) => _impl_html_get(element);
-    } else {
-      return (element: HTMLElement) => _impl_html_set(element, content);
     }
   }
-
-  return (element: HTMLElement) => _impl_html_get(element);
 }
 
 // Internal implementations for addClass function
@@ -441,40 +576,86 @@ export function addClass<El extends HTMLElement = HTMLElement>(
   ...classNames: string[]
 ): ElementFn<El>;
 export function addClass(...args: any[]): any {
-  if (args.length >= 2 && isElementLike(args[0])) {
-    const [elementLike, ...classNames] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_addClass(element, ...classNames);
+  const detection = detectContext(args, addClass);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: addClass(element, ...classNames) or addClass(selector, ...classNames)
+      const [target, ...classNames] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string" && !_looksLikeSelector(target)) {
+        // If it doesn't look like a selector, it might be a class name in generator mode
+        // Fall through to generator handling
+        break;
+      } else if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return; // Selector didn't match
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      } else if (target === null || target === undefined) {
+        // Handle null/undefined gracefully
+        return;
+      }
+
+      if (element && classNames.length > 0) {
+        _impl_addClass(element, ...classNames);
+      }
+      return;
     }
-    return;
-  }
 
-  if (args.length >= 1 && args[0] instanceof HTMLElement) {
-    const [element, ...classNames] = args;
-    _impl_addClass(element, ...classNames);
-    return;
-  }
-
-  if (
-    args.length >= 1 &&
-    typeof args[0] === "string" &&
-    args.length >= 2 &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [selector, ...classNames] = args;
-    const element = resolveElement(selector);
-    if (element) {
-      _impl_addClass(element, ...classNames);
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield addClass(...classNames)
+      const classNames = args;
+      return (element: HTMLElement) => {
+        _impl_addClass(element, ...classNames);
+      };
     }
-    return;
-  }
 
-  // Generator mode
-  const allClassNames = args;
-  return (element: HTMLElement) => {
-    _impl_addClass(element, ...allClassNames);
-  };
+    default: {
+      // Fallback to original logic
+      if (args.length >= 2 && isElementLike(args[0])) {
+        const [elementLike, ...classNames] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_addClass(element, ...classNames);
+        }
+        return;
+      }
+
+      if (args.length >= 1 && args[0] instanceof HTMLElement) {
+        const [element, ...classNames] = args;
+        _impl_addClass(element, ...classNames);
+        return;
+      }
+
+      if (
+        args.length >= 1 &&
+        typeof args[0] === "string" &&
+        args.length >= 2 &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector, ...classNames] = args;
+        const element = resolveElement(selector);
+        if (element) {
+          _impl_addClass(element, ...classNames);
+        }
+        return;
+      }
+
+      // Generator mode
+      const allClassNames = args;
+      return (element: HTMLElement) => {
+        _impl_addClass(element, ...allClassNames);
+      };
+    }
+  }
 }
 
 // Internal implementations for removeClass function
@@ -497,48 +678,90 @@ export function removeClass<El extends HTMLElement = HTMLElement>(
   ...classNames: string[]
 ): ElementFn<El>;
 export function removeClass(...args: any[]): any {
-  if (args.length >= 2 && isElementLike(args[0])) {
-    const [elementLike, ...classNames] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_removeClass(element, ...classNames);
+  const detection = detectContext(args, removeClass);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: removeClass(element, ...classNames) or removeClass(selector, ...classNames)
+      const [target, ...classNames] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string" && !_looksLikeSelector(target)) {
+        // If it doesn't look like a selector, it might be a class name in generator mode
+        // Fall through to generator handling
+        break;
+      } else if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return; // Selector didn't match
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element && classNames.length > 0) {
+        _impl_removeClass(element, ...classNames);
+      }
+      return;
     }
-    return;
-  }
 
-  if (args.length >= 1 && args[0] instanceof HTMLElement) {
-    const [element, ...classNames] = args;
-    _impl_removeClass(element, ...classNames);
-    return;
-  }
-
-  if (
-    args.length >= 1 &&
-    typeof args[0] === "string" &&
-    args.length >= 2 &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [selector, ...classNames] = args;
-    const element = resolveElement(selector);
-    if (element) {
-      _impl_removeClass(element, ...classNames);
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield removeClass(...classNames)
+      const classNames = args;
+      return (element: HTMLElement) => {
+        _impl_removeClass(element, ...classNames);
+      };
     }
-    return;
-  }
 
-  // Generator mode
-  const allClassNames = args;
-  return (element: HTMLElement) => {
-    _impl_removeClass(element, ...allClassNames);
-  };
+    default: {
+      // Fallback to original logic
+      if (args.length >= 2 && isElementLike(args[0])) {
+        const [elementLike, ...classNames] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_removeClass(element, ...classNames);
+        }
+        return;
+      }
+
+      if (args.length >= 1 && args[0] instanceof HTMLElement) {
+        const [element, ...classNames] = args;
+        _impl_removeClass(element, ...classNames);
+        return;
+      }
+
+      if (
+        args.length >= 1 &&
+        typeof args[0] === "string" &&
+        args.length >= 2 &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector, ...classNames] = args;
+        const element = resolveElement(selector);
+        if (element) {
+          _impl_removeClass(element, ...classNames);
+        }
+        return;
+      }
+
+      // Generator mode
+      const allClassNames = args;
+      return (element: HTMLElement) => {
+        _impl_removeClass(element, ...allClassNames);
+      };
+    }
+  }
 }
 
 function _impl_toggleClass(
-  
   element: HTMLElement,
- 
+
   className: string,
- 
+
   force?: boolean,
 ): boolean {
   return element.classList.toggle(className, force);
@@ -573,24 +796,69 @@ export function toggleClass<El extends HTMLElement = HTMLElement>(
   force?: boolean,
 ): ElementFn<El, boolean>;
 export function toggleClass(...args: any[]): any {
-  // Direct call: toggleClass(element, 'class', true)
-  if (args.length >= 2 && isElementLike(args[0])) {
-    const [elementLike, className, force] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      return _impl_toggleClass(element, className, force);
+  const detection = detectContext(args, toggleClass);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: toggleClass(element, className, force) or toggleClass(selector, className, force)
+      const [target, className, force] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string" && !_looksLikeSelector(target)) {
+        // If it doesn't look like a selector, it might be a class name in generator mode
+        // Fall through to generator handling
+        break;
+      } else if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return false; // Selector didn't match
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element && className) {
+        return _impl_toggleClass(element, className, force);
+      }
+      return false;
     }
-    return false;
-  }
 
-  // Generator mode: toggleClass('class', true)
-  if (args.length <= 2 && typeof args[0] === 'string') {
-    const [className, force] = args;
-    return (element: HTMLElement) => _impl_toggleClass(element, className, force);
-  }
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield toggleClass(className, force)
+      const [className, force] = args;
+      return (element: HTMLElement) => {
+        return _impl_toggleClass(element, className, force);
+      };
+    }
 
-  // Fallback for safety, though should not be reached with correct usage
-  return (element: HTMLElement) => _impl_toggleClass(element, args[0], args[1]);
+    default: {
+      // Fallback to original logic
+      // Direct call: toggleClass(element, 'class', true)
+      if (args.length >= 2 && isElementLike(args[0])) {
+        const [elementLike, className, force] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          return _impl_toggleClass(element, className, force);
+        }
+        return false;
+      }
+
+      // Generator mode: toggleClass('class', true)
+      if (args.length <= 2 && typeof args[0] === "string") {
+        const [className, force] = args;
+        return (element: HTMLElement) =>
+          _impl_toggleClass(element, className, force);
+      }
+
+      // Fallback for safety, though should not be reached with correct usage
+      return (element: HTMLElement) =>
+        _impl_toggleClass(element, args[0], args[1]);
+    }
+  }
 }
 
 // Internal implementations for hasClass function
@@ -635,7 +903,15 @@ function _impl_style_set_object(
   element: HTMLElement,
   styles: Partial<CSSStyleDeclaration>,
 ): void {
-  Object.assign(element.style, styles);
+  for (const [property, value] of Object.entries(styles)) {
+    if (property.startsWith("--")) {
+      // CSS custom properties must be set using setProperty
+      element.style.setProperty(property, value as string);
+    } else {
+      // Regular properties can use direct assignment
+      (element.style as any)[property] = value;
+    }
+  }
 }
 
 function _impl_style_set_property(
@@ -746,73 +1022,132 @@ export function style<El extends HTMLElement = HTMLElement>(
   value: string,
 ): ElementFn<El>;
 export function style(...args: any[]): any {
-  if (_is_style_direct_set_object(args)) {
-    const [elementLike, styles] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_style_set_object(element, styles);
+  const detection = detectContext(args, style);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: style(element/selector, ...)
+      const [target, propertyOrStyles, value] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          // For getters, return null; for setters, just return
+          return args.length === 2 && typeof propertyOrStyles === "string"
+            ? null
+            : undefined;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (!element) {
+        // Handle null/undefined gracefully for direct/selector calls
+        if (target === null || target === undefined) {
+          return args.length === 3
+            ? undefined
+            : args.length === 2 && typeof propertyOrStyles === "string"
+              ? null
+              : undefined;
+        }
+        // Not a direct/selector call, fall through
+        break;
+      }
+
+      // Handle different argument patterns
+      if (args.length === 3) {
+        // Set single property: style(element, 'width', '100px')
+        _impl_style_set_property(element, propertyOrStyles, value);
+        return;
+      } else if (args.length === 2) {
+        if (typeof propertyOrStyles === "object" && propertyOrStyles !== null) {
+          // Set multiple styles: style(element, {width: '100px'})
+          _impl_style_set_object(element, propertyOrStyles);
+          return;
+        } else if (typeof propertyOrStyles === "string") {
+          // Get property: style(element, 'width')
+          return _impl_style_get_property(element, propertyOrStyles);
+        }
+      }
+      return;
     }
-    return;
-  }
 
-  if (_is_style_direct_set_property(args)) {
-    const [elementLike, property, value] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_style_set_property(element, property, value);
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield style(...)
+      if (args.length === 2 && typeof args[0] === "string") {
+        // Set single property: yield style('width', '100px')
+        const [property, value] = args;
+        return (element: HTMLElement) =>
+          _impl_style_set_property(element, property, value);
+      } else if (args.length === 1) {
+        if (typeof args[0] === "object" && args[0] !== null) {
+          // Set multiple styles: yield style({width: '100px'})
+          const [styles] = args;
+          return (element: HTMLElement) =>
+            _impl_style_set_object(element, styles);
+        } else if (typeof args[0] === "string") {
+          // Get property: yield style('width')
+          const [property] = args;
+          return (element: HTMLElement) =>
+            _impl_style_get_property(element, property);
+        }
+      }
+      return (element: HTMLElement) => _impl_style_get_property(element, "");
     }
-    return;
-  }
 
-  if (_is_style_direct_get_property(args)) {
-    const [elementLike, property] = args;
-    const element = resolveElement(elementLike);
-    return element ? _impl_style_get_property(element, property) : "";
-  }
+    default: {
+      // Fallback to original logic
+      if (_is_style_direct_set_object(args)) {
+        const [elementLike, styles] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_style_set_object(element, styles);
+        }
+        return;
+      }
 
-  if (_is_style_selector_set_object(args)) {
-    const [selector, styles] = args;
-    const element = resolveElement(selector);
-    if (element) {
-      _impl_style_set_object(element, styles);
+      if (_is_style_direct_set_property(args)) {
+        const [elementLike, property, value] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_style_set_property(element, property, value);
+        }
+        return;
+      }
+
+      if (_is_style_direct_get_property(args)) {
+        const [elementLike, property] = args;
+        const element = resolveElement(elementLike);
+        return element ? _impl_style_get_property(element, property) : "";
+      }
+
+      if (_is_style_generator_object(args)) {
+        const [styles] = args;
+        return (element: HTMLElement) =>
+          _impl_style_set_object(element, styles);
+      }
+
+      if (_is_style_generator_property(args)) {
+        const [property, value] = args;
+        return (element: HTMLElement) =>
+          _impl_style_set_property(element, property, value);
+      }
+
+      // Fallback for generator mode with single property get
+      if (args.length === 1 && typeof args[0] === "string") {
+        const [property] = args;
+        return (element: HTMLElement) =>
+          _impl_style_get_property(element, property);
+      }
+
+      return (element: HTMLElement) => _impl_style_get_property(element, "");
     }
-    return;
   }
-
-  if (_is_style_selector_set_property(args)) {
-    const [selector, property, value] = args;
-    const element = resolveElement(selector);
-    if (element) {
-      _impl_style_set_property(element, property, value);
-    }
-    return;
-  }
-
-  if (_is_style_selector_get_property(args)) {
-    const [selector, property] = args;
-    const element = resolveElement(selector);
-    return element ? _impl_style_get_property(element, property) : null;
-  }
-
-  if (_is_style_generator_object(args)) {
-    const [styles] = args;
-    return (element: HTMLElement) => _impl_style_set_object(element, styles);
-  }
-
-  if (_is_style_generator_property(args)) {
-    const [property, value] = args;
-    return (element: HTMLElement) =>
-      _impl_style_set_property(element, property, value);
-  }
-
-  // Fallback for generator mode with single property get
-  if (args.length === 1 && typeof args[0] === "string") {
-    const [property] = args;
-    return (element: HTMLElement) =>
-      _impl_style_get_property(element, property);
-  }
-
-  return (element: HTMLElement) => _impl_style_get_property(element, "");
 }
 
 // Internal implementations for attr function
@@ -1061,39 +1396,82 @@ export function removeAttr<El extends HTMLElement = HTMLElement>(
   ...names: string[]
 ): ElementFn<El>;
 export function removeAttr(...args: any[]): any {
-  if (isElementLike(args[0])) {
-    const [elementLike, ...names] = args;
-    const element = resolveElement(elementLike);
-    if (element) {
-      _impl_removeAttr(element, names);
+  const detection = detectContext(args, removeAttr);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: removeAttr(element, ...names) or removeAttr(selector, ...names)
+      const [target, ...names] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string" && !_looksLikeSelector(target)) {
+        // If it doesn't look like a selector, it might be an attribute name in generator mode
+        // Fall through to generator handling
+        break;
+      } else if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return; // Selector didn't match
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element && names.length > 0) {
+        _impl_removeAttr(element, names);
+      }
+      return;
     }
-    return;
-  }
 
-  if (args.length >= 1 && args[0] instanceof HTMLElement) {
-    const [element, ...names] = args;
-    _impl_removeAttr(element, names);
-    return;
-  }
-
-  if (
-    args.length >= 1 &&
-    typeof args[0] === "string" &&
-    args.length >= 2 &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [selector, ...names] = args;
-    const element = resolveElement(selector);
-    if (element) {
-      _impl_removeAttr(element, names);
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield removeAttr(...names)
+      const names = args;
+      return (element: HTMLElement) => {
+        _impl_removeAttr(element, names);
+      };
     }
-    return;
-  }
 
-  // Generator mode
-  return (element: HTMLElement) => {
-    _impl_removeAttr(element, args);
-  };
+    default: {
+      // Fallback to original logic
+      if (isElementLike(args[0])) {
+        const [elementLike, ...names] = args;
+        const element = resolveElement(elementLike);
+        if (element) {
+          _impl_removeAttr(element, names);
+        }
+        return;
+      }
+
+      if (args.length >= 1 && args[0] instanceof HTMLElement) {
+        const [element, ...names] = args;
+        _impl_removeAttr(element, names);
+        return;
+      }
+
+      if (
+        args.length >= 1 &&
+        typeof args[0] === "string" &&
+        args.length >= 2 &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector, ...names] = args;
+        const element = resolveElement(selector);
+        if (element) {
+          _impl_removeAttr(element, names);
+        }
+        return;
+      }
+
+      // Generator mode
+      return (element: HTMLElement) => {
+        _impl_removeAttr(element, args);
+      };
+    }
+  }
 }
 
 // Internal implementations for hasAttr function
@@ -1134,8 +1512,274 @@ export function hasAttr(...args: any[]): any {
 }
 
 // FORM VALUES
-export const value = createAccessor("prop");
-export const checked = createAccessor("prop");
+
+// Internal implementations for value function
+function _impl_value_set(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  val: string,
+): void {
+  element.value = val;
+}
+
+function _impl_value_get(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+): string {
+  return element.value || "";
+}
+
+export function value(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  val: string,
+): void;
+export function value(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+): string;
+export function value(selector: string, val: string): void;
+export function value(selector: string): string | null;
+export function value<
+  El extends
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement = HTMLInputElement,
+>(val: string): ElementFn<El>;
+export function value<
+  El extends
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement = HTMLInputElement,
+>(): ElementFn<El, string>;
+export function value(...args: any[]): any {
+  const detection = detectContext(args, value);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: value(element, val) or value(selector, val)
+      const [target, val] = args;
+
+      // Resolve element from target
+      let element:
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLSelectElement
+        | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as
+          | HTMLInputElement
+          | HTMLTextAreaElement
+          | HTMLSelectElement;
+        if (!element && args.length === 2) {
+          // Setter with selector that doesn't match - just return
+          return;
+        } else if (!element && args.length === 1) {
+          // Getter with selector that doesn't match
+          return null;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target as
+          | HTMLInputElement
+          | HTMLTextAreaElement
+          | HTMLSelectElement;
+      }
+
+      if (!element) {
+        throw new Error(`Invalid target for value function`);
+      }
+
+      // Setter or getter?
+      if (args.length === 2) {
+        _impl_value_set(element, val);
+        return;
+      } else {
+        return _impl_value_get(element);
+      }
+    }
+
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield value(val) or const val = yield value()
+      const [val] = args;
+      if (val === undefined) {
+        // Getter mode
+        return (
+          element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+        ) => _impl_value_get(element);
+      } else {
+        // Setter mode
+        return (
+          element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+        ) => {
+          _impl_value_set(element, val);
+        };
+      }
+    }
+
+    default: {
+      // Fallback to original logic for unknown context
+      if (args.length === 2 && isElementLike(args[0])) {
+        const [elementLike, val] = args;
+        const element = resolveElement(elementLike) as
+          | HTMLInputElement
+          | HTMLTextAreaElement
+          | HTMLSelectElement;
+        if (element) {
+          _impl_value_set(element, val);
+        }
+        return;
+      }
+
+      if (args.length === 1 && args[0] instanceof HTMLElement) {
+        const [element] = args;
+        return _impl_value_get(
+          element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+        );
+      }
+
+      if (
+        args.length === 1 &&
+        typeof args[0] === "string" &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector] = args;
+        const element = resolveElement(selector) as
+          | HTMLInputElement
+          | HTMLTextAreaElement
+          | HTMLSelectElement;
+        return element ? _impl_value_get(element) : null;
+      }
+
+      // Generator mode
+      if (args.length <= 1) {
+        const [val] = args;
+        if (val === undefined) {
+          return (
+            element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+          ) => _impl_value_get(element);
+        } else {
+          return (
+            element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+          ) => _impl_value_set(element, val);
+        }
+      }
+
+      throw new Error("Invalid arguments for value function");
+    }
+  }
+}
+
+// Internal implementations for checked function
+function _impl_checked_set(element: HTMLInputElement, val: boolean): void {
+  element.checked = val;
+}
+
+function _impl_checked_get(element: HTMLInputElement): boolean {
+  return element.checked;
+}
+
+export function checked(element: HTMLInputElement, val: boolean): void;
+export function checked(element: HTMLInputElement): boolean;
+export function checked(selector: string, val: boolean): void;
+export function checked(selector: string): boolean;
+export function checked<El extends HTMLInputElement = HTMLInputElement>(
+  val: boolean,
+): ElementFn<El>;
+export function checked<
+  El extends HTMLInputElement = HTMLInputElement,
+>(): ElementFn<El, boolean>;
+export function checked(...args: any[]): any {
+  const detection = detectContext(args, checked);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: checked(element, val) or checked(selector, val)
+      const [target, val] = args;
+
+      // Resolve element from target
+      let element: HTMLInputElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLInputElement;
+        if (!element && args.length === 2) {
+          // Setter with selector that doesn't match - just return
+          return;
+        } else if (!element && args.length === 1) {
+          // Getter with selector that doesn't match
+          return false;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target as HTMLInputElement;
+      }
+
+      if (!element) {
+        throw new Error(`Invalid target for checked function`);
+      }
+
+      // Setter or getter?
+      if (args.length === 2) {
+        _impl_checked_set(element, val);
+        return;
+      } else {
+        return _impl_checked_get(element);
+      }
+    }
+
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: yield checked(val) or const val = yield checked()
+      const [val] = args;
+      if (val === undefined) {
+        // Getter mode
+        return (element: HTMLInputElement) => _impl_checked_get(element);
+      } else {
+        // Setter mode
+        return (element: HTMLInputElement) => {
+          _impl_checked_set(element, val);
+        };
+      }
+    }
+
+    default: {
+      // Fallback to original logic for unknown context
+      if (args.length === 2 && isElementLike(args[0])) {
+        const [elementLike, val] = args;
+        const element = resolveElement(elementLike) as HTMLInputElement;
+        if (element) {
+          _impl_checked_set(element, val);
+        }
+        return;
+      }
+
+      if (args.length === 1 && args[0] instanceof HTMLElement) {
+        const [element] = args;
+        return _impl_checked_get(element as HTMLInputElement);
+      }
+
+      if (
+        args.length === 1 &&
+        typeof args[0] === "string" &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [selector] = args;
+        const element = resolveElement(selector) as HTMLInputElement;
+        return element ? _impl_checked_get(element) : false;
+      }
+
+      // Generator mode
+      if (args.length <= 1) {
+        const [val] = args;
+        if (val === undefined) {
+          return (element: HTMLInputElement) => _impl_checked_get(element);
+        } else {
+          return (element: HTMLInputElement) => _impl_checked_set(element, val);
+        }
+      }
+
+      throw new Error("Invalid arguments for checked function");
+    }
+  }
+}
 
 // Internal implementations for focus function
 function _impl_focus(element: HTMLElement): void {
@@ -1317,30 +1961,78 @@ export function query<T extends HTMLElement = HTMLElement>(
   selector: string,
 ): ElementFn<HTMLElement, T | null>;
 export function query(...args: any[]): any {
-  if (args.length === 2 && isElementLike(args[0])) {
-    const [elementLike, selector] = args;
-    const element = resolveElement(elementLike);
-    return element ? _impl_query(element, selector) : null;
-  }
+  const detection = detectContext(args, query);
 
-  if (args.length === 2 && args[0] instanceof HTMLElement) {
-    const [element, selector] = args;
-    return _impl_query(element, selector);
-  }
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: query(element, selector) or query(parentSelector, childSelector)
+      if (args.length === 2) {
+        const [target, selector] = args;
 
-  if (
-    args.length === 2 &&
-    typeof args[0] === "string" &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [parentSelector, childSelector] = args;
-    const element = resolveElement(parentSelector);
-    return element ? _impl_query(element, childSelector) : null;
-  }
+        // Resolve element from target
+        let element: HTMLElement | null = null;
+        if (typeof target === "string") {
+          element = document.querySelector(target) as HTMLElement;
+          if (!element) {
+            return null; // Parent selector didn't match
+          }
+        } else if (target instanceof HTMLElement) {
+          element = target;
+        }
 
-  // Generator mode
-  const [selector] = args;
-  return (element: HTMLElement) => _impl_query(element, selector);
+        if (element) {
+          return _impl_query(element, selector);
+        }
+      }
+      return null;
+    }
+
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: execute immediately and return result
+      const [selector] = args;
+      const element = getCurrentElement();
+      if (!element) {
+        throw new Error("No element in context for query");
+      }
+      return _impl_query(element, selector);
+    }
+
+    case ApiContext.ASYNC_GENERATOR: {
+      // Async generator mode: return ElementFn
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_query(element, selector);
+    }
+
+    default: {
+      // Fallback to original logic
+      if (args.length === 2 && isElementLike(args[0])) {
+        const [elementLike, selector] = args;
+        const element = resolveElement(elementLike);
+        return element ? _impl_query(element, selector) : null;
+      }
+
+      if (args.length === 2 && args[0] instanceof HTMLElement) {
+        const [element, selector] = args;
+        return _impl_query(element, selector);
+      }
+
+      if (
+        args.length === 2 &&
+        typeof args[0] === "string" &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [parentSelector, childSelector] = args;
+        const element = resolveElement(parentSelector);
+        return element ? _impl_query(element, childSelector) : null;
+      }
+
+      // Generator mode
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_query(element, selector);
+    }
+  }
 }
 
 export function queryAll<T extends HTMLElement = HTMLElement>(
@@ -1351,30 +2043,78 @@ export function queryAll<T extends HTMLElement = HTMLElement>(
   selector: string,
 ): ElementFn<HTMLElement, T[]>;
 export function queryAll(...args: any[]): any {
-  if (args.length === 2 && isElementLike(args[0])) {
-    const [elementLike, selector] = args;
-    const element = resolveElement(elementLike);
-    return element ? _impl_queryAll(element, selector) : [];
-  }
+  const detection = detectContext(args, queryAll);
 
-  if (args.length === 2 && args[0] instanceof HTMLElement) {
-    const [element, selector] = args;
-    return _impl_queryAll(element, selector);
-  }
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: queryAll(element, selector) or queryAll(parentSelector, childSelector)
+      if (args.length === 2) {
+        const [target, selector] = args;
 
-  if (
-    args.length === 2 &&
-    typeof args[0] === "string" &&
-    _looksLikeSelector(args[0])
-  ) {
-    const [parentSelector, childSelector] = args;
-    const element = resolveElement(parentSelector);
-    return element ? _impl_queryAll(element, childSelector) : [];
-  }
+        // Resolve element from target
+        let element: HTMLElement | null = null;
+        if (typeof target === "string") {
+          element = document.querySelector(target) as HTMLElement;
+          if (!element) {
+            return []; // Parent selector didn't match
+          }
+        } else if (target instanceof HTMLElement) {
+          element = target;
+        }
 
-  // Generator mode
-  const [selector] = args;
-  return (element: HTMLElement) => _impl_queryAll(element, selector);
+        if (element) {
+          return _impl_queryAll(element, selector);
+        }
+      }
+      return [];
+    }
+
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: execute immediately and return result
+      const [selector] = args;
+      const element = getCurrentElement();
+      if (!element) {
+        throw new Error("No element in context for queryAll");
+      }
+      return _impl_queryAll(element, selector);
+    }
+
+    case ApiContext.ASYNC_GENERATOR: {
+      // Async generator mode: return ElementFn
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_queryAll(element, selector);
+    }
+
+    default: {
+      // Fallback to original logic
+      if (args.length === 2 && isElementLike(args[0])) {
+        const [elementLike, selector] = args;
+        const element = resolveElement(elementLike);
+        return element ? _impl_queryAll(element, selector) : [];
+      }
+
+      if (args.length === 2 && args[0] instanceof HTMLElement) {
+        const [element, selector] = args;
+        return _impl_queryAll(element, selector);
+      }
+
+      if (
+        args.length === 2 &&
+        typeof args[0] === "string" &&
+        _looksLikeSelector(args[0])
+      ) {
+        const [parentSelector, childSelector] = args;
+        const element = resolveElement(parentSelector);
+        return element ? _impl_queryAll(element, childSelector) : [];
+      }
+
+      // Generator mode
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_queryAll(element, selector);
+    }
+  }
 }
 
 // Internal implementations for DOM functions
@@ -1425,13 +2165,61 @@ export function parent<T extends HTMLElement = HTMLElement>(
 export function parent<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
-  if (_isDirectCall(args)) {
-    const [element, selector] = args;
-    const resolved = resolveElement(element);
-    return resolved ? (_impl_parent(resolved, selector) as T | null) : null;
+  const detection = detectContext(args, parent);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: parent(element, selector?)
+      const [target, selector] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return null;
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element) {
+        return _impl_parent(element, selector) as T | null;
+      }
+      return null;
+    }
+
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: execute immediately and return result
+      const [selector] = args;
+      const element = getCurrentElement();
+      if (!element) {
+        throw new Error("No element in context for parent");
+      }
+      return _impl_parent(element, selector);
+    }
+
+    case ApiContext.ASYNC_GENERATOR: {
+      // Async generator mode: return ElementFn
+      const [selector] = args;
+      return (element: HTMLElement) =>
+        _impl_parent(element, selector) as T | null;
+    }
+
+    default: {
+      // Fallback to original logic
+      if (_isDirectCall(args)) {
+        const [element, selector] = args;
+        const resolved = resolveElement(element);
+        return resolved ? (_impl_parent(resolved, selector) as T | null) : null;
+      }
+      const [selector] = args;
+      return (element: HTMLElement) =>
+        _impl_parent(element, selector) as T | null;
+    }
   }
-  const [selector] = args;
-  return (element: HTMLElement) => _impl_parent(element, selector) as T | null;
 }
 
 export function children<T extends HTMLElement = HTMLElement>(
@@ -1444,13 +2232,59 @@ export function children<T extends HTMLElement = HTMLElement>(
 export function children<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
-  if (_isDirectCall(args)) {
-    const [element, selector] = args;
-    const resolved = resolveElement(element);
-    return resolved ? (_impl_children(resolved, selector) as T[]) : [];
+  const detection = detectContext(args, children);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: children(element, selector?)
+      const [target, selector] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return [];
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element) {
+        return _impl_children(element, selector) as T[];
+      }
+      return [];
+    }
+
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: execute immediately and return result
+      const [selector] = args;
+      const element = getCurrentElement();
+      if (!element) {
+        throw new Error("No element in context for children");
+      }
+      return _impl_children(element, selector);
+    }
+
+    case ApiContext.ASYNC_GENERATOR: {
+      // Async generator mode: return ElementFn
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_children(element, selector);
+    }
+
+    default: {
+      // Fallback to original logic
+      if (_isDirectCall(args)) {
+        const [element, selector] = args;
+        const resolved = resolveElement(element);
+        return resolved ? (_impl_children(resolved, selector) as T[]) : [];
+      }
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_children(element, selector) as T[];
+    }
   }
-  const [selector] = args;
-  return (element: HTMLElement) => _impl_children(element, selector) as T[];
 }
 
 export function siblings<T extends HTMLElement = HTMLElement>(
@@ -1463,13 +2297,59 @@ export function siblings<T extends HTMLElement = HTMLElement>(
 export function siblings<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
-  if (_isDirectCall(args)) {
-    const [element, selector] = args;
-    const resolved = resolveElement(element);
-    return resolved ? (_impl_siblings(resolved, selector) as T[]) : [];
+  const detection = detectContext(args, siblings);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: siblings(element, selector?)
+      const [target, selector] = args;
+
+      // Resolve element from target
+      let element: HTMLElement | null = null;
+      if (typeof target === "string") {
+        element = document.querySelector(target) as HTMLElement;
+        if (!element) {
+          return [];
+        }
+      } else if (target instanceof HTMLElement) {
+        element = target;
+      }
+
+      if (element) {
+        return _impl_siblings(element, selector) as T[];
+      }
+      return [];
+    }
+
+    case ApiContext.SYNC_GENERATOR: {
+      // Sync generator mode: execute immediately and return result
+      const [selector] = args;
+      const element = getCurrentElement();
+      if (!element) {
+        throw new Error("No element in context for siblings");
+      }
+      return _impl_siblings(element, selector);
+    }
+
+    case ApiContext.ASYNC_GENERATOR: {
+      // Async generator mode: return ElementFn
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_siblings(element, selector);
+    }
+
+    default: {
+      // Fallback to original logic
+      if (_isDirectCall(args)) {
+        const [element, selector] = args;
+        const resolved = resolveElement(element);
+        return resolved ? (_impl_siblings(resolved, selector) as T[]) : [];
+      }
+      const [selector] = args;
+      return (element: HTMLElement) => _impl_siblings(element, selector) as T[];
+    }
   }
-  const [selector] = args;
-  return (element: HTMLElement) => _impl_siblings(element, selector) as T[];
 }
 
 // Internal implementations for batchAll function
@@ -1489,8 +2369,65 @@ function _impl_batchAll(
 export function batchAll(
   elements: (HTMLElement | string)[],
   operations: ElementFn<HTMLElement>[],
-): void {
-  _impl_batchAll(elements, operations);
+): void;
+export function batchAll(
+  elements: (HTMLElement | string)[],
+  operations: ElementFn<HTMLElement>[],
+): ElementFn<HTMLElement, void>;
+export function batchAll(...args: any[]): any {
+  const detection = detectContext(args, batchAll);
+
+  // Handle based on detected context
+  switch (detection.context) {
+    case ApiContext.DIRECT:
+    case ApiContext.SELECTOR: {
+      // Direct mode: execute immediately
+      const [elements, operations] = args;
+      _impl_batchAll(elements, operations);
+      return;
+    }
+
+    case ApiContext.SYNC_GENERATOR:
+    case ApiContext.ASYNC_GENERATOR: {
+      // Generator mode: check if we have actual elements or selectors
+      const [elements, operations] = args;
+
+      // Check if all elements are actual HTMLElements (not selectors)
+      const hasActualElements = elements.every(
+        (el: any) => el instanceof HTMLElement,
+      );
+
+      if (hasActualElements) {
+        // We have actual elements, execute immediately
+        _impl_batchAll(elements, operations);
+        return;
+      }
+
+      // We have selectors or mixed, return ElementFn to be yielded
+      return (element: HTMLElement) => {
+        // In generator context, we might have the elements already
+        // or we might need to resolve them relative to the current element
+        const resolvedElements = elements
+          .map((el: HTMLElement | string) => {
+            if (typeof el === "string") {
+              // It's a selector, resolve relative to current element
+              return element.querySelector(el) as HTMLElement;
+            }
+            return el;
+          })
+          .filter(Boolean);
+
+        _impl_batchAll(resolvedElements, operations);
+      };
+    }
+
+    default: {
+      // Fallback to direct execution
+      const [elements, operations] = args;
+      _impl_batchAll(elements, operations);
+      return;
+    }
+  }
 }
 
 // Aliases

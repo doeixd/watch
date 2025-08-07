@@ -388,29 +388,6 @@ export {
   getScopedWatchers,
 } from "./core/scoped-observer";
 
-// Type predicates for user disambiguation
-export {
-  isElement as isElementPredicate,
-  isElementType,
-  isInputElement,
-  isSelector,
-  isClassList,
-  isStyleObject,
-  isAttributeObject,
-  isElementFn,
-  isWorkflow as isWorkflowPredicate,
-  isGeneratorFunction,
-  isAsyncGeneratorFunction,
-  isElementLike as isElementLikePredicate,
-  isInGeneratorContext,
-  asElement,
-  isDefined,
-  isValidTarget,
-} from "./api/type-predicates";
-
-// Explicit un-overloaded DOM functions
-export * from "./api/dom-explicit";
-
 // Generator utilities for workflow composition
 export { $, isWorkflow } from "./core/dollar-helper";
 

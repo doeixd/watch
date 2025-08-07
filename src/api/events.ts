@@ -52,6 +52,12 @@ export function on<El extends Element, K extends keyof HTMLElementEventMap>(
   handler: HybridEventHandler<El, K>,
   options?: HybridEventOptions,
 ): CleanupFunction;
+export function on<K extends keyof HTMLElementEventMap>(
+  selector: string,
+  event: K,
+  handler: HybridEventHandler<HTMLElement, K>,
+  options?: HybridEventOptions,
+): CleanupFunction | null;
 export function on<El extends Element, K extends keyof HTMLElementEventMap>(
   event: K,
   handler: HybridEventHandler<El, K>,
@@ -65,6 +71,12 @@ export function on<El extends Element, T>(
   handler: HybridCustomEventHandler<El, T>,
   options?: HybridEventOptions,
 ): CleanupFunction;
+export function on<T>(
+  selector: string,
+  event: CustomEvent<T>,
+  handler: HybridCustomEventHandler<HTMLElement, T>,
+  options?: HybridEventOptions,
+): CleanupFunction | null;
 export function on<El extends Element, T>(
   event: CustomEvent<T>,
   handler: HybridCustomEventHandler<El, T>,
@@ -78,6 +90,12 @@ export function on<T = any, El extends Element = HTMLElement>(
   handler: HybridCustomEventHandler<El, T>,
   options?: HybridEventOptions,
 ): CleanupFunction;
+export function on<T = any>(
+  selector: string,
+  eventType: string,
+  handler: HybridCustomEventHandler<HTMLElement, T>,
+  options?: HybridEventOptions,
+): CleanupFunction | null;
 export function on<T = any, El extends Element = HTMLElement>(
   eventType: string,
   handler: HybridCustomEventHandler<El, T>,
@@ -91,11 +109,19 @@ export function on<T = any, El extends Element = HTMLElement>(
  * standard DOM events, CustomEvents, and a rich set of features like delegation,
  * debouncing, throttling, and generator-based handlers.
  *
- * This function is the foundation of all event handling in the library.
+ * This function is the foundation of all event handling in the library and
+ * supports the full dual API pattern with direct elements, CSS selectors, and
+ * generator mode.
  *
  * @example
  * // Standard click handler (type of `event` is MouseEvent)
  * yield on('click', (event) => console.log(event.clientX));
+ *
+ * @example
+ * // CSS selector usage
+ * on('#submit-button', 'click', () => {
+ *   console.log('Submit clicked!');
+ * });
  *
  * @example
  * // Custom event with typed detail
@@ -123,6 +149,29 @@ export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(
 ): any {
   // 1. UNIFIED ARGUMENT PARSING
   const isDirectUsage = args[0] instanceof Element;
+  // Check for CSS selector usage: first arg is string, and we have at least 3 args (selector, event, handler)
+  // But make sure it's not the generator pattern (which has string event type as first arg with 2-3 args)
+  const isSelectorUsage =
+    typeof args[0] === "string" && args.length >= 3 && !isDirectUsage;
+
+  // Handle CSS selector usage
+  if (isSelectorUsage) {
+    const selector = args[0] as string;
+    const eventOrType = args[1];
+    const handler = args[2];
+    const options = args[3] || {};
+
+    // Find element by selector
+    const element = document.querySelector(selector) as HTMLElement | null;
+    if (!element) {
+      console.warn(`No element found for selector: ${selector}`);
+      return null;
+    }
+
+    // Call on with the found element - pass all args properly
+    return on(element, eventOrType, handler, options);
+  }
+
   const element = isDirectUsage ? (args[0] as El) : null;
   const eventOrType = (isDirectUsage ? args[1] : args[0]) as
     | K
@@ -194,15 +243,14 @@ function createEnhancedHandler<
         array: [targetElement],
       };
 
-      pushContext(context);
-      try {
-        result = (handler as Function)(event, targetElement);
-      } finally {
-        // Only pop the context if we are in standalone mode (i.e., we pushed a temporary one).
-        if (!inGeneratorContext) popContext();
-      }
+      // Check if handler might return a generator without calling it
+      const handlerStr = handler.toString();
+      const isGeneratorFunction =
+        handlerStr.includes("function*") ||
+        handlerStr.includes("async function*");
 
-      if (result && typeof result.next === "function") {
+      if (isGeneratorFunction) {
+        // Delay generator creation until after queue management
         const queueMode = options.queue || "all";
         if (queueMode === "none") {
           executeGenerator(
@@ -210,21 +258,48 @@ function createEnhancedHandler<
             "event",
             0,
             [targetElement as unknown as HTMLElement],
-            () => result,
+            () => {
+              pushContext(context);
+              try {
+                return (handler as Function)(event, targetElement);
+              } finally {
+                if (!inGeneratorContext) popContext();
+              }
+            },
+            undefined, // No abort signal for "none" mode
           ).catch((e) => console.error("Error in concurrent generator", e));
         } else {
-          await handleQueuedExecution(targetElement, queueMode, () =>
+          await handleQueuedExecution(targetElement, queueMode, (signal) =>
             executeGenerator(
               targetElement as unknown as HTMLElement,
               "event",
               0,
               [targetElement as unknown as HTMLElement],
-              () => result,
+              () => {
+                pushContext(context);
+                try {
+                  return (handler as Function)(event, targetElement);
+                } finally {
+                  if (!inGeneratorContext) popContext();
+                }
+              },
+              signal, // Pass abort signal for cancellation
             ),
           );
         }
-      } else if (result && typeof result.then === "function") {
-        await result;
+      } else {
+        // Non-generator function - call normally
+        pushContext(context);
+        try {
+          result = (handler as Function)(event, targetElement);
+        } finally {
+          // Only pop the context if we are in standalone mode (i.e., we pushed a temporary one).
+          if (!inGeneratorContext) popContext();
+        }
+
+        if (result && typeof result.then === "function") {
+          await result;
+        }
       }
     } catch (error) {
       console.error("Error in event handler:", error);
@@ -232,28 +307,54 @@ function createEnhancedHandler<
   };
 }
 
-const elementQueues = new WeakMap<Element, Promise<any>>();
+interface QueuedExecution {
+  promise: Promise<any>;
+  controller?: AbortController;
+}
+
+const elementQueues = new WeakMap<Element, QueuedExecution>();
 async function handleQueuedExecution<El extends Element>(
   element: El,
   queueMode: "latest" | "all",
-  executor: () => Promise<any>,
+  executor: (signal?: AbortSignal) => Promise<any>,
 ): Promise<void> {
   let executionPromise: Promise<any>;
-  const lastPromise = elementQueues.get(element) || Promise.resolve();
+  let controller: AbortController | undefined;
+
+  const lastExecution = elementQueues.get(element);
+  const lastPromise = lastExecution?.promise || Promise.resolve();
 
   if (queueMode === "all") {
-    executionPromise = lastPromise.then(executor, executor);
+    // Queue all executions sequentially
+    executionPromise = lastPromise.then(
+      () => executor(),
+      () => executor(),
+    );
   } else {
-    // 'latest'
-    executionPromise = executor();
+    // 'latest' - cancel previous execution if it exists
+    if (lastExecution?.controller) {
+      lastExecution.controller.abort();
+    }
+    controller = new AbortController();
+    executionPromise = executor(controller.signal);
   }
 
-  elementQueues.set(element, executionPromise);
+  const currentExecution: QueuedExecution = {
+    promise: executionPromise,
+    controller,
+  };
+  elementQueues.set(element, currentExecution);
 
   try {
     await executionPromise;
+  } catch (error) {
+    // Ignore abort errors
+    if (error instanceof Error && error.name === "AbortError") {
+      return;
+    }
+    throw error;
   } finally {
-    if (elementQueues.get(element) === executionPromise) {
+    if (elementQueues.get(element) === currentExecution) {
       elementQueues.delete(element);
     }
   }
@@ -362,6 +463,11 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
     handler: HybridEventHandler<El, K>,
     options?: HybridEventOptions,
   ): CleanupFunction;
+  function shortcut(
+    selector: string,
+    handler: HybridEventHandler<HTMLElement, K>,
+    options?: HybridEventOptions,
+  ): CleanupFunction | null;
   function shortcut<El extends Element>(
     handler: HybridEventHandler<El, K>,
     options?: HybridEventOptions,
@@ -371,6 +477,12 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
       const [element, handler, options] = args;
       return on(element, eventType, handler, options);
     }
+    // Check if first arg is a CSS selector (string) with handler as second arg
+    if (typeof args[0] === "string" && args.length >= 2) {
+      const [selector, handler, options] = args;
+      return on(selector, eventType, handler, options);
+    }
+    // Generator pattern - handler is first arg
     const [handler, options] = args;
     return on(eventType, handler, options);
   }
@@ -378,18 +490,20 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
 }
 
 /**
- * Attaches a click event listener using the dual API pattern.
+ * Attaches a click event listener using the full dual API pattern.
  *
- * This is a convenient shortcut for `on('click', ...)` that provides the same dual
- * API functionality. It works both directly with elements and within watch generators,
- * supporting advanced features like debouncing, delegation, and queue management.
+ * This is a convenient shortcut for `on('click', ...)` that provides the complete
+ * dual API functionality. It works with direct elements, CSS selectors, and within
+ * watch generators, supporting advanced features like debouncing, delegation, and
+ * queue management.
  *
  * @param element - HTMLElement to attach listener to (direct API)
+ * @param selector - CSS selector to find element (selector API)
  * @param handler - Event handler function (can be a generator)
  * @param options - Advanced event options
  * @returns CleanupFunction when used directly, ElementFn when in generator mode
  *
- * @example Direct usage
+ * @example Pattern 1: Direct element manipulation
  * ```typescript
  * import { click } from 'watch-selector';
  *
@@ -398,18 +512,59 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
  *   console.log('Button clicked!', event.target);
  * });
  *
- * // Later cleanup
+ * // Later, clean up the listener
  * cleanup();
  * ```
  *
- * @example Generator usage within watch
+ * @example Pattern 2: CSS selector manipulation
  * ```typescript
- * import { watch, click, text, addClass } from 'watch-selector';
+ * import { click } from 'watch-selector';
  *
- * watch('button', function* () {
+ * // Attach to element found by selector
+ * click('#submit-button', () => {
+ *   console.log('Submit button clicked!');
+ * });
+ *
+ * // With event options
+ * click('.once-button', (event) => {
+ *   console.log('This only fires once');
+ * }, { once: true });
+ * ```
+ *
+ * @example Pattern 3: Traditional generator usage
+ * ```typescript
+ * import { watch, click, addClass } from 'watch-selector';
+ *
+ * watch('.interactive-button', function* () {
  *   yield click(function* (event) {
  *     yield addClass('clicked');
- *     yield text('Clicked!');
+ *     console.log('Button clicked at:', event.clientX, event.clientY);
+ *   });
+ * });
+ * ```
+ *
+ * @example Pattern 4: Unified yield* pattern with $ wrapper
+ * ```typescript
+ * import { watch, $, click, addClass } from 'watch-selector';
+ *
+ * watch('.button', async function* () {
+ *   yield* $(click(async function* (event) {
+ *     yield* $(addClass('processing'));
+ *     await processClick(event);
+ *     yield* $(removeClass('processing'));
+ *   }));
+ * });
+ * ```
+ *
+ * @example Pattern 5: Pure generator submodule
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, addClass } from 'watch-selector/generator';
+ *
+ * watch('.button', async function* () {
+ *   yield* click(async function* (event) {
+ *     yield* addClass('active');
+ *     // Handle click...
  *   });
  * });
  * ```
@@ -809,14 +964,27 @@ export function createEventBehavior<
 export function composeEventHandlers<K extends keyof HTMLElementEventMap>(
   ...handlers: HybridEventHandler<Element, K>[]
 ): HybridEventHandler<Element, K> {
-  return async function* (event: HTMLElementEventMap[K], element?: Element) {
+  return async function (event: HTMLElementEventMap[K], element?: Element) {
     for (const handler of handlers) {
       const result = (handler as Function)(event, element);
       if (result && typeof result.next === "function") {
-        yield* result;
+        // It's a generator - execute it
+        if (Symbol.asyncIterator in result) {
+          // Async generator
+          for await (const _ of result) {
+            // Just iterate through it
+          }
+        } else {
+          // Sync generator
+          for (const _ of result) {
+            // Just iterate through it
+          }
+        }
       } else if (result && typeof result.then === "function") {
+        // It's a promise
         await result;
       }
+      // If result is undefined or something else, just continue
     }
   };
 }
@@ -994,17 +1162,21 @@ export function onText(...args: any[]): any {
     handler: (change: TextChange & { element: Element }) => void,
     options?: MutationObserverInit,
   ) => {
+    let oldText = element.textContent || "";
     const observer = new MutationObserver((entries) => {
-      for (const entry of entries) {
+      const newText = element.textContent || "";
+      if (oldText !== newText) {
         handler({
-          oldText: entry.oldValue || "",
-          newText: element.textContent || "",
+          oldText,
+          newText,
           element,
         });
+        oldText = newText;
       }
     });
     observer.observe(element, {
       characterData: true,
+      childList: true,
       subtree: true,
       characterDataOldValue: true,
       ...options,

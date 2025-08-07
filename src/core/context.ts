@@ -17,6 +17,9 @@ const contextStack: GeneratorContext[] = [];
 // This is the backbone of the getParentContext() functionality.
 export const parentContextRegistry = new WeakMap<HTMLElement, HTMLElement>();
 
+// Global state storage per element for persistent state management
+const globalElementStates = new WeakMap<HTMLElement, Map<string, any>>();
+
 // Get the current context - optionally override with passed context
 export function getCurrentContext<El extends HTMLElement = HTMLElement>(
   ctx?: TypedGeneratorContext<El>,
@@ -145,6 +148,14 @@ export function executeCleanup<El extends HTMLElement>(element: El): void {
   }
 }
 
+// Get or create the state Map for an element
+function getElementStateMap(element: HTMLElement): Map<string, any> {
+  if (!globalElementStates.has(element)) {
+    globalElementStates.set(element, new Map());
+  }
+  return globalElementStates.get(element)!;
+}
+
 // Create a complete watch context for an element
 export function createWatchContext<El extends HTMLElement>(
   element: El,
@@ -156,12 +167,15 @@ export function createWatchContext<El extends HTMLElement>(
     MutationObserver | IntersectionObserver | ResizeObserver
   >();
 
+  // Use global state management system for persistent state
+  const elementStateMap = getElementStateMap(element);
+
   return {
     element,
     selector,
     index,
     array,
-    state: {},
+    state: elementStateMap,
     observers,
     el: createElementProxy(element),
     self: createSelfFunction(element),
@@ -186,6 +200,7 @@ export async function executeGenerator<
   generatorFn: (
     ctx: TypedGeneratorContext<El>,
   ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+  signal?: AbortSignal,
 ): Promise<T | undefined> {
   createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
@@ -250,7 +265,7 @@ export async function executeGenerator<
     }
 
     // Handle both sync and async generators
-    returnValue = await executeGeneratorSequence(generator, element);
+    returnValue = await executeGeneratorSequence(generator, element, signal);
   } catch (e) {
     console.error("Error in generator execution:", e);
     // Re-throw the error to preserve promise rejection behavior
@@ -267,10 +282,22 @@ export async function executeGenerator<
 async function executeGeneratorSequence<El extends HTMLElement>(
   generator: Generator<any, any, unknown> | AsyncGenerator<any, any, unknown>,
   element: El,
+  signal?: AbortSignal,
 ): Promise<any> {
   let result = await generator.next();
 
   while (!result.done) {
+    // Check if the operation has been aborted
+    if (signal?.aborted) {
+      // Properly close the generator
+      if (typeof generator.return === "function") {
+        await generator.return(undefined);
+      }
+      const error = new Error("Operation aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+
     const yielded = result.value;
 
     try {
@@ -291,54 +318,130 @@ async function handleYieldedValue<El extends HTMLElement>(
   yielded: any,
   element: El,
 ): Promise<any> {
-  // Handle functions - could be element functions or context request functions
+  // Handle functions - could be element functions or Workflow operations
   if (typeof yielded === "function") {
-    // Check if this is a context request function (from our createWorkflow helper)
-    // These functions expect a context object and return the context
-    try {
+    // Check if function looks like it expects a WatchContext (from generator submodule)
+    // These functions typically have "context" in their parameter name
+    const fnStr = yielded.toString();
+    const isWatchContextFn = fnStr.includes("context");
+
+    // Check if function looks like it expects an element (ElementFn pattern)
+    // But exclude functions that look like WatchContext functions
+    const isElementFn =
+      !isWatchContextFn &&
+      (fnStr.includes("element") ||
+        fnStr.includes("el") ||
+        fnStr.includes("HTMLElement") ||
+        yielded.length === 1); // Most ElementFns expect 1 argument
+
+    // First try WatchContext functions (from generator submodule)
+    if (isWatchContextFn) {
       const currentContext = getCurrentContext();
       if (currentContext) {
-        // Create basic context for operations (compatible with existing WatchContext)
-        const stateObj = (currentContext as any).state || {};
-        const operationContext = {
-          element: element,
-          selector: currentContext.selector,
-          index: currentContext.index,
-          array: currentContext.array,
-          state: stateObj,
-          observers: new Set(),
-          el: createElementProxy(element),
-          self: createSelfFunction(element),
-          cleanup: createCleanupFunction(element),
-          addObserver: (_observer: any) => {
-            // Add observer to the context
-          },
-        };
-
-        // Try to call the function with the context
-        const result = yielded(operationContext);
-
-        // If it returns the context back, this is a context request
-        if (result === operationContext) {
-          return operationContext;
+        const operationContext = createWatchContext(
+          element,
+          currentContext.selector,
+          currentContext.index,
+          currentContext.array,
+        );
+        try {
+          const result = yielded(operationContext);
+          if (result && typeof result.then === "function") {
+            return await result;
+          }
+          return result;
+        } catch (error) {
+          console.error("Failed to execute WatchContext function:", error);
+          // Fall through to try as ElementFn
         }
+      }
+    }
 
-        // Otherwise it's an operation result
+    // Try as ElementFn
+    if (isElementFn || !isWatchContextFn) {
+      try {
+        const result = yielded(element);
         if (result && typeof result.then === "function") {
           return await result;
         }
         return result;
+      } catch (error) {
+        if (!isElementFn) {
+          // If we haven't tried WatchContext yet, try it as fallback
+          const currentContext = getCurrentContext();
+          if (currentContext) {
+            try {
+              const operationContext = createWatchContext(
+                element,
+                currentContext.selector,
+                currentContext.index,
+                currentContext.array,
+              );
+              const result = yielded(operationContext);
+              if (result && typeof result.then === "function") {
+                return await result;
+              }
+              return result;
+            } catch (contextError) {
+              // Both approaches failed
+              console.error(
+                "Failed to execute function as ElementFn or WatchContext:",
+                error,
+              );
+            }
+          }
+        }
+        console.error("Failed to execute ElementFn with element:", error);
+        throw error;
       }
-    } catch (error) {
-      // If context approach fails, treat as regular element function
     }
 
-    // Handle regular element functions (legacy API)
-    const result = yielded(element);
-    if (result && typeof result.then === "function") {
-      return await result;
+    // For other functions, try context-based approach first
+    const currentContext = getCurrentContext();
+    if (currentContext) {
+      try {
+        // Create proper WatchContext for the operation
+        const operationContext = createWatchContext(
+          element,
+          currentContext.selector,
+          currentContext.index,
+          currentContext.array,
+        );
+
+        // Call the operation with the context
+        const result = yielded(operationContext);
+
+        // Handle async results
+        if (result && typeof result.then === "function") {
+          return await result;
+        }
+        return result;
+      } catch (error) {
+        // If context approach fails, try with element
+        try {
+          const result = yielded(element);
+          if (result && typeof result.then === "function") {
+            return await result;
+          }
+          return result;
+        } catch (elementError) {
+          // Both approaches failed, throw original error
+          throw error;
+        }
+      }
     }
-    return result;
+
+    // No context available, try direct element call
+    try {
+      const result = yielded(element);
+      if (result && typeof result.then === "function") {
+        return await result;
+      }
+      return result;
+    } catch (error) {
+      console.error("Failed to execute function with element:", error);
+      throw error;
+    }
   }
 
   // Handle promises
@@ -346,46 +449,71 @@ async function handleYieldedValue<El extends HTMLElement>(
     const resolved = await yielded;
     // If the resolved value is a function, execute it
     if (typeof resolved === "function") {
-      return resolved(element);
+      return await handleYieldedValue(resolved, element);
     }
     return resolved;
   }
 
-  // Handle generator delegation (yield*)
-  if (yielded && typeof yielded[Symbol.iterator] === "function") {
+  // Handle generator delegation (yield*) for sync generators
+  // Check for actual generator (has next method), not just any iterable like arrays
+  if (
+    yielded &&
+    typeof yielded[Symbol.iterator] === "function" &&
+    typeof yielded.next === "function"
+  ) {
     return await executeGeneratorSequence(yielded, element);
   }
 
-  // Handle async generator delegation (yield*)
-  if (yielded && typeof yielded[Symbol.asyncIterator] === "function") {
+  // Handle async generator delegation (yield*) for async generators
+  // Check for actual async generator (has next method), not just any async iterable
+  if (
+    yielded &&
+    typeof yielded[Symbol.asyncIterator] === "function" &&
+    typeof yielded.next === "function"
+  ) {
     return await executeGeneratorSequence(yielded, element);
   }
 
   // Handle arrays of functions (batch operations)
   if (Array.isArray(yielded)) {
-    for (const item of yielded) {
-      await handleYieldedValue(item, element);
+    // Check if the array contains functions that need to be executed
+    // or if it's just a data array (like elements from queryAll)
+    const hasExecutableFunctions = yielded.some(
+      (item) => typeof item === "function" && !item.nodeType,
+    );
+
+    if (hasExecutableFunctions) {
+      // Execute each function in the array
+      const results = [];
+      for (const item of yielded) {
+        const result = await handleYieldedValue(item, element);
+        results.push(result);
+      }
+      return results;
+    } else {
+      // It's a data array (like DOM elements), return as-is
+      return yielded;
     }
-    return;
   }
 
   // Handle null or undefined as no-op
   if (yielded === null || yielded === undefined) {
-    return;
+    return undefined;
   }
 
-  // Handle primitive types (boolean, number, string) as no-op
-  // These are typically return values from DOM functions that can be ignored in generator context
+  // Handle primitive types (boolean, number, string) as return values
+  // These are typically return values from DOM functions
   if (
     typeof yielded === "boolean" ||
     typeof yielded === "number" ||
     typeof yielded === "string"
   ) {
-    return;
+    return yielded;
   }
 
   // If we get here, it's an unsupported yield type
   console.warn("Unsupported yield type:", typeof yielded, yielded);
+  return undefined;
 }
 
 // Global proxy for accessing current element when not in generator context

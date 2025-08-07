@@ -31,7 +31,8 @@ import {
 import { destroy } from "../src/watch";
 
 // Helper function to wait for watch() to process mutations
-const waitForWatcher = (ms = 10) => new Promise((resolve) => setTimeout(resolve, ms));
+const waitForWatcher = (ms = 10) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("Generator API - Direct yield* Pattern", () => {
   // happy-dom provides a global document object, so we just need to clean it
@@ -40,19 +41,23 @@ describe("Generator API - Direct yield* Pattern", () => {
   });
 
   afterEach(() => {
-    // Clean up any remaining watchers
-    destroy(watch('.*'));
+    // Clean up any remaining watchers - destroy all controllers
+    try {
+      destroy("*"); // Destroy all watchers
+    } catch (e) {
+      // Ignore errors if no watchers exist
+    }
     document.body.innerHTML = "";
   });
 
   describe("Direct yield* syntax", () => {
     it("should execute workflows directly with yield* - no wrapper needed", async () => {
-      document.body.innerHTML = '<button id="test">Test</button>';
-      const button = document.getElementById("test") as HTMLButtonElement;
+      document.body.innerHTML = '<button id="test1">Test</button>';
+      const button = document.getElementById("test1") as HTMLButtonElement;
 
       let executed = false;
 
-      watch("#test", async function* () {
+      watch("#test1", async function* () {
         // Direct yield* syntax - no $ wrapper needed!
         yield* addClass("test-class");
         yield* text("Updated");
@@ -68,12 +73,12 @@ describe("Generator API - Direct yield* Pattern", () => {
     });
 
     it("should provide perfect type safety for return values", async () => {
-      document.body.innerHTML = '<div id="test">Test</div>';
+      document.body.innerHTML = '<div id="test2">Test</div>';
 
       let capturedElement: HTMLElement | null = null;
       let capturedText: string | undefined;
 
-      watch("#test", async function* () {
+      watch("#test2", async function* () {
         // These should be perfectly typed through yield* delegation
         capturedElement = yield* self<HTMLDivElement>();
         yield* setState("test", "value");
@@ -90,10 +95,10 @@ describe("Generator API - Direct yield* Pattern", () => {
 
   describe("Pure DOM operations", () => {
     it("should manipulate DOM through direct workflows", async () => {
-      document.body.innerHTML = '<div id="test">Original</div>';
-      const div = document.getElementById("test") as HTMLDivElement;
+      document.body.innerHTML = '<div id="test3">Original</div>';
+      const div = document.getElementById("test3") as HTMLDivElement;
 
-      watch("#test", async function* () {
+      watch("#test3", async function* () {
         yield* addClass("new-class");
         yield* text("New Text");
         yield* attr("data-test", "value");
@@ -111,10 +116,10 @@ describe("Generator API - Direct yield* Pattern", () => {
     });
 
     it("should handle class manipulation operations", async () => {
-      document.body.innerHTML = '<div id="test" class="original">Test</div>';
-      const div = document.getElementById("test") as HTMLDivElement;
+      document.body.innerHTML = '<div id="test4" class="original">Test</div>';
+      const div = document.getElementById("test4") as HTMLDivElement;
 
-      watch("#test", async function* () {
+      watch("#test4", async function* () {
         yield* addClass("added-class");
         yield* removeClass("original");
 
@@ -133,12 +138,12 @@ describe("Generator API - Direct yield* Pattern", () => {
 
     it("should handle element access operations", async () => {
       document.body.innerHTML =
-        '<div id="test"><span class="child">Child</span></div>';
+        '<div id="test5"><span class="child">Child</span></div>';
 
       let capturedSelf: HTMLElement | null = null;
       let capturedChild: HTMLElement | null = null;
 
-      watch("#test", async function* () {
+      watch("#test5", async function* () {
         capturedSelf = yield* self<HTMLDivElement>();
         capturedChild = yield* query<HTMLSpanElement>(".child");
       });
@@ -155,11 +160,11 @@ describe("Generator API - Direct yield* Pattern", () => {
 
   describe("Pure state operations", () => {
     it("should manage state through direct workflows", async () => {
-      document.body.innerHTML = '<div id="test">Test</div>';
+      document.body.innerHTML = '<div id="test6">Test</div>';
 
       let finalCount: number | undefined;
 
-      watch("#test", async function* () {
+      watch("#test6", async function* () {
         yield* setState("count", 0);
 
         const newCount = yield* updateState<number>(
@@ -180,9 +185,9 @@ describe("Generator API - Direct yield* Pattern", () => {
     });
 
     it("should handle advanced state operations", async () => {
-      document.body.innerHTML = '<div id="test">Test</div>';
+      document.body.innerHTML = '<div id="test7">Test</div>';
 
-      watch("#test", async function* () {
+      watch("#test7", async function* () {
         yield* setState("counter", 10);
 
         const afterIncrement = yield* incrementState("counter", 3);
@@ -206,11 +211,11 @@ describe("Generator API - Direct yield* Pattern", () => {
 
   describe("Pure event operations", () => {
     it("should set up event handlers through direct workflows", async () => {
-      document.body.innerHTML = '<button id="test">Click me</button>';
-      const button = document.getElementById("test") as HTMLButtonElement;
+      document.body.innerHTML = '<button id="test8">Click me</button>';
+      const button = document.getElementById("test8") as HTMLButtonElement;
       let clickCount = 0;
 
-      watch("#test", async function* () {
+      watch("#test8", async function* () {
         yield* click((event) => {
           clickCount++;
           expect(event.type).toBe("click");
@@ -227,11 +232,11 @@ describe("Generator API - Direct yield* Pattern", () => {
     });
 
     it("should support generator event handlers", async () => {
-      document.body.innerHTML = '<button id="test">Click me</button>';
-      const button = document.getElementById("test") as HTMLButtonElement;
+      document.body.innerHTML = '<button id="test9">Click me</button>';
+      const button = document.getElementById("test9") as HTMLButtonElement;
       let sequence: string[] = [];
 
-      watch("#test", async function* () {
+      watch("#test9", async function* () {
         yield* click(async function* (event) {
           sequence.push("start");
           yield* addClass("clicked");
@@ -279,14 +284,14 @@ describe("Generator API - Direct yield* Pattern", () => {
 
     it("should support form handling pattern", async () => {
       document.body.innerHTML = `
-        <form id="test-form">
+        <form id="test-form-unique">
           <input type="text" name="name" required />
           <button type="submit">Submit</button>
         </form>
       `;
       let submittedData: any = null;
 
-      watch("#test-form", async function* () {
+      watch("#test-form-unique", async function* () {
         yield* submit(async function* (event) {
           event.preventDefault();
           const form = yield* self<HTMLFormElement>();
@@ -298,12 +303,16 @@ describe("Generator API - Direct yield* Pattern", () => {
 
       await waitForWatcher();
 
-      const form = document.getElementById("test-form") as HTMLFormElement;
+      const form = document.getElementById(
+        "test-form-unique",
+      ) as HTMLFormElement;
       const input = form.querySelector("input") as HTMLInputElement;
 
       input.value = "John Doe";
       // Manually create and dispatch event for happy-dom
-      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
 
       await waitForWatcher();
 

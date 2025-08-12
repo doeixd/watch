@@ -86,7 +86,7 @@ export {
 } from "./dom";
 
 // Style manipulation operations
-export { style, styleProperty, getStyle, removeStyle } from "./dom";
+export { style, styleProperty, removeStyle } from "./dom";
 
 // Attribute manipulation operations
 export { attr, getAttr, removeAttr, hasAttr } from "./dom";

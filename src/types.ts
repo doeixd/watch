@@ -484,14 +484,14 @@ export type Workflow<TReturn = void> = AsyncGenerator<
 
 // Enhanced WatchContext for the new pattern - extends existing for compatibility
 export interface EnhancedWatchContext<El extends HTMLElement = HTMLElement>
-  extends WatchContext<El> {
+  extends Omit<WatchContext<El>, "state"> {
   // Core context properties (readonly for immutability)
   readonly element: El;
   readonly selector: string;
   readonly index: number;
   readonly array: readonly El[];
 
-  // State management interface
+  // State management interface (replaces Map<string, any> from base)
   readonly state: {
     get<T>(key: string, defaultValue?: T): T;
     set<T>(key: string, value: T): void;
@@ -613,7 +613,7 @@ export interface WatchContext<El extends HTMLElement = HTMLElement> {
   array: readonly El[];
 
   // Enhanced state management
-  state: Record<string, any>;
+  state: Map<string, any>;
   observers: Set<MutationObserver | IntersectionObserver | ResizeObserver>;
 
   // Proxy element access

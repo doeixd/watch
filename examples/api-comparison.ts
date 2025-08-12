@@ -142,8 +142,8 @@ function toggleActiveClass() {
   // Overloaded API
   const button1 = document.querySelector('#btn1');
   if (button1) {
-    const isActive = hasClass(button1, 'active');
-    toggleClass(button1, 'active', !isActive);
+-import { watch, text, addClass, click, attr, style } from 'watch-selector';
++import { watch, text, addClass, click, attr, style, hasClass, toggleClass } from 'watch-selector';
   }
 
   // Explicit API

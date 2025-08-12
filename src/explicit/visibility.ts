@@ -193,8 +193,9 @@ export function toggleElement(element: Element, force?: boolean): void {
         hideElement(element);
       }
     } else {
-      // Check if element has inline display: none
-      const isHidden = element.style.display === "none";
+      // Check computed style for more accurate visibility detection
+      const computedStyle = window.getComputedStyle(element);
+      const isHidden = computedStyle.display === "none";
       if (isHidden) {
         showElement(element);
       } else {

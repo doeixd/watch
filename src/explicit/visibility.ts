@@ -185,7 +185,7 @@ export function hideGen(): ElementFn<Element, void> {
 export function toggleElement(element: Element, force?: boolean): void {
   if (!element) return;
 
-  if (element instanceof HTMLElement) {
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
     if (force !== undefined) {
       if (force) {
         showElement(element);
@@ -193,9 +193,8 @@ export function toggleElement(element: Element, force?: boolean): void {
         hideElement(element);
       }
     } else {
-      // Check computed style for more accurate visibility detection
-      const computedStyle = window.getComputedStyle(element);
-      const isHidden = computedStyle.display === "none";
+      // Use shared visibility check to decide toggle behavior
+      const isHidden = !isVisibleElement(element);
       if (isHidden) {
         showElement(element);
       } else {

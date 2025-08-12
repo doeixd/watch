@@ -400,13 +400,13 @@ Watch elements within a specific parent:
 
 ```typescript
 // Basic scoped watch
-const watcher = scopedWatch('#container', '.item', function* () {
+const container = document.querySelector('#container')!;
+const watcher = scopedWatch(container, '.item', function* () {
   yield addClass('found');
 });
 
 // Stop watching
 watcher.disconnect();
-
 // With timeout (auto-disconnect)
 scopedWatchTimeout('#temp', '.item', handler, 5000);
 

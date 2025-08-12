@@ -126,10 +126,9 @@ yield query('.child');
 yield queryAll('.items');
 
 // Get related elements
-const parent = parentDOM(element);
-const children = childrenDOM(element);
-const siblings = siblingsDOM(element);
-```
+const parent = parent(element);
+const children = children(element);
+const siblings = siblings(element);
 
 ## Event Handling
 

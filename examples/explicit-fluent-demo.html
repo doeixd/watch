@@ -606,7 +606,15 @@
     document.getElementById('fluent-reset-btn').addEventListener('click', () => {
       fluent.$('.fluent-item')
         .removeClass('selected', 'completed', 'fade-in')
-        .text((el, i) => `Chainable Item ${i + 1}`)
+text(content) {
+  this.elements.forEach((el, index) => {
+    const text = typeof content === 'function'
+      ? content(el, index)
+      : content;
+    el.textContent = text;
+  });
+  return this;
+}
         .style({
           backgroundColor: '',
           transform: ''

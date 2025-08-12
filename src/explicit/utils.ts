@@ -6,16 +6,18 @@
  */
 
 /**
- * Checks if a value is a DOM Element.
+ * Type guard that returns true when the provided value is a DOM Element.
  *
- * @param value - The value to check
- * @returns True if the value is an Element
+ * This narrows the value's type to `Element` when true.
+ *
+ * @param value - Value to test
+ * @returns `true` if `value` is an `Element`, otherwise `false`
  *
  * @example
  * ```typescript
- * const element = document.querySelector('div');
- * if (isElement(element)) {
- *   // element is definitely an Element
+ * const el = document.querySelector('div');
+ * if (isElement(el)) {
+ *   // el is narrowed to Element
  * }
  * ```
  */
@@ -100,17 +102,10 @@ export function isSelector(value: string): boolean {
 }
 
 /**
- * Converts a NodeList or HTMLCollection to an array.
+ * Convert a DOM NodeList or HTMLCollection into a plain array of elements.
  *
- * @param nodeList - The NodeList or HTMLCollection to convert
- * @returns Array of elements
- *
- * @example
- * ```typescript
- * const nodeList = document.querySelectorAll('.item');
- * const array = toArray(nodeList);
- * // Now you can use array methods
- * ```
+ * @param nodeList - The NodeList or HTMLCollection to convert.
+ * @returns An array containing the same elements as `nodeList`.
  */
 export function toArray<T extends Element = Element>(
   nodeList: NodeListOf<T> | HTMLCollectionOf<T> | HTMLCollection,
@@ -119,16 +114,13 @@ export function toArray<T extends Element = Element>(
 }
 
 /**
- * Finds a single element using a selector or returns the element if already an Element.
+ * Resolve a single DOM Element from a CSS selector or return the supplied Element.
  *
- * @param target - CSS selector string or Element
- * @returns The found or provided element, or null
+ * If `target` is a string, this returns the first match from `document.querySelector`.
+ * If `target` is an Element, it is returned as-is. Falsy inputs or selector misses produce `null`.
  *
- * @example
- * ```typescript
- * const element1 = findElement('#my-id');
- * const element2 = findElement(document.querySelector('div'));
- * ```
+ * @param target - A CSS selector string or an Element (may be `null`/`undefined`).
+ * @returns The resolved element of type `E`, or `null` if not found or `target` was falsy.
  */
 export function findElement<E extends Element = Element>(
   target: string | Element | null | undefined,
@@ -147,17 +139,12 @@ export function findElement<E extends Element = Element>(
 }
 
 /**
- * Finds all elements using a selector or returns array if already elements.
+ * Resolve a target into an array of Elements.
  *
- * @param target - CSS selector string, Element, or array of Elements
- * @returns Array of found elements
+ * Accepts a CSS selector string, a single Element, an array of Elements, or a NodeList and returns a plain array of matched elements. Returns an empty array for null/undefined or unsupported inputs.
  *
- * @example
- * ```typescript
- * const elements1 = findElements('.item');
- * const elements2 = findElements(document.querySelector('div'));
- * const elements3 = findElements([el1, el2, el3]);
- * ```
+ * @param target - A selector string, Element, Element array, NodeList, or null/undefined.
+ * @returns An array of elements matching the provided target (possibly empty).
  */
 export function findElements<E extends Element = Element>(
   target: string | Element | Element[] | NodeListOf<E> | null | undefined,

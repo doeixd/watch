@@ -526,10 +526,14 @@ export function deleteState(key: string): Workflow<boolean> {
 // ============================================================================
 
 /**
- * Initialize state with a default value if it doesn't exist
- * @param key The state key
- * @param defaultValue The default value to set
- * @returns Workflow that returns the current or newly set value
+ * Ensure a per-element state entry exists for `key` and return its value.
+ *
+ * If the element's state Map does not exist it is created. If `key` is not present
+ * the `defaultValue` is stored and returned; otherwise the existing value is returned.
+ *
+ * @param key - The state key to initialize
+ * @param defaultValue - Value to set when the key is absent
+ * @returns The current value for `key` (existing or the `defaultValue`)
  */
 export function initState<T = any>(key: string, defaultValue: T): Workflow<T> {
   return (async function* () {
@@ -669,27 +673,16 @@ export function toggleState(key: string): Workflow<boolean> {
 }
 
 /**
- * Appends a value to an array stored in state.
+ * Append a value to an array stored under the given state key and return the new array.
  *
- * If the state doesn't exist or is not an array, creates a new array with the value.
- * Returns the updated array. This creates a new array rather than mutating the existing one.
+ * Ensures the element's per-element state Map exists. If the existing value is not an array
+ * (or is missing), a new array containing the provided value is created and stored.
+ * A new array is returned (the stored array is replaced, not mutated in place).
  *
- * @template T - The type of array elements
- * @param key - The state key containing the array
- * @param value - The value to append
- * @returns A Workflow<T[]> that returns the new array
- *
- * @example Building a list
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { appendToState, getState } from 'watch-selector/generator';
- *
- * watch('.add-item', async function* () {
- *   const newItem = { id: Date.now(), text: 'New Item' };
- *   const items = yield* appendToState('items', newItem);
- *   console.log(`Total items: ${items.length}`);
- * });
- * ```
+ * @template T - Element type of the array
+ * @param key - State key that holds the array
+ * @param value - Value to append to the array
+ * @returns A Workflow that yields the updated array stored at `key`
  */
 export function appendToState<T = any>(key: string, value: T): Workflow<T[]> {
   return (async function* () {
@@ -835,10 +828,16 @@ export function mergeState<T extends Record<string, any> = Record<string, any>>(
 // ============================================================================
 
 /**
- * Watch for changes to a state value
- * @param key The state key to watch
- * @param callback Function called when state changes
- * @returns Workflow that sets up the state watcher
+ * Registers a per-element watcher callback for a state key.
+ *
+ * The returned Workflow, when executed, stores `callback` in the element's
+ * `stateWatchers` Map on the watch context under `key`. This function only
+ * registers the watcher (it does not trigger callbacks or persist computed
+ * values) and will overwrite any existing watcher for the same key.
+ *
+ * @param key - State key to watch
+ * @param callback - Called with `(newValue, oldValue)` when the watched key changes
+ * @returns A Workflow that installs the watcher on the current element context
  */
 export function watchState<T = any>(
   key: string,
@@ -861,11 +860,17 @@ export function watchState<T = any>(
 // ============================================================================
 
 /**
- * Create a computed state value that depends on other state
- * @param key The computed state key
- * @param dependencies Array of state keys this computation depends on
- * @param compute Function that computes the value from dependencies
- * @returns Workflow that sets up the computed state
+ * Produce a derived value computed from other per-element state entries.
+ *
+ * The returned Workflow reads the current values of the given dependency keys
+ * from the element's state map, calls `compute` with an object mapping each
+ * dependency key to its current value, and yields the computed result.
+ * The element state Map is created if it does not already exist. The computed
+ * value is returned but not persisted back into state.
+ *
+ * @param dependencies - List of state keys whose current values are supplied to `compute`
+ * @param compute - Function that receives a Record mapping dependency keys to their current values and returns the derived value
+ * @returns A Workflow that yields the computed value of type `T`
  */
 export function computedState<T = any>(
   dependencies: string[],
@@ -898,27 +903,15 @@ export function computedState<T = any>(
 // ============================================================================
 
 /**
- * Logs all state for the current element to the console for debugging.
+ * Log the entire per-element state to the console for debugging.
  *
- * Outputs the entire state Map as an object, making it easy to inspect
- * all stored values. Useful for debugging state-related issues.
+ * If a state Map exists on the current element, its entries are converted to
+ * a plain object and logged together with the element reference. If no state
+ * exists, a notice is logged with the element reference. This operation does
+ * not modify stored state.
  *
- * @param prefix - Optional prefix for the log message (default: "State")
- * @returns A Workflow<void> that logs the state when yielded
- *
- * @example Debugging state
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { setState, logState } from 'watch-selector/generator';
- *
- * watch('.debug-element', async function* () {
- *   yield* setState('user', { name: 'John', age: 30 });
- *   yield* setState('theme', 'dark');
- *
- *   yield* logState('Current State');
- *   // Logs: [Current State] { user: {...}, theme: 'dark' } <element>
- * });
- * ```
+ * @param prefix - Optional label prepended to the log message (default: `"State"`)
+ * @returns A Workflow that, when yielded, writes the state snapshot to the console
  */
 export function logState(prefix: string = "State"): Workflow<void> {
   return (async function* () {
@@ -935,28 +928,14 @@ export function logState(prefix: string = "State"): Workflow<void> {
 }
 
 /**
- * Logs a specific state key value to the console for debugging.
+ * Log the value of a single per-element state key to the console for debugging.
  *
- * Outputs just the value of a single state key, useful for tracking
- * specific state changes during development.
+ * If the key is not present the logged value will be `undefined`. The log includes
+ * an element reference to help locate which element the state belongs to.
  *
- * @param key - The state key to log
- * @param prefix - Optional prefix for the log message (defaults to "State[key]")
- * @returns A Workflow<void> that logs the state value when yielded
- *
- * @example Tracking specific state
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { setState, logStateKey, updateState } from 'watch-selector/generator';
- *
- * watch('.counter', async function* () {
- *   yield* setState('count', 0);
- *   yield* logStateKey('count', 'Initial');
- *
- *   yield* updateState('count', c => c + 1);
- *   yield* logStateKey('count', 'After increment');
- * });
- * ```
+ * @param key - The state key to read and log.
+ * @param prefix - Optional label shown in the log; defaults to `State[<key>]`.
+ * @returns A Workflow that logs the state value when yielded.
  */
 export function logStateKey(key: string, prefix?: string): Workflow<void> {
   return (async function* () {
@@ -970,8 +949,11 @@ export function logStateKey(key: string, prefix?: string): Workflow<void> {
 }
 
 /**
- * Get a snapshot of all state for the current element
- * @returns Workflow that returns a snapshot of all state
+ * Return a plain-object snapshot of all per-element state.
+ *
+ * Produces a Workflow that yields a shallow, independent object mapping state keys to their values for the current element. If no state exists for the element, the workflow resolves to an empty object.
+ *
+ * @returns A Workflow that resolves to a Record of the element's current state entries.
  */
 export function getStateSnapshot(): Workflow<Record<string, any>> {
   return (async function* () {

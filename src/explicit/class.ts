@@ -8,32 +8,24 @@
 import type { ElementFn } from "../types";
 
 /**
- * Adds CSS classes to an element.
+ * Add one or more CSS classes to a single DOM element.
  *
- * @param element - The target DOM element to add classes to
- * @param classes - One or more class names to add (spread parameters)
- * @returns void
+ * If `element` is falsy (null/undefined) the function is a no-op and returns immediately.
  *
- * @example
- * ```typescript
- * // Add single class
- * const button = document.querySelector('button');
- * addClassElement(button, 'active');
- * ```
+ * @param element - Target DOM element to modify
+ * @param classes - One or more class names to add (spread)
  *
  * @example
- * ```typescript
- * // Add multiple classes at once
- * const card = document.querySelector('.card');
- * addClassElement(card, 'highlighted', 'expanded', 'animated');
- * ```
+ * // Add a single class
+ * addClassElement(document.querySelector('button'), 'active');
  *
  * @example
- * ```typescript
- * // Safe with null elements (no error)
- * const missing = document.querySelector('#not-found');
- * addClassElement(missing, 'hidden'); // Does nothing, no error
- * ```
+ * // Add multiple classes
+ * addClassElement(document.querySelector('.card'), 'highlighted', 'expanded', 'animated');
+ *
+ * @example
+ * // Safe with missing elements (no error thrown)
+ * addClassElement(document.querySelector('#not-found'), 'hidden');
  */
 export function addClassElement(element: Element, ...classes: string[]): void {
   if (!element) return;
@@ -41,29 +33,12 @@ export function addClassElement(element: Element, ...classes: string[]): void {
 }
 
 /**
- * Adds CSS classes to all elements matching a selector.
+ * Add one or more CSS classes to every element matching the provided selector.
  *
- * @param selector - CSS selector string to query elements
- * @param classes - One or more class names to add (spread parameters)
- * @returns void
+ * Operates as a no-op if the selector matches no elements.
  *
- * @example
- * ```typescript
- * // Highlight all items
- * addClassSelector('.item', 'highlighted');
- * ```
- *
- * @example
- * ```typescript
- * // Add multiple classes to all buttons
- * addClassSelector('button', 'styled', 'interactive', 'shadow');
- * ```
- *
- * @example
- * ```typescript
- * // Mark all completed tasks
- * addClassSelector('.task[data-complete="true"]', 'done', 'faded');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param classes - One or more class names to add (spread)
  */
 export function addClassSelector(selector: string, ...classes: string[]): void {
   const elements = document.querySelectorAll(selector);
@@ -71,53 +46,33 @@ export function addClassSelector(selector: string, ...classes: string[]): void {
 }
 
 /**
- * Adds CSS classes to all elements matching a selector.
- * Alias for addClassSelector that emphasizes operating on all matches.
+ * Add one or more CSS classes to every element matching the provided selector.
  *
- * @param selector - CSS selector string to query elements
- * @param classes - One or more class names to add (spread parameters)
- * @returns void
+ * This is an alias of `addClassSelector` that emphasizes applying the classes to all matches.
+ * If no elements match the selector the function is a no-op.
+ *
+ * @param selector - CSS selector used to find elements
+ * @param classes - One or more class names to add to each matched element
  *
  * @example
- * ```typescript
- * // Emphasizes that ALL notifications will be affected
+ * // Make all notifications visible
  * addClassAll('.notification', 'visible', 'fade-in');
- * ```
- *
- * @example
- * ```typescript
- * // Style all table rows
- * addClassAll('tbody tr', 'striped');
- * ```
  */
 export function addClassAll(selector: string, ...classes: string[]): void {
   addClassSelector(selector, ...classes);
 }
 
 /**
- * Adds CSS classes to the first element matching a selector.
+ * Add one or more CSS classes to the first element matching `selector`.
  *
- * @param selector - CSS selector string to query element
- * @param classes - One or more class names to add (spread parameters)
- * @returns void
+ * If no element matches, the function is a no-op (safe to call with missing elements).
+ *
+ * @param selector - CSS selector for the target element
+ * @param classes - One or more class names to add
  *
  * @example
- * ```typescript
- * // Only style the first message
+ * // Add classes to the first message
  * addClassFirst('.message', 'primary', 'important');
- * ```
- *
- * @example
- * ```typescript
- * // Highlight first search result
- * addClassFirst('.search-result', 'featured', 'expanded');
- * ```
- *
- * @example
- * ```typescript
- * // Safe with non-existent elements
- * addClassFirst('#not-found', 'hidden'); // No error if not found
- * ```
  */
 export function addClassFirst(selector: string, ...classes: string[]): void {
   const element = document.querySelector(selector);
@@ -127,30 +82,14 @@ export function addClassFirst(selector: string, ...classes: string[]): void {
 }
 
 /**
- * Returns a generator function that adds classes.
- * For use within watch generators.
+ * Creates an ElementFn that adds the given class(es) to a supplied Element.
  *
- * @param classes - One or more class names to add (spread parameters)
- * @returns ElementFn that adds classes when yielded in a generator context
+ * Returns a generator-friendly function which, when invoked with an Element,
+ * delegates to addClassElement and adds the provided class names. Safe to use
+ * in watch/generator flows.
  *
- * @example
- * ```typescript
- * // Add classes in a watch generator
- * watch('button', function* () {
- *   yield addClassGen('ready', 'interactive');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Conditional class addition
- * watch('.card', function* () {
- *   const isPremium = yield getState('premium');
- *   if (isPremium) {
- *     yield addClassGen('premium', 'gold-border');
- *   }
- * });
- * ```
+ * @param classes - One or more class names to add to the target element
+ * @returns An ElementFn that adds the specified classes to an Element
  */
 export function addClassGen(...classes: string[]): ElementFn<Element, void> {
   return (element: Element) => {
@@ -159,32 +98,12 @@ export function addClassGen(...classes: string[]): ElementFn<Element, void> {
 }
 
 /**
- * Removes CSS classes from an element.
+ * Remove one or more CSS classes from the given element.
+ *
+ * If `element` is falsy the call is a no-op. Extra or non-existent class names are ignored.
  *
  * @param element - The target DOM element to remove classes from
- * @param classes - One or more class names to remove (spread parameters)
- * @returns void
- *
- * @example
- * ```typescript
- * // Remove single class
- * const button = document.querySelector('button');
- * removeClassElement(button, 'disabled');
- * ```
- *
- * @example
- * ```typescript
- * // Remove multiple classes
- * const modal = document.querySelector('.modal');
- * removeClassElement(modal, 'visible', 'animated', 'fade-in');
- * ```
- *
- * @example
- * ```typescript
- * // Safe to remove non-existent classes
- * const div = document.querySelector('div');
- * removeClassElement(div, 'not-there'); // No error
- * ```
+ * @param classes - One or more class names to remove
  */
 export function removeClassElement(
   element: Element,
@@ -195,29 +114,12 @@ export function removeClassElement(
 }
 
 /**
- * Removes CSS classes from all elements matching a selector.
+ * Remove one or more CSS classes from every element that matches the given selector.
  *
- * @param selector - CSS selector string to query elements
- * @param classes - One or more class names to remove (spread parameters)
- * @returns void
+ * If no elements match the selector the function is a no-op.
  *
- * @example
- * ```typescript
- * // Remove highlight from all items
- * removeClassSelector('.item', 'highlighted');
- * ```
- *
- * @example
- * ```typescript
- * // Clean up multiple classes from all cards
- * removeClassSelector('.card', 'loading', 'pending', 'processing');
- * ```
- *
- * @example
- * ```typescript
- * // Remove state classes from form fields
- * removeClassSelector('input, select', 'error', 'warning', 'success');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param classes - One or more class names to remove from each matched element
  */
 export function removeClassSelector(
   selector: string,
@@ -228,11 +130,10 @@ export function removeClassSelector(
 }
 
 /**
- * Removes CSS classes from all elements matching a selector.
- * Alias for removeClassSelector for clarity.
+ * Alias for removeClassSelector — removes one or more CSS classes from all elements matching the selector.
  *
- * @param selector - CSS selector to find elements
- * @param classes - The classes to remove
+ * @param selector - CSS selector used to find target elements
+ * @param classes - One or more class names to remove from each matched element
  *
  * @example
  * ```typescript
@@ -262,29 +163,13 @@ export function removeClassFirst(selector: string, ...classes: string[]): void {
 }
 
 /**
- * Returns a generator function that removes classes.
- * For use within watch generators.
+ * Create an ElementFn that removes the specified classes from a provided Element.
  *
- * @param classes - One or more class names to remove (spread parameters)
- * @returns ElementFn that removes classes when yielded in a generator context
+ * The returned function is intended for generator/watch flows: when invoked (or yielded)
+ * with an Element it will call removeClassElement on that element with the given class names.
  *
- * @example
- * ```typescript
- * // Remove loading state in generator
- * watch('.button', function* () {
- *   yield removeClassGen('loading', 'disabled');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Clean up after animation
- * watch('.animated', function* () {
- *   yield on('animationend', function* () {
- *     yield removeClassGen('animating', 'fade-in', 'slide-up');
- *   });
- * });
- * ```
+ * @param classes - One or more class names to remove
+ * @returns A function that accepts an Element and removes the specified classes from it
  */
 export function removeClassGen(...classes: string[]): ElementFn<Element, void> {
   return (element: Element) => {
@@ -293,18 +178,14 @@ export function removeClassGen(...classes: string[]): ElementFn<Element, void> {
 }
 
 /**
- * Toggles a CSS class on an element.
+ * Toggle a CSS class on an Element and return whether it is present afterward.
  *
- * @param element - The element to toggle class on
- * @param className - The class to toggle
- * @param force - Optional force add (true) or remove (false)
- * @returns Whether the class is present after toggling
+ * If `element` is falsy, the function is a no-op and returns `false`.
  *
- * @example
- * ```typescript
- * const button = document.querySelector('button');
- * const isActive = toggleClassElement(button, 'active');
- * ```
+ * @param element - Target Element to modify
+ * @param className - Class name to toggle
+ * @param force - When provided, forces add (`true`) or remove (`false`)
+ * @returns `true` if the class is present after the operation, otherwise `false`
  */
 export function toggleClassElement(
   element: Element,
@@ -316,17 +197,15 @@ export function toggleClassElement(
 }
 
 /**
- * Toggles a CSS class on all elements matching a selector.
+ * Toggle a CSS class on every element that matches the given selector.
  *
- * @param selector - CSS selector to find elements
- * @param className - The class to toggle
- * @param force - Optional force add (true) or remove (false)
- * @returns Array of boolean results for each element
+ * The returned array contains a boolean for each matched element indicating
+ * whether the class is present on that element after the toggle operation.
  *
- * @example
- * ```typescript
- * const results = toggleClassSelector('.item', 'selected');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param className - Class name to toggle
+ * @param force - If true, ensures the class is added; if false, ensures it is removed; if omitted, toggles
+ * @returns Booleans per element reflecting class presence after toggling (empty array if no matches)
  */
 export function toggleClassSelector(
   selector: string,
@@ -384,31 +263,15 @@ export function toggleClassFirst(
 }
 
 /**
- * Returns a generator function that toggles a class.
- * For use within watch generators.
+ * Returns a generator-friendly function that toggles a class on a given Element.
  *
- * @param className - The class name to toggle
- * @param force - Optional: true to force add, false to force remove, undefined to toggle
- * @returns ElementFn that toggles class when yielded in a generator context
+ * The returned ElementFn accepts an Element and toggles `className` on it, returning
+ * a boolean indicating whether the class is present after the operation. The optional
+ * `force` flag enforces add (true) or remove (false); when omitted the class is toggled.
  *
- * @example
- * ```typescript
- * // Toggle in generator
- * watch('.accordion', function* () {
- *   yield click(function* () {
- *     yield toggleClassGen('expanded');
- *   });
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Conditional toggle with force
- * watch('.theme-toggle', function* () {
- *   const isDark = yield getState('darkMode');
- *   yield toggleClassGen('dark', isDark);
- * });
- * ```
+ * @param className - Class name to toggle
+ * @param force - If true, ensures the class is added; if false, ensures it is removed; if undefined, toggles
+ * @returns An ElementFn that toggles the specified class on the supplied Element and returns the resulting presence
  */
 export function toggleClassGen(
   className: string,
@@ -511,11 +374,13 @@ export function hasClassAny(selector: string, className: string): boolean {
 }
 
 /**
- * Returns a generator function that checks for a class.
- * For use within watch generators.
+ * Creates a generator-friendly function that checks whether an element has a given class.
  *
- * @param className - The class to check for
- * @returns ElementFn that checks class when yielded
+ * The returned function accepts an Element and returns `true` if the element has `className`,
+ * otherwise `false`. If a falsy element is provided, the result is `false`.
+ *
+ * @param className - Class name to check for on the target element
+ * @returns An ElementFn that evaluates to `true` when the element has `className`
  *
  * @example
  * ```typescript
@@ -531,32 +396,19 @@ export function hasClassGen(className: string): ElementFn<Element, boolean> {
 }
 
 /**
- * Replaces one class with another on an element.
+ * Replace a CSS class on a DOM element by removing one class and adding another.
  *
- * @param element - The target DOM element to modify
+ * If `element` is falsy the function is a no-op. The old class is removed before
+ * the new class is added.
+ *
+ * @param element - Target DOM element (may be falsy; function will do nothing)
  * @param oldClass - The class name to remove
  * @param newClass - The class name to add
- * @returns void
  *
  * @example
  * ```typescript
- * // Swap button styles
- * const button = document.querySelector('button');
- * replaceClassElement(button, 'primary', 'secondary');
- * ```
- *
- * @example
- * ```typescript
- * // Change state class
- * const status = document.querySelector('.status');
- * replaceClassElement(status, 'pending', 'completed');
- * ```
- *
- * @example
- * ```typescript
- * // Works even if old class doesn't exist
- * const div = document.querySelector('div');
- * replaceClassElement(div, 'not-there', 'new-class'); // Just adds new-class
+ * const btn = document.querySelector('button');
+ * replaceClassElement(btn, 'primary', 'secondary');
  * ```
  */
 export function replaceClassElement(
@@ -591,16 +443,12 @@ export function replaceClassSelector(
 }
 
 /**
- * Sets the entire className property of an element.
+ * Replace an element's entire class list by assigning the provided class string to `className`.
  *
- * @param element - The element to modify
- * @param classes - The complete class string to set
+ * If `element` is falsy (null/undefined), the call is a no-op.
  *
- * @example
- * ```typescript
- * const div = document.querySelector('div');
- * setClassesElement(div, 'container mt-4 p-3');
- * ```
+ * @param element - The element whose `className` will be replaced
+ * @param classes - The exact class string to assign (replaces all existing classes)
  */
 export function setClassesElement(element: Element, classes: string): void {
   if (!element) return;

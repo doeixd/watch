@@ -13,8 +13,16 @@ interface DiffCacheEntry<T> {
 }
 
 /**
- * Creates an element from either an HTML string or an existing HTMLElement.
+ * Convert an HTML string or pass-through an existing HTMLElement and return a DOM element.
+ *
+ * If `renderOutput` is an HTMLElement it is returned unchanged. If it is a string it is treated
+ * as an HTML fragment (trimmed) and the first top-level node produced is returned.
+ *
+ * Note: when passing a string, ensure it contains at least one element node — the function
+ * returns the fragment's first child as an HTMLElement.
+ *
  * @internal
+ * @param renderOutput - An HTMLElement to return directly or an HTML string to parse.
  */
 function _createElement(renderOutput: string | HTMLElement): HTMLElement {
   if (renderOutput instanceof HTMLElement) {
@@ -385,32 +393,16 @@ export function Show(
 }
 
 /**
- * Creates a reactive render loop for a component generator.
+ * Creates a render Workflow for a component generator and registers watchers for specified state keys.
  *
- * `render*` is a powerful higher-order primitive that turns a standard generator
- * into a reactive component. It automatically re-runs the provided generator
- * function whenever any of its declared state dependencies change, ensuring the
- * UI is always in sync with the state.
+ * The returned Workflow, when executed, obtains the container element, performs an initial invocation
+ * of the provided generator-based component, and attaches watchers for each key in `dependencies`.
+ * Watchers detect value changes and invoke an internal `rerender` callback. Note: the current
+ * implementation leaves the `rerender` invocation disabled (no-op), so only the initial render is performed.
  *
- * @param componentGenerator The generator function to run. This function should contain
- *   the rendering logic for the component, likely using primitives like `For*` and `Show*`.
- * @param dependencies An array of state keys that this component depends on. The component
- *   will re-render whenever any of these state keys are changed via `setState` or `updateState`.
- * @returns A Workflow that sets up the reactive render loop.
- *
- * @example
- * const todos = createState('todos', []);
- * const filter = createState('filter', 'all');
- *
- * function* TodoListComponent() {
- *   const filteredTodos = getFilteredTodos(todos.get(), filter.get());
- *   yield* For(filteredTodos, todo => todo.id, todo => `<li>${todo.text}</li>`);
- * }
- *
- * // In a watch generator for the app root:
- * // This will now automatically re-render the TodoListComponent
- * // whenever 'todos' or 'filter' state changes.
- * yield* render(TodoListComponent, ['todos', 'filter']);
+ * @param componentGenerator - A generator or async generator function containing the component's rendering logic.
+ * @param dependencies - An array of state keys whose changes are observed; changes would trigger `rerender`.
+ * @returns A Workflow that performs the initial render and installs dependency watchers.
  */
 export function render(
   componentGenerator: () =>
@@ -468,9 +460,13 @@ export interface DefaultDescriptor {
 export type SwitchCase = CaseDescriptor | DefaultDescriptor;
 
 /**
- * Represents a single case for a `Switch` primitive.
- * @param match The value to match against the Switch expression.
- * @param renderFn The function to render if this case matches.
+ * Creates a Case descriptor for use with the `Switch` primitive.
+ *
+ * The returned descriptor is considered a match when its `match` value is strictly equal (`===`) to the switch expression;
+ * its `render` function will be invoked to produce the element when the case becomes active.
+ *
+ * @param match - Value to compare against the Switch expression (matched using `===`).
+ * @param renderFn - Renderer called to produce the case's DOM when active.
  */
 export function Case(
   match: any,
@@ -480,8 +476,10 @@ export function Case(
 }
 
 /**
- * Represents the default case for a `Switch` primitive.
- * @param renderFn The function to render if no other case matches.
+ * Create a DefaultDescriptor used by Switch to render when no Case matches.
+ *
+ * @param renderFn - Renderer invoked to produce the fallback content (string or HTMLElement).
+ * @returns A DefaultDescriptor with type `"default"` and the provided render function.
  */
 export function Default(
   renderFn: () => string | HTMLElement,

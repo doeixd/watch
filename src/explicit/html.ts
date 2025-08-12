@@ -8,40 +8,11 @@
 import type { ElementFn } from "../types";
 
 /**
- * Sets the HTML content of an element.
- * WARNING: Only use with trusted content to avoid XSS vulnerabilities.
+ * Set an element's HTML content.
  *
- * @param element - The target DOM element to modify (must be HTMLElement)
- * @param content - The HTML string to set as innerHTML
- * @returns void
+ * Replaces the element's innerHTML with the provided raw HTML string. Only use with trusted content to avoid XSS risks. The function is a no-op if `element` is falsy or not an `HTMLElement`.
  *
- * @example
- * ```typescript
- * // Set simple HTML
- * const div = document.querySelector('div');
- * setHtmlElement(div, '<strong>Bold text</strong>');
- * ```
- *
- * @example
- * ```typescript
- * // Set complex HTML structure
- * const container = document.getElementById('container');
- * setHtmlElement(container, `
- *   <h2>Title</h2>
- *   <p>Paragraph with <em>emphasis</em></p>
- *   <ul>
- *     <li>Item 1</li>
- *     <li>Item 2</li>
- *   </ul>
- * `);
- * ```
- *
- * @example
- * ```typescript
- * // Clear HTML content
- * const section = document.querySelector('.section');
- * setHtmlElement(section, '');
- * ```
+ * @param content - Raw HTML to set as the element's innerHTML (replaces existing content)
  */
 export function setHtmlElement(element: Element, content: string): void {
   if (!element || !(element instanceof HTMLElement)) return;
@@ -49,30 +20,24 @@ export function setHtmlElement(element: Element, content: string): void {
 }
 
 /**
- * Sets the HTML content of all elements matching a selector.
+ * Set inner HTML for all elements matching the given CSS selector.
+ *
  * WARNING: Only use with trusted content to avoid XSS vulnerabilities.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The HTML string to set as innerHTML
- * @returns void
+ * @param selector - CSS selector matching target elements
+ * @param content - HTML string to assign to each element's `innerHTML`
  *
  * @example
- * ```typescript
  * // Update all card contents
  * setHtmlSelector('.card', '<div class="card-body">Content</div>');
- * ```
  *
  * @example
- * ```typescript
  * // Reset all notification areas
  * setHtmlSelector('.notification', '<span class="icon">ℹ</span> Ready');
- * ```
  *
  * @example
- * ```typescript
  * // Clear all preview areas
  * setHtmlSelector('.preview', '');
- * ```
  */
 export function setHtmlSelector(selector: string, content: string): void {
   const elements = document.querySelectorAll(selector);
@@ -80,60 +45,26 @@ export function setHtmlSelector(selector: string, content: string): void {
 }
 
 /**
- * Sets the HTML content of all elements matching a selector.
- * Alias for setHtmlSelector that emphasizes operating on all matches.
+ * Set innerHTML on every element that matches the given CSS selector.
+ *
+ * This is an alias of `setHtmlSelector` that emphasizes applying the operation to all matches.
  * WARNING: Only use with trusted content to avoid XSS vulnerabilities.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The HTML string to set as innerHTML
- * @returns void
- *
- * @example
- * ```typescript
- * // Emphasizes updating ALL items
- * setHtmlAll('.item', '<span class="badge">Updated</span>');
- * ```
- *
- * @example
- * ```typescript
- * // Replace all placeholders with actual content
- * setHtmlAll('.placeholder', '<div class="loaded">Content loaded</div>');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param content - HTML string to assign to each element's `innerHTML`
  */
 export function setHtmlAll(selector: string, content: string): void {
   setHtmlSelector(selector, content);
 }
 
 /**
- * Sets the HTML content of the first element matching a selector.
+ * Set the innerHTML of the first element matching a CSS selector.
+ *
+ * If no element matches the selector this is a no-op (no error is thrown).
  * WARNING: Only use with trusted content to avoid XSS vulnerabilities.
  *
- * @param selector - CSS selector string to query element
- * @param content - The HTML string to set as innerHTML
- * @returns void
- *
- * @example
- * ```typescript
- * // Only update the first content area
- * setHtmlFirst('.content', '<p>Hello World</p>');
- * ```
- *
- * @example
- * ```typescript
- * // Set main header content
- * setHtmlFirst('header', `
- *   <nav>
- *     <a href="/">Home</a>
- *     <a href="/about">About</a>
- *   </nav>
- * `);
- * ```
- *
- * @example
- * ```typescript
- * // Safe with non-existent elements
- * setHtmlFirst('#missing', '<div>No error</div>');
- * ```
+ * @param selector - CSS selector for the target element
+ * @param content - Trusted HTML string to assign to the element's `innerHTML`
  */
 export function setHtmlFirst(selector: string, content: string): void {
   const element = document.querySelector(selector);
@@ -231,30 +162,14 @@ export function getHtmlFirst(selector: string): string | null {
 }
 
 /**
- * Gets the HTML content of all elements matching a selector.
+ * Return the innerHTML of every element that matches the given CSS selector.
  *
- * @param selector - CSS selector string to query elements
- * @returns Array of innerHTML strings (empty array if no matches)
+ * If no elements match the selector an empty array is returned.
  *
- * @example
- * ```typescript
- * // Get all card HTML contents
- * const htmls = getHtmlAll('.card');
- * // Returns ['<div>Card 1</div>', '<div>Card 2</div>', '<div>Card 3</div>']
- * ```
+ * Note: content returned may contain unescaped HTML — only use with trusted sources to avoid XSS.
  *
- * @example
- * ```typescript
- * // Collect all form field HTML
- * const fieldMarkup = getHtmlAll('.form-field');
- * // Returns array of each field's inner HTML
- * ```
- *
- * @example
- * ```typescript
- * // Returns empty array for no matches
- * const none = getHtmlAll('.not-found'); // []
- * ```
+ * @param selector - CSS selector used to find elements
+ * @returns An array where each entry is the `innerHTML` of a matching element (preserves order)
  */
 export function getHtmlAll(selector: string): string[] {
   const elements = document.querySelectorAll(selector);
@@ -367,10 +282,12 @@ export function appendHtmlElement(element: Element, content: string): void {
 }
 
 /**
- * Appends HTML to all elements matching a selector.
+ * Appends the given HTML string to every element that matches the provided CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param content - The HTML to append
+ * The `content` string is inserted as HTML (via insertAdjacentHTML) — it must be trusted/pre-sanitized to avoid XSS.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param content - HTML string to append to each matched element (must be trusted)
  *
  * @example
  * ```typescript
@@ -383,10 +300,13 @@ export function appendHtmlSelector(selector: string, content: string): void {
 }
 
 /**
- * Prepends HTML to an element's existing content.
+ * Prepends the given HTML string to an element's existing content.
  *
- * @param element - The element to prepend HTML to
- * @param content - The HTML to prepend
+ * The provided `content` is inserted using `insertAdjacentHTML("afterbegin", ...)`.
+ * Do not pass untrusted strings — this function directly injects HTML and can cause XSS.
+ *
+ * @param element - Target element to receive the HTML; no-op if not an HTMLElement
+ * @param content - Trusted HTML string to prepend
  *
  * @example
  * ```typescript
@@ -400,15 +320,12 @@ export function prependHtmlElement(element: Element, content: string): void {
 }
 
 /**
- * Prepends HTML to all elements matching a selector.
+ * Prepends trusted HTML into every element matching the CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param content - The HTML to prepend
+ * Inserts the provided HTML at the start of each matched element (uses `insertAdjacentHTML('afterbegin', ...)`). The `content` must be trusted to avoid XSS.
  *
- * @example
- * ```typescript
- * prependHtmlSelector('.section', '<h3>Title</h3>');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param content - HTML string to prepend into each element
  */
 export function prependHtmlSelector(selector: string, content: string): void {
   const elements = document.querySelectorAll(selector);
@@ -416,10 +333,13 @@ export function prependHtmlSelector(selector: string, content: string): void {
 }
 
 /**
- * Replaces an element's outer HTML.
+ * Replace a DOM element by setting its `outerHTML`.
  *
- * @param element - The element to replace
- * @param content - The new HTML
+ * If `element` is not an `HTMLElement` or is falsy, the call is a no-op. The provided
+ * `content` is assigned directly to `outerHTML` — it must be trusted HTML (may introduce XSS).
+ *
+ * @param element - The element to replace in the DOM
+ * @param content - HTML string used to replace the element's `outerHTML` (must be trusted)
  *
  * @example
  * ```typescript
@@ -449,9 +369,11 @@ export function clearHtmlElement(element: Element): void {
 }
 
 /**
- * Clears HTML from all elements matching a selector.
+ * Clear the inner HTML of every element that matches the given CSS selector.
  *
- * @param selector - CSS selector to find elements
+ * Finds all elements matching `selector` and sets each element's `innerHTML` to an empty string.
+ *
+ * @param selector - CSS selector used to locate elements to clear
  *
  * @example
  * ```typescript

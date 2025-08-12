@@ -6,17 +6,18 @@ import type {
   GeneratorFunction,
   TypedGeneratorContext,
 } from "../types";
-import { runOn } from "../watch";
 import { cleanup, executeElementCleanup } from "../core/generator";
 import {
   getCurrentContext,
   getCurrentElement,
   registerParentContext,
   unregisterParentContext,
+  pushContext,
+  popContext,
+  executeGenerator,
 } from "../core/context";
 import { getState, setState } from "../core/state";
 import { detectContext, ApiContext } from "../core/detection";
-import { createDomWrapper } from "../core/api-wrapper";
 
 // Type guards and utilities
 
@@ -325,10 +326,7 @@ function _looksLikeSelector(str: string): boolean {
  * });
  * ```
  */
-export function text(element: HTMLElement, content: string): void;
-export function text(element: HTMLElement): string;
-export function text(selector: string, content: string): void;
-export function text(selector: string): string | null;
+// Generator overloads first (more specific)
 export function text<El extends HTMLElement = HTMLElement>(
   content: string,
 ): ElementFn<El>;
@@ -336,6 +334,12 @@ export function text<El extends HTMLElement = HTMLElement>(): ElementFn<
   El,
   string
 >;
+// Direct element overloads
+export function text(element: HTMLElement, content: string): void;
+export function text(element: HTMLElement): string;
+// Selector overloads last (catch-all for strings)
+export function text(selector: string, content: string): void;
+export function text(selector: string): string | null;
 export function text(...args: any[]): any {
   const detection = detectContext(args, text);
 
@@ -380,12 +384,15 @@ export function text(...args: any[]): any {
       const [content] = args;
       if (content === undefined) {
         // Getter mode
-        return (element: HTMLElement) => _impl_text_get(element);
+        return ((element: HTMLElement) => _impl_text_get(element)) as ElementFn<
+          HTMLElement,
+          string
+        >;
       } else {
         // Setter mode
-        return (element: HTMLElement) => {
+        return ((element: HTMLElement) => {
           _impl_text_set(element, content);
-        };
+        }) as ElementFn<HTMLElement, void>;
       }
     }
 
@@ -395,12 +402,15 @@ export function text(...args: any[]): any {
       const [content] = args;
       if (content === undefined) {
         // Getter mode
-        return (element: HTMLElement) => _impl_text_get(element);
+        return ((element: HTMLElement) => _impl_text_get(element)) as ElementFn<
+          HTMLElement,
+          string
+        >;
       } else {
         // Setter mode
-        return (element: HTMLElement) => {
+        return ((element: HTMLElement) => {
           _impl_text_set(element, content);
-        };
+        }) as ElementFn<HTMLElement, void>;
       }
     }
 
@@ -431,9 +441,12 @@ export function text(...args: any[]): any {
       if (_is_text_generator(args)) {
         const [content] = args;
         if (content === undefined) {
-          return (element: HTMLElement) => _impl_text_get(element);
+          return ((element: HTMLElement) =>
+            _impl_text_get(element)) as ElementFn<HTMLElement, string>;
         } else {
-          return (element: HTMLElement) => _impl_text_set(element, content);
+          return ((element: HTMLElement) => {
+            _impl_text_set(element, content);
+          }) as ElementFn<HTMLElement, void>;
         }
       }
 
@@ -457,10 +470,7 @@ function _impl_html_get(element: HTMLElement): string {
 }
 
 // HTML CONTENT
-export function html(element: HTMLElement, content: string): void;
-export function html(element: HTMLElement): string;
-export function html(selector: string, content: string): void;
-export function html(selector: string): string | null;
+// Generator overloads first (more specific)
 export function html<El extends HTMLElement = HTMLElement>(
   content: string,
 ): ElementFn<El>;
@@ -468,6 +478,12 @@ export function html<El extends HTMLElement = HTMLElement>(): ElementFn<
   El,
   string
 >;
+// Direct element overloads
+export function html(element: HTMLElement, content: string): void;
+export function html(element: HTMLElement): string;
+// Selector overloads last (catch-all for strings)
+export function html(selector: string, content: string): void;
+export function html(selector: string): string | null;
 export function html(...args: any[]): any {
   const detection = detectContext(args, html);
 
@@ -512,12 +528,15 @@ export function html(...args: any[]): any {
       const [content] = args;
       if (content === undefined) {
         // Getter mode
-        return (element: HTMLElement) => _impl_html_get(element);
+        return ((element: HTMLElement) => _impl_html_get(element)) as ElementFn<
+          HTMLElement,
+          string
+        >;
       } else {
         // Setter mode
-        return (element: HTMLElement) => {
+        return ((element: HTMLElement) => {
           _impl_html_set(element, content);
-        };
+        }) as ElementFn<HTMLElement, void>;
       }
     }
 
@@ -550,13 +569,19 @@ export function html(...args: any[]): any {
       if (args.length <= 1) {
         const [content] = args;
         if (content === undefined) {
-          return (element: HTMLElement) => _impl_html_get(element);
+          return ((element: HTMLElement) =>
+            _impl_html_get(element)) as ElementFn<HTMLElement, string>;
         } else {
-          return (element: HTMLElement) => _impl_html_set(element, content);
+          return ((element: HTMLElement) => {
+            _impl_html_set(element, content);
+          }) as ElementFn<HTMLElement, void>;
         }
       }
 
-      return (element: HTMLElement) => _impl_html_get(element);
+      return ((element: HTMLElement) => _impl_html_get(element)) as ElementFn<
+        HTMLElement,
+        string
+      >;
     }
   }
 }
@@ -570,11 +595,13 @@ function _impl_addClass(element: HTMLElement, ...classNames: string[]): void {
 }
 
 // CLASS MANIPULATION
-export function addClass(element: HTMLElement, ...classNames: string[]): void;
-export function addClass(selector: string, ...classNames: string[]): void;
+// Generator overload first
 export function addClass<El extends HTMLElement = HTMLElement>(
   ...classNames: string[]
 ): ElementFn<El>;
+// Direct element and selector overloads
+export function addClass(element: HTMLElement, ...classNames: string[]): void;
+export function addClass(selector: string, ...classNames: string[]): void;
 export function addClass(...args: any[]): any {
   const detection = detectContext(args, addClass);
 
@@ -613,9 +640,9 @@ export function addClass(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Generator mode: yield addClass(...classNames)
       const classNames = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         _impl_addClass(element, ...classNames);
-      };
+      }) as ElementFn<HTMLElement, void>;
     }
 
     default: {
@@ -651,9 +678,9 @@ export function addClass(...args: any[]): any {
 
       // Generator mode
       const allClassNames = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         _impl_addClass(element, ...allClassNames);
-      };
+      }) as ElementFn<HTMLElement, void>;
     }
   }
 }
@@ -669,14 +696,16 @@ function _impl_removeClass(
   element.classList.remove(...splitClassNames);
 }
 
+// Generator overload first
+export function removeClass<El extends HTMLElement = HTMLElement>(
+  ...classNames: string[]
+): ElementFn<El>;
+// Direct element and selector overloads
 export function removeClass(
   element: HTMLElement,
   ...classNames: string[]
 ): void;
 export function removeClass(selector: string, ...classNames: string[]): void;
-export function removeClass<El extends HTMLElement = HTMLElement>(
-  ...classNames: string[]
-): ElementFn<El>;
 export function removeClass(...args: any[]): any {
   const detection = detectContext(args, removeClass);
 
@@ -712,9 +741,9 @@ export function removeClass(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Generator mode: yield removeClass(...classNames)
       const classNames = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         _impl_removeClass(element, ...classNames);
-      };
+      }) as ElementFn<HTMLElement, void>;
     }
 
     default: {
@@ -750,9 +779,9 @@ export function removeClass(...args: any[]): any {
 
       // Generator mode
       const allClassNames = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         _impl_removeClass(element, ...allClassNames);
-      };
+      }) as ElementFn<HTMLElement, void>;
     }
   }
 }
@@ -767,6 +796,12 @@ function _impl_toggleClass(
   return element.classList.toggle(className, force);
 }
 
+// Generator overload first
+export function toggleClass<El extends HTMLElement = HTMLElement>(
+  className: string,
+  force?: boolean,
+): ElementFn<El, boolean>;
+// Direct element and selector overloads
 export function toggleClass(
   element: HTMLElement,
   className: string,
@@ -777,24 +812,6 @@ export function toggleClass(
   className: string,
   force?: boolean,
 ): boolean;
-export function toggleClass<El extends HTMLElement = HTMLElement>(
-  className: string,
-  force?: boolean,
-): ElementFn<El, boolean>;
-export function toggleClass(
-  element: HTMLElement,
-  className: string,
-  force?: boolean,
-): boolean;
-export function toggleClass(
-  selector: string,
-  className: string,
-  force?: boolean,
-): boolean;
-export function toggleClass<El extends HTMLElement = HTMLElement>(
-  className: string,
-  force?: boolean,
-): ElementFn<El, boolean>;
 export function toggleClass(...args: any[]): any {
   const detection = detectContext(args, toggleClass);
 
@@ -830,9 +847,9 @@ export function toggleClass(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Generator mode: yield toggleClass(className, force)
       const [className, force] = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         return _impl_toggleClass(element, className, force);
-      };
+      }) as ElementFn<HTMLElement, boolean>;
     }
 
     default: {
@@ -866,11 +883,13 @@ function _impl_hasClass(element: HTMLElement, className: string): boolean {
   return element.classList.contains(className);
 }
 
-export function hasClass(element: HTMLElement, className: string): boolean;
-export function hasClass(selector: string, className: string): boolean;
+// Generator overload first
 export function hasClass<El extends HTMLElement = HTMLElement>(
   className: string,
 ): ElementFn<El, boolean>;
+// Direct element and selector overloads
+export function hasClass(element: HTMLElement, className: string): boolean;
+export function hasClass(selector: string, className: string): boolean;
 export function hasClass(...args: any[]): any {
   if (args.length === 2 && isElementLike(args[0])) {
     const [elementLike, className] = args;
@@ -998,29 +1017,32 @@ function _is_style_generator_property(args: any[]): boolean {
 }
 
 // STYLE MANIPULATION
+// Generator overloads first
+export function style<El extends HTMLElement = HTMLElement>(
+  styles: Partial<CSSStyleDeclaration> | Record<string, string>,
+): ElementFn<El>;
+export function style<El extends HTMLElement = HTMLElement>(
+  property: string,
+  value: string,
+): ElementFn<El>;
+// Direct element overloads
 export function style(element: HTMLElement, property: string): string;
 export function style(
   element: HTMLElement,
-  styles: Partial<CSSStyleDeclaration>,
+  styles: Partial<CSSStyleDeclaration> | Record<string, string>,
 ): void;
 export function style(
   element: HTMLElement,
   property: string,
   value: string,
 ): void;
+// Selector overloads last
 export function style(selector: string, property: string): string | null;
 export function style(
   selector: string,
-  styles: Partial<CSSStyleDeclaration>,
+  styles: Partial<CSSStyleDeclaration> | Record<string, string>,
 ): void;
 export function style(selector: string, property: string, value: string): void;
-export function style<El extends HTMLElement = HTMLElement>(
-  styles: Partial<CSSStyleDeclaration>,
-): ElementFn<El>;
-export function style<El extends HTMLElement = HTMLElement>(
-  property: string,
-  value: string,
-): ElementFn<El>;
 export function style(...args: any[]): any {
   const detection = detectContext(args, style);
 
@@ -1082,22 +1104,35 @@ export function style(...args: any[]): any {
       if (args.length === 2 && typeof args[0] === "string") {
         // Set single property: yield style('width', '100px')
         const [property, value] = args;
-        return (element: HTMLElement) =>
-          _impl_style_set_property(element, property, value);
+        return ((element: HTMLElement) =>
+          _impl_style_set_property(element, property, value)) as ElementFn<
+          HTMLElement,
+          void
+        >;
       } else if (args.length === 1) {
         if (typeof args[0] === "object" && args[0] !== null) {
           // Set multiple styles: yield style({width: '100px'})
           const [styles] = args;
-          return (element: HTMLElement) =>
-            _impl_style_set_object(element, styles);
+          return ((element: HTMLElement) =>
+            _impl_style_set_object(element, styles)) as ElementFn<
+            HTMLElement,
+            void
+          >;
         } else if (typeof args[0] === "string") {
           // Get property: yield style('width')
           const [property] = args;
-          return (element: HTMLElement) =>
-            _impl_style_get_property(element, property);
+          return ((element: HTMLElement) =>
+            _impl_style_get_property(element, property)) as ElementFn<
+            HTMLElement,
+            string
+          >;
         }
       }
-      return (element: HTMLElement) => _impl_style_get_property(element, "");
+      return ((element: HTMLElement) =>
+        _impl_style_get_property(element, "")) as ElementFn<
+        HTMLElement,
+        string
+      >;
     }
 
     default: {
@@ -1128,24 +1163,37 @@ export function style(...args: any[]): any {
 
       if (_is_style_generator_object(args)) {
         const [styles] = args;
-        return (element: HTMLElement) =>
-          _impl_style_set_object(element, styles);
+        return ((element: HTMLElement) =>
+          _impl_style_set_object(element, styles)) as ElementFn<
+          HTMLElement,
+          void
+        >;
       }
 
       if (_is_style_generator_property(args)) {
         const [property, value] = args;
-        return (element: HTMLElement) =>
-          _impl_style_set_property(element, property, value);
+        return ((element: HTMLElement) =>
+          _impl_style_set_property(element, property, value)) as ElementFn<
+          HTMLElement,
+          void
+        >;
       }
 
       // Fallback for generator mode with single property get
       if (args.length === 1 && typeof args[0] === "string") {
         const [property] = args;
-        return (element: HTMLElement) =>
-          _impl_style_get_property(element, property);
+        return ((element: HTMLElement) =>
+          _impl_style_get_property(element, property)) as ElementFn<
+          HTMLElement,
+          string
+        >;
       }
 
-      return (element: HTMLElement) => _impl_style_get_property(element, "");
+      return ((element: HTMLElement) =>
+        _impl_style_get_property(element, "")) as ElementFn<
+        HTMLElement,
+        string
+      >;
     }
   }
 }
@@ -1340,17 +1388,20 @@ function createAccessor(type: "attr" | "prop" | "data") {
 
     if (_is_accessor_generator_object(args)) {
       const [obj] = args;
-      return (element: HTMLElement) => implSetObject(element, obj);
+      return ((element: HTMLElement) =>
+        implSetObject(element, obj)) as ElementFn<HTMLElement, void>;
     }
 
     if (_is_accessor_generator_property(args)) {
       const [name, value] = args;
-      return (element: HTMLElement) => implSetProperty(element, name, value);
+      return ((element: HTMLElement) =>
+        implSetProperty(element, name, value)) as ElementFn<HTMLElement, void>;
     }
 
     if (_is_accessor_generator_get(args)) {
       const [name] = args;
-      return (element: HTMLElement) => implGetProperty(element, name);
+      return ((element: HTMLElement) =>
+        implGetProperty(element, name)) as ElementFn<HTMLElement, any>;
     }
 
     if (_is_accessor_selector_set_object(args)) {
@@ -1390,11 +1441,15 @@ function _impl_removeAttr(element: HTMLElement, names: string[]): void {
   names.flat().forEach((name) => element.removeAttribute(name));
 }
 
-export function removeAttr(element: HTMLElement, ...names: string[]): void;
-export function removeAttr(selector: string, ...names: string[]): void;
+// Generator overload first
 export function removeAttr<El extends HTMLElement = HTMLElement>(
   ...names: string[]
 ): ElementFn<El>;
+// Direct element and selector overloads
+export function removeAttr(element: HTMLElement, names: string[]): void;
+export function removeAttr(element: HTMLElement, ...names: string[]): void;
+export function removeAttr(selector: string, names: string[]): void;
+export function removeAttr(selector: string, ...names: string[]): void;
 export function removeAttr(...args: any[]): any {
   const detection = detectContext(args, removeAttr);
 
@@ -1403,7 +1458,11 @@ export function removeAttr(...args: any[]): any {
     case ApiContext.DIRECT:
     case ApiContext.SELECTOR: {
       // Direct mode: removeAttr(element, ...names) or removeAttr(selector, ...names)
-      const [target, ...names] = args;
+      const [target, ...namesOrArray] = args;
+      // Handle both array and spread arguments
+      const names = Array.isArray(namesOrArray[0])
+        ? namesOrArray[0]
+        : namesOrArray;
 
       // Resolve element from target
       let element: HTMLElement | null = null;
@@ -1430,15 +1489,18 @@ export function removeAttr(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Generator mode: yield removeAttr(...names)
       const names = args;
-      return (element: HTMLElement) => {
+      return ((element: HTMLElement) => {
         _impl_removeAttr(element, names);
-      };
+      }) as ElementFn<HTMLElement, void>;
     }
 
     default: {
       // Fallback to original logic
       if (isElementLike(args[0])) {
-        const [elementLike, ...names] = args;
+        const [elementLike, ...namesOrArray] = args;
+        const names = Array.isArray(namesOrArray[0])
+          ? namesOrArray[0]
+          : namesOrArray;
         const element = resolveElement(elementLike);
         if (element) {
           _impl_removeAttr(element, names);
@@ -1447,7 +1509,10 @@ export function removeAttr(...args: any[]): any {
       }
 
       if (args.length >= 1 && args[0] instanceof HTMLElement) {
-        const [element, ...names] = args;
+        const [element, ...namesOrArray] = args;
+        const names = Array.isArray(namesOrArray[0])
+          ? namesOrArray[0]
+          : namesOrArray;
         _impl_removeAttr(element, names);
         return;
       }
@@ -1458,7 +1523,10 @@ export function removeAttr(...args: any[]): any {
         args.length >= 2 &&
         _looksLikeSelector(args[0])
       ) {
-        const [selector, ...names] = args;
+        const [selector, ...namesOrArray] = args;
+        const names = Array.isArray(namesOrArray[0])
+          ? namesOrArray[0]
+          : namesOrArray;
         const element = resolveElement(selector);
         if (element) {
           _impl_removeAttr(element, names);
@@ -1479,11 +1547,13 @@ function _impl_hasAttr(element: HTMLElement, name: string): boolean {
   return element.hasAttribute(name);
 }
 
-export function hasAttr(element: HTMLElement, name: string): boolean;
-export function hasAttr(selector: string, name: string): boolean;
+// Generator overload first
 export function hasAttr<El extends HTMLElement = HTMLElement>(
   name: string,
 ): ElementFn<El, boolean>;
+// Direct element and selector overloads
+export function hasAttr(element: HTMLElement, name: string): boolean;
+export function hasAttr(selector: string, name: string): boolean;
 export function hasAttr(...args: any[]): any {
   if (args.length === 2 && isElementLike(args[0])) {
     const [elementLike, name] = args;
@@ -1508,7 +1578,10 @@ export function hasAttr(...args: any[]): any {
 
   // Generator mode
   const [name] = args;
-  return (element: HTMLElement) => _impl_hasAttr(element, name);
+  return ((element: HTMLElement) => _impl_hasAttr(element, name)) as ElementFn<
+    HTMLElement,
+    boolean
+  >;
 }
 
 // FORM VALUES
@@ -1527,27 +1600,31 @@ function _impl_value_get(
   return element.value || "";
 }
 
-export function value(
-  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-  val: string,
-): void;
-export function value(
-  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-): string;
-export function value(selector: string, val: string): void;
-export function value(selector: string): string | null;
+// FORM VALUES
+// Generator overloads first
 export function value<
   El extends
     | HTMLInputElement
     | HTMLTextAreaElement
     | HTMLSelectElement = HTMLInputElement,
->(val: string): ElementFn<El>;
+>(value: string): ElementFn<El>;
 export function value<
   El extends
     | HTMLInputElement
     | HTMLTextAreaElement
     | HTMLSelectElement = HTMLInputElement,
 >(): ElementFn<El, string>;
+// Direct element overloads
+export function value(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  value: string,
+): void;
+export function value(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+): string;
+// Selector overloads last
+export function value(selector: string, value: string): void;
+export function value(selector: string): string | null;
 export function value(...args: any[]): any {
   const detection = detectContext(args, value);
 
@@ -1602,16 +1679,22 @@ export function value(...args: any[]): any {
       const [val] = args;
       if (val === undefined) {
         // Getter mode
-        return (
+        return ((
           element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-        ) => _impl_value_get(element);
+        ) => _impl_value_get(element)) as ElementFn<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+          string
+        >;
       } else {
         // Setter mode
-        return (
+        return ((
           element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
         ) => {
           _impl_value_set(element, val);
-        };
+        }) as ElementFn<
+          HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+          void
+        >;
       }
     }
 
@@ -1653,13 +1736,19 @@ export function value(...args: any[]): any {
       if (args.length <= 1) {
         const [val] = args;
         if (val === undefined) {
-          return (
+          return ((
             element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-          ) => _impl_value_get(element);
+          ) => _impl_value_get(element)) as ElementFn<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+            string
+          >;
         } else {
-          return (
+          return ((
             element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-          ) => _impl_value_set(element, val);
+          ) => _impl_value_set(element, val)) as ElementFn<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+            void
+          >;
         }
       }
 
@@ -1669,24 +1758,32 @@ export function value(...args: any[]): any {
 }
 
 // Internal implementations for checked function
-function _impl_checked_set(element: HTMLInputElement, val: boolean): void {
-  element.checked = val;
+function _impl_checked_set(element: Element, val: boolean): void {
+  if (element instanceof HTMLInputElement) {
+    element.checked = val;
+  }
 }
 
-function _impl_checked_get(element: HTMLInputElement): boolean {
-  return element.checked;
+function _impl_checked_get(element: Element): boolean {
+  if (element instanceof HTMLInputElement) {
+    return element.checked;
+  }
+  return false;
 }
 
-export function checked(element: HTMLInputElement, val: boolean): void;
-export function checked(element: HTMLInputElement): boolean;
-export function checked(selector: string, val: boolean): void;
-export function checked(selector: string): boolean;
+// Generator overloads first
 export function checked<El extends HTMLInputElement = HTMLInputElement>(
   val: boolean,
 ): ElementFn<El>;
 export function checked<
   El extends HTMLInputElement = HTMLInputElement,
 >(): ElementFn<El, boolean>;
+// Direct element overloads
+export function checked(element: HTMLInputElement, val: boolean): void;
+export function checked(element: HTMLInputElement): boolean;
+// Selector overloads last
+export function checked(selector: string, val: boolean): void;
+export function checked(selector: string): boolean;
 export function checked(...args: any[]): any {
   const detection = detectContext(args, checked);
 
@@ -1731,12 +1828,15 @@ export function checked(...args: any[]): any {
       const [val] = args;
       if (val === undefined) {
         // Getter mode
-        return (element: HTMLInputElement) => _impl_checked_get(element);
+        return ((element: Element) => _impl_checked_get(element)) as ElementFn<
+          Element,
+          boolean
+        >;
       } else {
         // Setter mode
-        return (element: HTMLInputElement) => {
+        return ((element: Element) => {
           _impl_checked_set(element, val);
-        };
+        }) as ElementFn<Element, void>;
       }
     }
 
@@ -1768,11 +1868,13 @@ export function checked(...args: any[]): any {
 
       // Generator mode
       if (args.length <= 1) {
-        const [val] = args;
-        if (val === undefined) {
-          return (element: HTMLInputElement) => _impl_checked_get(element);
+        const [chk] = args;
+        if (chk === undefined) {
+          return ((element: Element) =>
+            _impl_checked_get(element)) as ElementFn<Element, boolean>;
         } else {
-          return (element: HTMLInputElement) => _impl_checked_set(element, val);
+          return ((element: Element) =>
+            _impl_checked_set(element, chk)) as ElementFn<Element, void>;
         }
       }
 
@@ -1792,8 +1894,10 @@ function _impl_blur(element: HTMLElement): void {
 }
 
 // FOCUS MANAGEMENT
-export function focus<El extends HTMLElement>(element: El): void;
+// Generator overload first
 export function focus<El extends HTMLElement = HTMLElement>(): ElementFn<El>;
+// Direct element overload
+export function focus<El extends HTMLElement>(element: El): void;
 export function focus(...args: any[]): any {
   if (args.length === 1 && isElementLike(args[0])) {
     const element = resolveElement(args[0]);
@@ -1821,11 +1925,16 @@ export function focus(...args: any[]): any {
   }
 
   // Generator mode
-  return (element: HTMLElement) => _impl_focus(element);
+  return ((element: HTMLElement) => _impl_focus(element)) as ElementFn<
+    HTMLElement,
+    void
+  >;
 }
 
-export function blur<El extends HTMLElement>(element: El): void;
+// Generator overload first
 export function blur<El extends HTMLElement = HTMLElement>(): ElementFn<El>;
+// Direct element overload
+export function blur<El extends HTMLElement>(element: El): void;
 export function blur(...args: any[]): any {
   if (args.length === 1 && isElementLike(args[0])) {
     const element = resolveElement(args[0]);
@@ -1853,7 +1962,10 @@ export function blur(...args: any[]): any {
   }
 
   // Generator mode
-  return (element: HTMLElement) => _impl_blur(element);
+  return ((element: HTMLElement) => _impl_blur(element)) as ElementFn<
+    HTMLElement,
+    void
+  >;
 }
 
 // Internal implementations for show function
@@ -1872,8 +1984,10 @@ function _impl_hide(element: HTMLElement): void {
 }
 
 // VISIBILITY
-export function show<El extends HTMLElement>(element: El): void;
+// Generator overload first
 export function show<El extends HTMLElement = HTMLElement>(): ElementFn<El>;
+// Direct element overload
+export function show<El extends HTMLElement>(element: El): void;
 export function show(...args: any[]): any {
   if (args.length === 1 && isElementLike(args[0])) {
     const element = resolveElement(args[0]);
@@ -1901,11 +2015,16 @@ export function show(...args: any[]): any {
   }
 
   // Generator mode
-  return (element: HTMLElement) => _impl_show(element);
+  return ((element: HTMLElement) => _impl_show(element)) as ElementFn<
+    HTMLElement,
+    void
+  >;
 }
 
-export function hide<El extends HTMLElement>(element: El): void;
+// Generator overload first
 export function hide<El extends HTMLElement = HTMLElement>(): ElementFn<El>;
+// Direct element overload
+export function hide<El extends HTMLElement>(element: El): void;
 export function hide(...args: any[]): any {
   if (args.length === 1 && isElementLike(args[0])) {
     const element = resolveElement(args[0]);
@@ -1933,7 +2052,10 @@ export function hide(...args: any[]): any {
   }
 
   // Generator mode
-  return (element: HTMLElement) => _impl_hide(element);
+  return ((element: HTMLElement) => _impl_hide(element)) as ElementFn<
+    HTMLElement,
+    void
+  >;
 }
 
 // Internal implementations for query function
@@ -1953,13 +2075,15 @@ function _impl_queryAll<T extends HTMLElement = HTMLElement>(
 }
 
 // DOM TRAVERSAL
+// Generator overload first
+export function query<T extends HTMLElement = HTMLElement>(
+  selector: string,
+): ElementFn<HTMLElement, T | null>;
+// Direct element overload
 export function query<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
   selector: string,
 ): T | null;
-export function query<T extends HTMLElement = HTMLElement>(
-  selector: string,
-): ElementFn<HTMLElement, T | null>;
 export function query(...args: any[]): any {
   const detection = detectContext(args, query);
 
@@ -2002,7 +2126,11 @@ export function query(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Async generator mode: return ElementFn
       const [selector] = args;
-      return (element: HTMLElement) => _impl_query(element, selector);
+      return ((element: HTMLElement) =>
+        _impl_query(element, selector)) as ElementFn<
+        HTMLElement,
+        HTMLElement | null
+      >;
     }
 
     default: {
@@ -2030,18 +2158,24 @@ export function query(...args: any[]): any {
 
       // Generator mode
       const [selector] = args;
-      return (element: HTMLElement) => _impl_query(element, selector);
+      return ((element: HTMLElement) =>
+        _impl_query(element, selector)) as ElementFn<
+        HTMLElement,
+        HTMLElement | null
+      >;
     }
   }
 }
 
+// Generator overload first
+export function queryAll<T extends HTMLElement = HTMLElement>(
+  selector: string,
+): ElementFn<HTMLElement, T[]>;
+// Direct element overload
 export function queryAll<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
   selector: string,
 ): T[];
-export function queryAll<T extends HTMLElement = HTMLElement>(
-  selector: string,
-): ElementFn<HTMLElement, T[]>;
 export function queryAll(...args: any[]): any {
   const detection = detectContext(args, queryAll);
 
@@ -2084,7 +2218,11 @@ export function queryAll(...args: any[]): any {
     case ApiContext.ASYNC_GENERATOR: {
       // Async generator mode: return ElementFn
       const [selector] = args;
-      return (element: HTMLElement) => _impl_queryAll(element, selector);
+      return ((element: HTMLElement) =>
+        _impl_queryAll(element, selector)) as ElementFn<
+        HTMLElement,
+        HTMLElement[]
+      >;
     }
 
     default: {
@@ -2112,7 +2250,11 @@ export function queryAll(...args: any[]): any {
 
       // Generator mode
       const [selector] = args;
-      return (element: HTMLElement) => _impl_queryAll(element, selector);
+      return ((element: HTMLElement) =>
+        _impl_queryAll(element, selector)) as ElementFn<
+        HTMLElement,
+        HTMLElement[]
+      >;
     }
   }
 }
@@ -2155,13 +2297,15 @@ function _isDirectCall(args: any[]): boolean {
   return args.length > 0 && isElementLike(args[0]);
 }
 
+// Generator overload first
+export function parent<T extends HTMLElement = HTMLElement>(
+  selector?: string,
+): ElementFn<HTMLElement, T | null>;
+// Direct element overload
 export function parent<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
   selector?: string,
 ): T | null;
-export function parent<T extends HTMLElement = HTMLElement>(
-  selector?: string,
-): ElementFn<HTMLElement, T | null>;
 export function parent<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
@@ -2204,8 +2348,8 @@ export function parent<T extends HTMLElement = HTMLElement>(
     case ApiContext.ASYNC_GENERATOR: {
       // Async generator mode: return ElementFn
       const [selector] = args;
-      return (element: HTMLElement) =>
-        _impl_parent(element, selector) as T | null;
+      return ((element: HTMLElement) =>
+        _impl_parent(element, selector)) as ElementFn<HTMLElement, T | null>;
     }
 
     default: {
@@ -2216,19 +2360,21 @@ export function parent<T extends HTMLElement = HTMLElement>(
         return resolved ? (_impl_parent(resolved, selector) as T | null) : null;
       }
       const [selector] = args;
-      return (element: HTMLElement) =>
-        _impl_parent(element, selector) as T | null;
+      return ((element: HTMLElement) =>
+        _impl_parent(element, selector)) as ElementFn<HTMLElement, T | null>;
     }
   }
 }
 
+// Generator overload first
+export function children<T extends HTMLElement = HTMLElement>(
+  selector?: string,
+): ElementFn<HTMLElement, T[]>;
+// Direct element overload
 export function children<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
   selector?: string,
 ): T[];
-export function children<T extends HTMLElement = HTMLElement>(
-  selector?: string,
-): ElementFn<HTMLElement, T[]>;
 export function children<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
@@ -2271,7 +2417,8 @@ export function children<T extends HTMLElement = HTMLElement>(
     case ApiContext.ASYNC_GENERATOR: {
       // Async generator mode: return ElementFn
       const [selector] = args;
-      return (element: HTMLElement) => _impl_children(element, selector);
+      return ((element: HTMLElement) =>
+        _impl_children(element, selector)) as ElementFn<HTMLElement, T[]>;
     }
 
     default: {
@@ -2282,18 +2429,21 @@ export function children<T extends HTMLElement = HTMLElement>(
         return resolved ? (_impl_children(resolved, selector) as T[]) : [];
       }
       const [selector] = args;
-      return (element: HTMLElement) => _impl_children(element, selector) as T[];
+      return ((element: HTMLElement) =>
+        _impl_children(element, selector)) as ElementFn<HTMLElement, T[]>;
     }
   }
 }
 
+// Generator overload first
+export function siblings<T extends HTMLElement = HTMLElement>(
+  selector?: string,
+): ElementFn<HTMLElement, T[]>;
+// Direct element overload
 export function siblings<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
   selector?: string,
 ): T[];
-export function siblings<T extends HTMLElement = HTMLElement>(
-  selector?: string,
-): ElementFn<HTMLElement, T[]>;
 export function siblings<T extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
@@ -2317,10 +2467,10 @@ export function siblings<T extends HTMLElement = HTMLElement>(
         element = target;
       }
 
-      if (element) {
-        return _impl_siblings(element, selector) as T[];
+      if (!element) {
+        throw new Error("No element in context for siblings");
       }
-      return [];
+      return _impl_siblings(element, selector) as T[];
     }
 
     case ApiContext.SYNC_GENERATOR: {
@@ -2330,26 +2480,345 @@ export function siblings<T extends HTMLElement = HTMLElement>(
       if (!element) {
         throw new Error("No element in context for siblings");
       }
-      return _impl_siblings(element, selector);
+      return _impl_siblings(element, selector) as T[];
     }
 
-    case ApiContext.ASYNC_GENERATOR: {
-      // Async generator mode: return ElementFn
-      const [selector] = args;
-      return (element: HTMLElement) => _impl_siblings(element, selector);
-    }
-
-    default: {
-      // Fallback to original logic
-      if (_isDirectCall(args)) {
-        const [element, selector] = args;
-        const resolved = resolveElement(element);
-        return resolved ? (_impl_siblings(resolved, selector) as T[]) : [];
-      }
-      const [selector] = args;
-      return (element: HTMLElement) => _impl_siblings(element, selector) as T[];
-    }
+    default:
+      return [];
   }
+}
+
+// ============================================================================
+// CHILD WATCHER FUNCTIONALITY
+// ============================================================================
+
+/**
+ * Creates a child watcher that applies a generator behavior to matching child elements.
+ *
+ * This function sets up a MutationObserver to watch for child elements matching
+ * the given selector and applies the generator behavior to each matching element.
+ * It returns a Map containing the APIs returned by each child's generator.
+ *
+ * @param selector - CSS selector for child elements to watch
+ * @param generator - Generator function to apply to each matching child
+ * @returns Map of child elements to their returned APIs
+ *
+ * @example
+ * ```typescript
+ * watch('.container', function* () {
+ *   const childApis = yield createChildWatcher('.item', function* () {
+ *     yield addClass('item-enhanced');
+ *     return {
+ *       highlight: () => addClass('highlighted'),
+ *       getId: () => self().id
+ *     };
+ *   });
+ *
+ *   // Access child APIs
+ *   childApis.forEach((api, element) => {
+ *     console.log('Child ID:', api.getId());
+ *   });
+ * });
+ * ```
+ */
+export function createChildWatcher<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+): ElementFn<HTMLElement, Map<ChildEl, T>>;
+export function createChildWatcher<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  element: HTMLElement,
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+): Map<ChildEl, T>;
+export function createChildWatcher<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+  ctx: TypedGeneratorContext<any>,
+): Map<ChildEl, T>;
+export function createChildWatcher<T = any>(...args: any[]): any {
+  // Direct usage with element
+  if (args[0] instanceof HTMLElement) {
+    const [element, selector, generator] = args;
+    return _impl_createChildWatcher_v2(element, selector, generator);
+  }
+
+  // Check if called with context (3 args, last is context)
+  if (args.length === 3 && typeof args[2] === "object" && args[2].element) {
+    const [selector, generator, ctx] = args;
+    const context = ctx as TypedGeneratorContext<any>;
+    const parentElement = context.element;
+
+    // Get or create ChildWatcherManager
+    const managerKey = "__childWatcherManager";
+    let manager = getState(managerKey);
+    if (!manager) {
+      manager = new ChildWatcherManager(parentElement);
+      setState(managerKey, manager);
+    }
+
+    return manager.register(selector, generator);
+  }
+
+  // Check if we're in a generator context (called with 2 args from within a generator)
+  const currentContext = getCurrentContext();
+  if (currentContext && args.length === 2) {
+    const [selector, generator] = args;
+    const parentElement = currentContext.element;
+
+    // Get or create ChildWatcherManager
+    const managerKey = "__childWatcherManager";
+    let manager = getState(managerKey);
+    if (!manager) {
+      manager = new ChildWatcherManager(parentElement);
+      setState(managerKey, manager);
+    }
+
+    return manager.register(selector, generator);
+  }
+
+  // Generator context usage (ElementFn pattern) - when not in active context
+  const [selector, generator] = args;
+  return (element: HTMLElement) => {
+    // Get or create ChildWatcherManager
+    const managerKey = "__childWatcherManager";
+    // Need to push a context for state to work
+    const tempContext = {
+      element,
+      selector: "",
+      index: 0,
+      array: [element],
+    };
+    // Import is already available at top of file
+    pushContext(tempContext);
+
+    try {
+      let manager = getState(managerKey);
+      if (!manager) {
+        manager = new ChildWatcherManager(element);
+        setState(managerKey, manager);
+      }
+      return manager.register(selector, generator);
+    } finally {
+      popContext();
+    }
+  };
+}
+
+// Legacy internal implementation (kept for backward compatibility)
+function _impl_createChildWatcher<T = any>(
+  element: HTMLElement,
+  selector: string,
+  generator: () => Generator<any, T, unknown>,
+): Map<HTMLElement, T> {
+  const childApis = new Map<HTMLElement, T>();
+  const processedChildren = new WeakSet<HTMLElement>();
+
+  // Process existing children
+  const processChild = (child: Element) => {
+    if (
+      child.matches(selector) &&
+      !processedChildren.has(child as HTMLElement)
+    ) {
+      processedChildren.add(child as HTMLElement);
+
+      // Execute generator on child
+      const runGenerator = async () => {
+        const { executeGenerator } = await import("../core/context");
+        const { registerParentContext, unregisterParentContext } = await import(
+          "../core/context"
+        );
+
+        // Register parent-child relationship
+        registerParentContext(child as HTMLElement, element);
+
+        try {
+          const api = await executeGenerator(
+            child as HTMLElement,
+            selector,
+            0,
+            [child as HTMLElement],
+            generator,
+          );
+
+          if (api !== undefined) {
+            childApis.set(child as HTMLElement, api);
+          }
+        } catch (error) {
+          console.error("Error executing child generator:", error);
+        }
+      };
+
+      runGenerator();
+    }
+  };
+
+  // Process all existing matching children
+  element.querySelectorAll(selector).forEach(processChild);
+
+  // Set up observer for new children
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      // Check added nodes
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const elem = node as Element;
+          if (elem.matches(selector)) {
+            processChild(elem);
+          }
+          // Also check descendants
+          elem.querySelectorAll(selector).forEach(processChild);
+        }
+      });
+
+      // Clean up removed nodes
+      mutation.removedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const elem = node as Element;
+          if (childApis.has(elem as HTMLElement)) {
+            childApis.delete(elem as HTMLElement);
+            // Unregister parent context
+            // Cleanup parent context if needed
+            // unregisterParentContext is imported but not used here
+          }
+        }
+      });
+    });
+  });
+
+  observer.observe(element, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Store observer for cleanup
+  const {
+    getCurrentContext,
+    createCleanupFunction,
+  } = require("../core/context");
+  const context = getCurrentContext();
+  if (context) {
+    createCleanupFunction(element)(() => observer.disconnect());
+  }
+
+  return childApis;
+}
+
+// New implementation that uses ChildWatcherManager
+function _impl_createChildWatcher_v2<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  element: HTMLElement,
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+): Map<ChildEl, T> {
+  // Get or create ChildWatcherManager for this element
+  const managerKey = "__childWatcherManager";
+
+  // We need to get state in the context of the parent element
+  const currentContext = getCurrentContext();
+  if (!currentContext) {
+    // Fallback to legacy implementation if no context
+    return _impl_createChildWatcher(element, selector, generator as any) as Map<
+      ChildEl,
+      T
+    >;
+  }
+
+  // Get or create manager from parent element's state
+  let manager = getState(managerKey);
+  if (!manager) {
+    manager = new ChildWatcherManager(element);
+    setState(managerKey, manager);
+  }
+
+  return manager.register(selector, generator as any) as Map<ChildEl, T>;
+}
+
+/**
+ * Shorthand for createChildWatcher - creates a child watcher with a more concise syntax.
+ *
+ * @param selector - CSS selector for child elements
+ * @param generator - Generator function to apply to each child
+ * @returns Map of child elements to their APIs
+ *
+ * @example
+ * ```typescript
+ * watch('.list', function* () {
+ *   const items = yield child('.item', function* () {
+ *     yield addClass('item-ready');
+ *     return { id: self().dataset.id };
+ *   });
+ * });
+ * ```
+ */
+export function child<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+): ElementFn<HTMLElement, Map<ChildEl, T>>;
+export function child<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  element: HTMLElement,
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+): Map<ChildEl, T>;
+export function child<
+  S extends string,
+  ChildEl extends HTMLElement = ElementFromSelector<S>,
+  T = any,
+>(
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ChildEl>,
+  ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
+  ctx: TypedGeneratorContext<any>,
+): Map<ChildEl, T>;
+export function child<T = any>(...args: any[]): any {
+  // Special handling for child function to ensure it returns the Map directly in generator context
+  const currentContext = getCurrentContext();
+  if (currentContext && args.length === 2) {
+    // We're in a generator context, call createChildWatcher which will return the Map directly
+    return createChildWatcher(args[0], args[1]);
+  }
+  // Handle different argument patterns
+  if (args.length === 3) {
+    return createChildWatcher(args[0], args[1], args[2]);
+  } else if (args.length === 2) {
+    return createChildWatcher(args[0], args[1]);
+  }
+  throw new Error("Invalid arguments for child function");
 }
 
 // Internal implementations for batchAll function
@@ -2383,7 +2852,7 @@ export function batchAll(...args: any[]): any {
     case ApiContext.SELECTOR: {
       // Direct mode: execute immediately
       const [elements, operations] = args;
-      _impl_batchAll(elements, operations);
+      _impl_batchAll(elements as HTMLElement[], operations);
       return;
     }
 
@@ -2507,7 +2976,15 @@ class ChildWatcherManager {
     const setupChild = (element: ChildEl) => {
       if (childContexts.has(element)) return;
       registerParentContext(element, this.parentElement);
-      runOn(element, childGenerator as any)
+      // Execute the generator with proper context
+      // executeGenerator is already imported at top of file
+      executeGenerator(
+        element,
+        childSelector,
+        0,
+        [element],
+        childGenerator as any,
+      )
         .then((api) => {
           if (api !== undefined) childContexts.set(element, api);
         })
@@ -2551,45 +3028,3 @@ class ChildWatcherManager {
 interface YieldableMap<K, V> extends Map<K, V> {
   then(resolve: (value: Map<K, V>) => void): void;
 }
-
-export function createChildWatcher<
-  S extends string,
-  ChildEl extends HTMLElement = ElementFromSelector<S>,
-  ChildGen extends GeneratorFunction<ChildEl, any> = GeneratorFunction<
-    ChildEl,
-    any
-  >,
->(
-  childSelector: S,
-  childGenerator: ChildGen,
-  ctx?: TypedGeneratorContext<any>,
-): YieldableMap<ChildEl, Awaited<ReturnType<ChildGen>>> {
-  const context = getCurrentContext(ctx);
-  if (!context) {
-    console.warn(
-      "`createChildWatcher` was called outside of a `watch` generator context. It will not function correctly.",
-    );
-    const emptyMap = new Map();
-    return Object.assign(emptyMap, {
-      then: (resolve: (v: any) => void) => resolve(emptyMap),
-    });
-  }
-
-  const parentElement = context.element;
-  const managerKey = "__childWatcherManager";
-  let manager: ChildWatcherManager = getState(managerKey, ctx);
-  if (!manager) {
-    manager = new ChildWatcherManager(parentElement);
-    setState(managerKey, manager, ctx);
-  }
-
-  const contexts = manager.register<S, ChildEl, ChildGen>(
-    childSelector,
-    childGenerator,
-  );
-  return Object.assign(contexts, {
-    then: (resolve: (value: typeof contexts) => void) => resolve(contexts),
-  });
-}
-
-export const child = createChildWatcher;

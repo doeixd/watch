@@ -5,7 +5,7 @@
  * the dual API pattern, supporting both legacy sync generators and new async generators.
  */
 
-import type { ElementHandler, ElementFn, Workflow } from "../types";
+import type { ElementFn, Workflow } from "../types";
 import { getCurrentContext } from "./context";
 
 /**

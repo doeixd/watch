@@ -380,6 +380,26 @@ export type ElementMatcher<El extends HTMLElement = HTMLElement> = (
   element: HTMLElement,
 ) => element is El;
 
+// TypedGeneratorContext - the context object passed to generator functions
+export interface TypedGeneratorContext<El extends HTMLElement = HTMLElement> {
+  // Core element access
+  self: () => El;
+  el: <T extends HTMLElement = HTMLElement>(selector: string) => T | null;
+  all: <T extends HTMLElement = HTMLElement>(selector: string) => T[];
+
+  // Cleanup registration
+  cleanup: (fn: CleanupFunction) => void;
+
+  // Context information
+  ctx: () => WatchContext<El>;
+
+  // Direct properties for convenience
+  readonly element: El;
+  readonly selector: string;
+  readonly index: number;
+  readonly array: readonly El[];
+}
+
 // Enhanced matcher function with more control
 export type AdvancedMatcher = (
   element: HTMLElement,

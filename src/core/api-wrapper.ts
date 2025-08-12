@@ -6,11 +6,10 @@
  * while maintaining backwards compatibility.
  */
 
-import type { ElementHandler, ElementFn, Workflow, Operation } from "../types";
+import type { ElementFn, Workflow, Operation } from "../types";
 import {
   detectContext,
   ApiContext,
-  withContext,
   markSyncGenerator,
   markAsyncGenerator,
   type DetectionResult,
@@ -61,19 +60,23 @@ export type AdaptiveResult<TDirect, TGenerator> =
 export function syncToAsyncGenerator<El extends HTMLElement, T>(
   elementFn: ElementFn<El, T>,
 ): Workflow<T> {
-  return async function* asyncWrapper() {
+  return (async function* asyncWrapper(): AsyncGenerator<
+    Operation<T, El>,
+    T,
+    unknown
+  > {
     const element = getCurrentElement() as El;
     if (!element) {
       throw new Error("No element in context for async generator wrapper");
     }
 
     // Execute the sync generator function by yielding an operation
-    const result = yield ((context: any) => {
+    const result = yield ((_context: any) => {
       return elementFn(element);
     }) as Operation<T, El>;
 
     return result as T;
-  };
+  })() as Workflow<T>;
 }
 
 /**
@@ -85,7 +88,11 @@ export function asyncToSyncGenerator<El extends HTMLElement, T>(
   return function syncWrapper(element: El): T {
     // This is more complex - we need to run the async generator synchronously
     // This may not be possible in all cases
-    const generator = workflow();
+    const generator = workflow as AsyncGenerator<
+      Operation<any, any>,
+      T,
+      unknown
+    >;
     let result: T = undefined as any;
     let done = false;
 
@@ -189,7 +196,7 @@ export function createAdaptiveWrapper<TArgs extends any[], TReturn>(
 /**
  * Helper to create ElementFn that works in both sync and async contexts
  */
-export function createUniversalElementFn<El, T>(
+export function createUniversalElementFn<El extends Element, T>(
   handler: (element: El) => T | Promise<T>,
 ): ElementFn<El, T> {
   return function universalElementFn(element: El): T {
@@ -216,13 +223,18 @@ export function createUniversalWorkflow<T>(
     | AsyncGenerator<Operation<any, any>, T, unknown>
     | Generator<Operation<any, any>, T, unknown>,
 ): Workflow<T> {
-  return async function* universalWorkflow() {
+  return (async function* universalWorkflow(): AsyncGenerator<
+    Operation<any, any>,
+    T,
+    unknown
+  > {
     const gen = handler();
 
     // Check if it's async or sync generator
     if (Symbol.asyncIterator in gen) {
       // It's already an async generator
-      yield* gen as AsyncGenerator<Operation<any, any>, T, unknown>;
+      const asyncGen = gen as AsyncGenerator<Operation<any, any>, T, unknown>;
+      return yield* asyncGen;
     } else {
       // Convert sync to async
       let result = gen.next();
@@ -230,15 +242,15 @@ export function createUniversalWorkflow<T>(
         yield result.value;
         result = gen.next();
       }
-      return result.value;
+      return result.value as T;
     }
-  };
+  })() as Workflow<T>;
 }
 
 /**
  * Wrapper for functions that should work as both setters and getters
  */
-export function createDualModeWrapper<TEl, TValue>(config: {
+export function createDualModeWrapper<TEl extends Element, TValue>(config: {
   name: string;
   getter: (element: TEl) => TValue;
   setter: (element: TEl, value: TValue) => void;
@@ -257,17 +269,17 @@ export function createDualModeWrapper<TEl, TValue>(config: {
         throw new Error(`${config.name}: Element is required in direct mode`);
       }
 
-      if (arguments.length === 1) {
+      if (value === undefined) {
         // Getter mode
         return config.getter(element);
       } else {
         // Setter mode
-        config.setter(element, value!);
+        config.setter(element, value);
         return undefined;
       }
     },
 
-    syncGeneratorImpl: (element?: TEl, value?: TValue) => {
+    syncGeneratorImpl: (element?: TEl, _value?: TValue) => {
       // In generator context, no element is passed
       if (arguments.length === 0) {
         // Getter mode in generator
@@ -281,11 +293,15 @@ export function createDualModeWrapper<TEl, TValue>(config: {
       }
     },
 
-    asyncGeneratorImpl: (element?: TEl, value?: TValue) => {
-      return async function* () {
-        const el = getCurrentElement() as TEl;
+    asyncGeneratorImpl: (element?: TEl, _value?: TValue) => {
+      return (async function* (): AsyncGenerator<
+        Operation<any, any>,
+        TValue | undefined,
+        unknown
+      > {
+        const el = getCurrentElement() as unknown as TEl;
 
-        if (arguments.length === 0) {
+        if (element === undefined) {
           // Getter mode
           return config.getter(el);
         } else {
@@ -293,7 +309,7 @@ export function createDualModeWrapper<TEl, TValue>(config: {
           config.setter(el, element as unknown as TValue); // First arg is actually the value
           return undefined;
         }
-      };
+      })() as Workflow<TValue | undefined>;
     },
   }) as any;
 }
@@ -320,14 +336,14 @@ export function createDomWrapper<TValue>(
       const [target, value] = args;
 
       // Resolve element from target
-      let element: Element | null = null;
+      let element: HTMLElement | null = null;
       if (typeof target === "string") {
-        element = document.querySelector(target);
+        element = document.querySelector(target) as HTMLElement | null;
         if (!element) {
           throw new Error(`No element found for selector: ${target}`);
         }
       } else if (target && typeof target === "object" && "nodeType" in target) {
-        element = target as Element;
+        element = target as HTMLElement;
       } else {
         throw new Error(`Invalid target for ${name}`);
       }
@@ -357,7 +373,11 @@ export function createDomWrapper<TValue>(
       // Async generator mode: yield* text(value)
       if (args.length === 0) {
         // Getter mode
-        return async function* getterWorkflow() {
+        return async function* getterWorkflow(): AsyncGenerator<
+          Operation<any, any>,
+          TValue,
+          unknown
+        > {
           const element = getCurrentElement();
           if (!element) throw new Error("No element in context");
           return config.get(element);
@@ -365,10 +385,15 @@ export function createDomWrapper<TValue>(
       } else {
         // Setter mode
         const [value] = args;
-        return async function* setterWorkflow() {
+        return async function* setterWorkflow(): AsyncGenerator<
+          Operation<any, any>,
+          void,
+          unknown
+        > {
           const element = getCurrentElement();
           if (!element) throw new Error("No element in context");
           config.set(element, value);
+          return;
         };
       }
     }
@@ -406,17 +431,25 @@ export function createBatchWrapper<T>(
     },
 
     asyncGeneratorImpl: () => {
-      return async function* batchWorkflow() {
+      return (async function* batchWorkflow(): AsyncGenerator<
+        Operation<any, any>,
+        T,
+        unknown
+      > {
         const results: any[] = [];
         for (const op of operations) {
           const workflow = op();
-          if (Symbol.asyncIterator in workflow) {
+          if (
+            workflow &&
+            typeof workflow === "object" &&
+            Symbol.asyncIterator in workflow
+          ) {
             const result = yield* workflow as Workflow<any>;
             results.push(result);
           }
         }
         return results as T;
-      };
+      })() as Workflow<T>;
     },
   });
 }

@@ -149,10 +149,15 @@ export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(
 ): any {
   // 1. UNIFIED ARGUMENT PARSING
   const isDirectUsage = args[0] instanceof Element;
-  // Check for CSS selector usage: first arg is string, and we have at least 3 args (selector, event, handler)
-  // But make sure it's not the generator pattern (which has string event type as first arg with 2-3 args)
+
+  // Check for CSS selector usage: first arg is string, second arg is also string (event type),
+  // and we have at least 3 args total (selector, event, handler)
+  // This distinguishes from generator pattern where first arg is event type string and second is handler function
   const isSelectorUsage =
-    typeof args[0] === "string" && args.length >= 3 && !isDirectUsage;
+    typeof args[0] === "string" &&
+    typeof args[1] === "string" &&
+    args.length >= 3 &&
+    !isDirectUsage;
 
   // Handle CSS selector usage
   if (isSelectorUsage) {

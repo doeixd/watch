@@ -16,8 +16,9 @@ function getElementState(
 ): Record<string, any> {
   const context = getCurrentContext(ctx);
   if (!context) {
-    // Return empty object for invalid context instead of throwing
-    return {};
+    throw new Error(
+      "State functions can only be called within a generator context",
+    );
   }
 
   const element = context.element;
@@ -139,6 +140,12 @@ export function setState<T = any>(
   value: T,
   ctx?: TypedGeneratorContext<any>,
 ): void {
+  const context = getCurrentContext(ctx);
+  if (!context) {
+    throw new Error(
+      "State functions can only be called within a generator context",
+    );
+  }
   const oldValue = getState<T>(key, ctx);
   const state = getElementState(ctx);
   state[key] = value;

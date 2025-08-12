@@ -897,10 +897,10 @@ describe("DOM Manipulation Functions", () => {
       it("should create child watcher that tracks child elements", async () => {
         const container = createTestElement("div");
 
-        function* childBehavior() {
+        function* childBehavior(ctx) {
           yield addClass("child-managed");
           return {
-            getId: () => self().id,
+            getId: () => ctx.self().id,
             setText: (text: string) => text(text),
           };
         }
@@ -936,7 +936,7 @@ describe("DOM Manipulation Functions", () => {
       it("should use child() helper for simpler syntax", async () => {
         const container = createTestElement("div");
 
-        function* buttonBehavior() {
+        function* buttonBehavior(ctx) {
           yield addClass("button-enhanced");
           return {
             click: () => click(() => {}),

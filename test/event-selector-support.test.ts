@@ -26,7 +26,7 @@ describe("Event Functions CSS Selector Support", () => {
       button.click();
 
       expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler).toHaveBeenCalledWith(expect.any(MouseEvent));
+      expect(handler).toHaveBeenCalledWith(expect.any(MouseEvent), button);
 
       // Cleanup should work
       cleanup?.();
@@ -83,6 +83,7 @@ describe("Event Functions CSS Selector Support", () => {
           type: "custom-event",
           detail: { message: "Hello" },
         }),
+        element,
       );
     });
   });

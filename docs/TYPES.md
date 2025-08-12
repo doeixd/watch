@@ -34,7 +34,8 @@ type ElementFromSelector<S extends string> =
   S extends 'span' ? HTMLSpanElement :
   S extends 'p' ? HTMLParagraphElement :
   S extends 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' ? HTMLHeadingElement :
-  S extends 'ul' | 'ol' ? HTMLUListElement | HTMLOListElement :
+  S extends 'ul' ? HTMLUListElement :
+  S extends 'ol' ? HTMLOListElement :
   S extends 'li' ? HTMLLIElement :
   S extends 'table' ? HTMLTableElement :
   S extends 'tr' ? HTMLTableRowElement :

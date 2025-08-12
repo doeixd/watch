@@ -5,7 +5,7 @@
  * These functions return async generators (Workflow) that can be used with yield*.
  */
 
-import type { ElementFn, WatchContext } from '../types';
+import type { ElementFn, WatchContext } from "../types";
 
 /**
  * Workflow type for async generator functions that can be used with yield*.
@@ -16,7 +16,7 @@ export type Workflow<T = void> = AsyncGenerator<ElementFn<Element>, T, unknown>;
 /**
  * Operation type for functions that operate on elements within a generator context.
  */
-export type Operation<T = void> = (context: WatchContext) => T;
+export type ExplicitOperation<T = void> = (context: WatchContext) => T;
 
 // ============================================================================
 // TEXT OPERATIONS - GENERATOR SUPPORT
@@ -73,7 +73,7 @@ export async function* setTextFlow(content: string | number): Workflow<void> {
  */
 export async function* getTextFlow(): Workflow<string> {
   const text = yield (element: Element) => {
-    return element.textContent || '';
+    return element.textContent || "";
   };
   return text as string;
 }
@@ -91,9 +91,11 @@ export async function* getTextFlow(): Workflow<string> {
  * });
  * ```
  */
-export async function* appendTextFlow(content: string | number): Workflow<void> {
+export async function* appendTextFlow(
+  content: string | number,
+): Workflow<void> {
   yield (element: Element) => {
-    element.textContent = (element.textContent || '') + String(content);
+    element.textContent = (element.textContent || "") + String(content);
   };
 }
 
@@ -103,9 +105,11 @@ export async function* appendTextFlow(content: string | number): Workflow<void> 
  * @param content - Text to prepend
  * @returns Async generator that prepends text when yielded with yield*
  */
-export async function* prependTextFlow(content: string | number): Workflow<void> {
+export async function* prependTextFlow(
+  content: string | number,
+): Workflow<void> {
   yield (element: Element) => {
-    element.textContent = String(content) + (element.textContent || '');
+    element.textContent = String(content) + (element.textContent || "");
   };
 }
 
@@ -159,7 +163,10 @@ export async function* removeClassFlow(...classes: string[]): Workflow<void> {
  * });
  * ```
  */
-export async function* toggleClassFlow(className: string, force?: boolean): Workflow<boolean> {
+export async function* toggleClassFlow(
+  className: string,
+  force?: boolean,
+): Workflow<boolean> {
   const result = yield (element: Element) => {
     return element.classList.toggle(className, force);
   };
@@ -198,7 +205,10 @@ export async function* hasClassFlow(className: string): Workflow<boolean> {
  * });
  * ```
  */
-export async function* setAttrFlow(name: string, value: string | number | boolean): Workflow<void> {
+export async function* setAttrFlow(
+  name: string,
+  value: string | number | boolean,
+): Workflow<void> {
   yield (element: Element) => {
     element.setAttribute(name, String(value));
   };
@@ -248,7 +258,10 @@ export async function* removeAttrFlow(name: string): Workflow<void> {
  * });
  * ```
  */
-export async function* setStyleFlow(property: string, value: string): Workflow<void> {
+export async function* setStyleFlow(
+  property: string,
+  value: string,
+): Workflow<void> {
   yield (element: Element) => {
     if (element instanceof HTMLElement) {
       (element.style as any)[property] = value;
@@ -262,7 +275,9 @@ export async function* setStyleFlow(property: string, value: string): Workflow<v
  * @param styles - Object with style properties
  * @returns Async generator that sets styles when yielded with yield*
  */
-export async function* setStylesFlow(styles: Partial<CSSStyleDeclaration>): Workflow<void> {
+export async function* setStylesFlow(
+  styles: Partial<CSSStyleDeclaration>,
+): Workflow<void> {
   yield (element: Element) => {
     if (element instanceof HTMLElement) {
       Object.assign(element.style, styles);
@@ -291,12 +306,18 @@ export async function* setStylesFlow(styles: Partial<CSSStyleDeclaration>): Work
  * ```
  */
 export async function* clickFlow(
-  handler: (event: MouseEvent) => void | Promise<void> | AsyncGenerator<any, void, unknown>
+  handler: (
+    event: MouseEvent,
+  ) => void | Promise<void> | AsyncGenerator<any, void, unknown>,
 ): Workflow<void> {
   yield (element: Element) => {
-    element.addEventListener('click', async (event) => {
+    element.addEventListener("click", async (event) => {
       const result = handler(event as MouseEvent);
-      if (result && typeof result === 'object' && Symbol.asyncIterator in result) {
+      if (
+        result &&
+        typeof result === "object" &&
+        Symbol.asyncIterator in result
+      ) {
         // Handler is an async generator
         for await (const _ of result) {
           // Process generator
@@ -315,10 +336,10 @@ export async function* clickFlow(
  * @returns Async generator that adds handler when yielded with yield*
  */
 export async function* inputFlow(
-  handler: (event: InputEvent) => void | Promise<void>
+  handler: (event: InputEvent) => void | Promise<void>,
 ): Workflow<void> {
   yield (element: Element) => {
-    element.addEventListener('input', handler as EventListener);
+    element.addEventListener("input", handler as EventListener);
   };
 }
 
@@ -343,7 +364,7 @@ export async function* inputFlow(
  * ```
  */
 export async function* queryFlow<E extends Element = Element>(
-  selector: string
+  selector: string,
 ): Workflow<E | null> {
   const result = yield (element: Element) => {
     return element.querySelector<E>(selector);
@@ -358,7 +379,7 @@ export async function* queryFlow<E extends Element = Element>(
  * @returns Async generator that returns NodeList when yielded with yield*
  */
 export async function* queryAllFlow<E extends Element = Element>(
-  selector: string
+  selector: string,
 ): Workflow<NodeListOf<E>> {
   const result = yield (element: Element) => {
     return element.querySelectorAll<E>(selector);
@@ -385,7 +406,7 @@ export async function* queryAllFlow<E extends Element = Element>(
  */
 export async function* setValueFlow(value: string | number): Workflow<void> {
   yield (element: Element) => {
-    if ('value' in element) {
+    if ("value" in element) {
       (element as HTMLInputElement).value = String(value);
     }
   };
@@ -398,10 +419,10 @@ export async function* setValueFlow(value: string | number): Workflow<void> {
  */
 export async function* getValueFlow(): Workflow<string> {
   const result = yield (element: Element) => {
-    if ('value' in element) {
+    if ("value" in element) {
       return (element as HTMLInputElement).value;
     }
-    return '';
+    return "";
   };
   return result as string;
 }
@@ -414,7 +435,7 @@ export async function* getValueFlow(): Workflow<string> {
  */
 export async function* setCheckedFlow(checked: boolean): Workflow<void> {
   yield (element: Element) => {
-    if ('checked' in element) {
+    if ("checked" in element) {
       (element as HTMLInputElement).checked = checked;
     }
   };
@@ -432,7 +453,7 @@ export async function* setCheckedFlow(checked: boolean): Workflow<void> {
 export async function* showFlow(): Workflow<void> {
   yield (element: Element) => {
     if (element instanceof HTMLElement) {
-      element.style.display = '';
+      element.style.display = "";
     }
   };
 }
@@ -445,7 +466,7 @@ export async function* showFlow(): Workflow<void> {
 export async function* hideFlow(): Workflow<void> {
   yield (element: Element) => {
     if (element instanceof HTMLElement) {
-      element.style.display = 'none';
+      element.style.display = "none";
     }
   };
 }
@@ -460,10 +481,10 @@ export async function* toggleVisibilityFlow(force?: boolean): Workflow<void> {
   yield (element: Element) => {
     if (element instanceof HTMLElement) {
       if (force !== undefined) {
-        element.style.display = force ? '' : 'none';
+        element.style.display = force ? "" : "none";
       } else {
-        const isHidden = element.style.display === 'none';
-        element.style.display = isHidden ? '' : 'none';
+        const isHidden = element.style.display === "none";
+        element.style.display = isHidden ? "" : "none";
       }
     }
   };
@@ -509,5 +530,8 @@ export async function* selfFlow<E extends Element = Element>(): Workflow<E> {
  * ```
  */
 export async function* delayFlow(ms: number): Workflow<void> {
-  await new Promise(resolve => setTimeout(resolve, ms));
+  yield (element: Element) => {
+    // The delay doesn't operate on the element, but still needs to yield a function
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  };
 }

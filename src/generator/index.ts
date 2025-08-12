@@ -73,7 +73,7 @@
 export { text, getText, appendText, prependText } from "./dom";
 
 // HTML content operations
-export { html, getHtml, appendHtml, prependHtml } from "./dom";
+export { html, safeHtml, getHtml, appendHtml, prependHtml } from "./dom";
 
 // Class manipulation operations
 export {
@@ -200,6 +200,7 @@ export { isWorkflow } from "../core/dollar-helper";
 // Provide some convenient aliases for common operations
 export { text as setText } from "./dom";
 export { html as setHtml } from "./dom";
+export { safeHtml as setSafeHtml } from "./dom";
 export { value as setValue } from "./dom";
 export { style as setStyle } from "./dom";
 export { attr as setAttribute } from "./dom";

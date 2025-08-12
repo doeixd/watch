@@ -188,7 +188,7 @@ export function queryAllElement(
   parent: Element,
   selector: string,
 ): NodeListOf<Element> {
-  if (!parent) return document.querySelectorAll(selector);
+  if (!parent) return document.createElement("div").querySelectorAll(selector);
   return parent.querySelectorAll(selector);
 }
 

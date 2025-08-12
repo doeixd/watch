@@ -393,7 +393,79 @@ export function prependText(content: string): Workflow<void> {
 export function html(content: string): Workflow<void> {
   return (async function* () {
     yield ((context: WatchContext) => {
+      // WARNING: Direct innerHTML assignment can introduce XSS vulnerabilities
+      // Consider using text() for untrusted content to prevent XSS
+      console.warn(
+        "[watch-selector] Direct innerHTML assignment detected. Use text() for untrusted content to prevent XSS.",
+      );
       context.element.innerHTML = content;
+    }) as Operation<void>;
+  })();
+}
+
+/**
+ * Sets sanitized HTML content on an element using the pure generator API.
+ * Removes dangerous elements and attributes to prevent XSS attacks.
+ *
+ * @param content - The HTML content to sanitize and set
+ * @returns A Workflow<void> that sets the sanitized HTML when yielded
+ *
+ * @example Safe HTML from user input
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { safeHtml, getState } from 'watch-selector/generator';
+ *
+ * watch('.comment-display', async function* () {
+ *   const userContent = yield* getState<string>('userComment');
+ *   // Safely display user-generated HTML content
+ *   yield* safeHtml(userContent || '');
+ * });
+ * ```
+ *
+ * @example Rendering rich text safely
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { safeHtml } from 'watch-selector/generator';
+ *
+ * watch('.rich-text-editor', async function* () {
+ *   const richContent = '<p>Hello <script>alert("XSS")</script></p>';
+ *   // Script tags and dangerous attributes are removed
+ *   yield* safeHtml(richContent);
+ * });
+ * ```
+ *
+ * @see {@link html} - For trusted HTML content (with XSS warning)
+ * @see {@link text} - For plain text content (automatically escaped)
+ */
+export function safeHtml(content: string): Workflow<void> {
+  return (async function* () {
+    yield ((context: WatchContext) => {
+      // Create a temporary element to parse the HTML
+      const temp = document.createElement("div");
+      temp.innerHTML = content;
+
+      // Remove dangerous elements
+      const dangerousElements = temp.querySelectorAll(
+        "script, iframe, object, embed, link, style, meta, base",
+      );
+      dangerousElements.forEach((elem) => elem.remove());
+
+      // Remove dangerous attributes
+      const allElements = temp.querySelectorAll("*");
+      allElements.forEach((elem) => {
+        // Remove event handlers and javascript: URLs
+        for (const attr of Array.from(elem.attributes)) {
+          if (
+            attr.name.startsWith("on") ||
+            (attr.name === "href" && attr.value.startsWith("javascript:")) ||
+            (attr.name === "src" && attr.value.startsWith("javascript:"))
+          ) {
+            elem.removeAttribute(attr.name);
+          }
+        }
+      });
+
+      context.element.innerHTML = temp.innerHTML;
     }) as Operation<void>;
   })();
 }
@@ -494,6 +566,10 @@ export function appendHtml(content: string): Workflow<void> {
 export function prependHtml(content: string): Workflow<void> {
   return (async function* () {
     yield ((context: WatchContext) => {
+      // WARNING: Direct innerHTML assignment can introduce XSS vulnerabilities
+      console.warn(
+        "[watch-selector] Direct innerHTML assignment detected. Consider using text() for untrusted content.",
+      );
       context.element.innerHTML = content + context.element.innerHTML;
     }) as Operation<void>;
   })();
@@ -1203,6 +1279,46 @@ export function getAttr(name: string): Workflow<string | null> {
  * });
  * ```
  *
+ * @see {@link attr} - For setting attributes
+ * @see {@link getAttr} - For reading attribute values
+ * @see {@link hasAttr} - For checking attribute existence
+ */
+export function removeAttr(name: string): Workflow<void> {
+  return (async function* () {
+    yield ((context: WatchContext) => {
+      context.element.removeAttribute(name);
+    }) as Operation<void>;
+  })();
+}
+
+/**
+ * Sets a DOM property on an element using the pure generator API.
+ *
+ * Properties are different from attributes - they represent the current state
+ * of the DOM element in JavaScript. For example, 'value' is a property of input
+ * elements, while 'value' as an attribute only sets the initial value.
+ *
+ * @param name - The name of the property to set
+ * @param value - The value to set (can be any type)
+ * @returns A Workflow<void> that sets the property when yielded
+ *
+ * @example Setting form element properties
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { prop, click } from 'watch-selector/generator';
+ *
+ * watch('input[type="checkbox"]', async function* () {
+ *   // Set checkbox state
+ *   yield* prop('checked', true);
+ *   yield* prop('indeterminate', true);
+ *
+ *   // Disable on click
+ *   yield* click(async function* () {
+ *     yield* prop('disabled', true);
+ *   });
+ * });
+ * ```
+ *
  * @see {@link getProp} - For reading property values
  * @see {@link attr} - For setting HTML attributes (different from properties)
  * @see {@link value} - Specialized method for form element values
@@ -1212,53 +1328,6 @@ export function prop(name: string, value: any): Workflow<void> {
   return (async function* () {
     yield ((context: WatchContext) => {
       (context.element as any)[name] = value;
-    }) as Operation<void>;
-  })();
-}
-
-/**
- * Removes an attribute from an element using the pure generator API.
- *
- * This completely removes the attribute from the element. For boolean attributes
- * like 'disabled' or 'checked', this effectively sets them to false.
- *
- * @param name - The name of the attribute to remove
- * @returns A Workflow<void> that removes the attribute when yielded
- *
- * @example Removing form field attributes
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { removeAttr, removeClass } from 'watch-selector/generator';
- *
- * watch('input.validated', async function* () {
- *   // Enable the field
- *   yield* removeAttr('disabled');
- *   yield* removeAttr('readonly');
- *   yield* removeClass('disabled');
- * });
- * ```
- *
- * @example Cleaning up data attributes
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { removeAttr } from 'watch-selector/generator';
- *
- * watch('.processed-item', async function* () {
- *   // Remove temporary data attributes
- *   yield* removeAttr('data-processing');
- *   yield* removeAttr('data-temp-id');
- *   yield* removeAttr('data-validation-error');
- * });
- * ```
- *
- * @see {@link attr} - For setting attributes
- * @see {@link getAttr} - For reading attribute values
- * @see {@link hasAttr} - For checking attribute existence
- */
-export function removeAttr(name: string): Workflow<void> {
-  return (async function* () {
-    yield ((context: WatchContext) => {
-      context.element.removeAttribute(name);
     }) as Operation<void>;
   })();
 }
@@ -1397,121 +1466,6 @@ export function hasAttr(name: string): Workflow<boolean> {
 // ============================================================================
 // PROPERTY MANIPULATION OPERATIONS
 // ============================================================================
-
-/**
- * Sets a DOM property on an element using the pure generator API.
- *
- * Properties are different from attributes - they represent the current state
- * of the DOM element in JavaScript. For example, 'value' is a property of input
- * elements, while 'value' as an attribute only sets the initial value.
- *
- * @template T - The type of the property value
- * @param name - The name of the property to set
- * @param value - The value to set (can be any type)
- * @returns A Workflow<void> that sets the property when yielded
- *
- * @example Setting form element properties
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop, click } from 'watch-selector/generator';
- *
- * watch('input[type="checkbox"]', async function* () {
- *   // Set checkbox state
- *   yield* prop('checked', true);
- *   yield* prop('indeterminate', true);
- *
- *   // Disable on click
- *   yield* click(async function* () {
- *     yield* prop('disabled', true);
- *   });
- * });
- *
- * watch('select', async function* () {
- *   yield* prop('selectedIndex', 2);
- *   yield* prop('multiple', true);
- * });
- * ```
- *
- * @example Dynamic property updates
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop, getState } from 'watch-selector/generator';
- *
- * watch('video', async function* () {
- *   const settings = yield* getState('videoSettings');
- *
- *   yield* prop('muted', settings?.muted ?? true);
- *   yield* prop('loop', settings?.loop ?? false);
- *   yield* prop('playbackRate', settings?.speed ?? 1.0);
- * });
- * ```
- *
- * @example Properties vs Attributes
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop, attr } from 'watch-selector/generator';
- *
- * watch('input[type="text"]', async function* () {
- *   // Attribute sets initial/default value
- *   yield* attr('value', 'default');
- *
- *   // Property sets current value (what user sees)
- *   yield* prop('value', 'current value');
- * });
- * ```
- *
- * @example Working with custom properties
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop, getProp } from 'watch-selector/generator';
- *
- * watch('.custom-element', async function* () {
- *   // Set custom properties
- *   yield* prop('customData', { id: 123, name: 'Test' });
- *   yield* prop('__internalState', new Map());
- *
- *   // Properties can hold any JavaScript value
- *   yield* prop('eventHandler', () => console.log('Clicked!'));
- * });
- * ```
- *
- * @example Video/Audio element properties
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop, click } from 'watch-selector/generator';
- *
- * watch('video', async function* () {
- *   // Control playback properties
- *   yield* prop('muted', true);
- *   yield* prop('volume', 0.5);
- *   yield* prop('playbackRate', 1.5);
- *
- *   yield* click(async function* () {
- *     const video = yield* self<HTMLVideoElement>();
- *     if (video.paused) {
- *       video.play();
- *     } else {
- *       video.pause();
- *     }
- *   });
- * });
- * ```
- *
- * @example Setting custom properties
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { prop } from 'watch-selector/generator';
- *
- * watch('.video-player', async function* () {
- *   yield* prop('currentTime', 0);
- *   yield* prop('playbackRate', 1.5);
- *   yield* prop('volume', 0.8);
- * });
- * ```
- *
- * @see {@link getProp} - For reading property values
- * @see {@link attr} - For setting HTML attributes
- */
 
 // ============================================================================
 // DATA ATTRIBUTE OPERATIONS
@@ -2345,66 +2299,3 @@ export function run<T>(
     return result;
   })();
 }
-
-/**
- * Logs a message to the console using the pure generator API.
- *
- * This function provides a convenient way to add debugging output within
- * generator workflows. The message can include information about the current
- * element and state.
- *
- * @param message - The message to log to the console
- * @returns A Workflow<void> that logs the message when yielded
- *
- * @example Basic logging
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { log, addClass, getState } from 'watch-selector/generator';
- *
- * watch('.debug-element', async function* () {
- *   yield* log('Starting element processing');
- *
- *   yield* addClass('processing');
- *   yield* log('Added processing class');
- *
- *   const state = yield* getState('data');
- *   yield* log(`Current state: ${JSON.stringify(state)}`);
- * });
- * ```
- *
- * @example Logging with element info
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { log, self, getAttr } from 'watch-selector/generator';
- *
- * watch('[data-component]', async function* () {
- *   const element = yield* self();
- *   const componentType = yield* getAttr('data-component');
- *
- *   yield* log(`Processing component: ${componentType}`);
- *   yield* log(`Element ID: ${element.id || 'no-id'}`);
- *   yield* log(`Classes: ${element.className}`);
- * });
- * ```
- *
- * @example Conditional logging
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { log, hasClass, getState } from 'watch-selector/generator';
- *
- * const DEBUG = true; // Toggle for debugging
- *
- * watch('.interactive', async function* () {
- *   if (DEBUG) {
- *     const isActive = yield* hasClass('active');
- *     yield* log(`Element active state: ${isActive}`);
- *
- *     const clickCount = yield* getState('clicks', 0);
- *     yield* log(`Click count: ${clickCount}`);
- *   }
- * });
- * ```
- *
- * @see {@link run} - For running arbitrary functions
- * @see {@link delay} - For adding timing to workflows
- */

@@ -45,6 +45,8 @@ import type { ElementFn } from "../types";
  */
 export function setHtmlElement(element: Element, content: string): void {
   if (!element || !(element instanceof HTMLElement)) return;
+  // WARNING: Only use with trusted content. Consider using textContent for user input.
+  // For sanitization, consider using a library like DOMPurify: element.innerHTML = DOMPurify.sanitize(content);
   element.innerHTML = content;
 }
 
@@ -429,6 +431,8 @@ export function prependHtmlSelector(selector: string, content: string): void {
  */
 export function replaceHtmlElement(element: Element, content: string): void {
   if (!element || !(element instanceof HTMLElement)) return;
+  // WARNING: This removes the element from DOM and breaks existing references/listeners.
+  // Consider using replaceWith() for safer element replacement.
   element.outerHTML = content;
 }
 

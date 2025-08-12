@@ -214,6 +214,7 @@ export {
 
   // HTML content
   html,
+  safeHtml,
 
   // Class manipulation
   addClass,

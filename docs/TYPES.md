@@ -34,7 +34,8 @@ type ElementFromSelector<S extends string> =
   S extends 'span' ? HTMLSpanElement :
   S extends 'p' ? HTMLParagraphElement :
   S extends 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' ? HTMLHeadingElement :
-  S extends 'ul' | 'ol' ? HTMLUListElement | HTMLOListElement :
+  S extends 'ul' ? HTMLUListElement :
+  S extends 'ol' ? HTMLOListElement :
   S extends 'li' ? HTMLLIElement :
   S extends 'table' ? HTMLTableElement :
   S extends 'tr' ? HTMLTableRowElement :
@@ -99,7 +100,7 @@ Handler function type for watch callbacks.
 
 ```typescript
 type ElementHandler<El extends HTMLElement = HTMLElement> = 
-  | GeneratorFunction<El>
+  | GeneratorFn<El>
   | ((this: El) => void);
 ```
 
@@ -134,12 +135,12 @@ watch('button', function* () {
 });
 ```
 
-### `GeneratorFunction<El>`
+### `GeneratorFn<El>`
 
 Generator function type with element context.
 
 ```typescript
-type GeneratorFunction<El extends HTMLElement = HTMLElement> = 
+type GeneratorFn<El extends HTMLElement = HTMLElement> = 
   (this: El) => Generator<any, void, any>;
 ```
 
@@ -723,22 +724,36 @@ type Prettify<T> = {
 
 ### `DualAPI<El>`
 
-API object with dual-mode functions.
+Overloaded function type supporting both direct element manipulation and generator contexts.
 
 ```typescript
-type DualAPI<El extends Element = Element> = {
-  text: (content?: string | number) => void | string;
-  html: (content?: string) => void | string;
-  addClass: (...classes: string[]) => void;
-  removeClass: (...classes: string[]) => void;
-  toggleClass: (className: string, force?: boolean) => boolean;
-  hasClass: (className: string) => boolean;
-  style: (prop: string | object, value?: string) => void | string;
-  attr: (name: string, value?: string | number | boolean) => void | string | null;
-  prop: <K extends keyof El>(name: K, value?: El[K]) => void | El[K];
-  data: (key: string, value?: any) => void | string | DOMStringMap;
-  // ... more methods
+type DualAPI<
+  DirectArgs extends readonly unknown[],
+  GeneratorArgs extends readonly unknown[],
+  El extends HTMLElement = HTMLElement,
+  ReturnType = void
+> = {
+  // Direct call signature - when called with an element
+  (...args: [...DirectArgs, El]): ReturnType;
+  
+  // Generator call signature - when called without an element (in generator context)
+  (...args: GeneratorArgs): ElementFn<El, ReturnType>;
 };
+```
+
+This type enables functions to work in multiple contexts:
+- **Direct mode**: Pass element as last argument, returns `ReturnType`
+- **Generator mode**: Omit element argument, returns `ElementFn` for use with `yield`
+
+Example usage:
+```typescript
+// Direct mode - element passed, returns void or value
+text('Hello', element); // Returns void
+const content = text(element); // Returns string
+
+// Generator mode - no element, returns ElementFn
+yield text('Hello'); // Returns ElementFn<El, void>
+yield text(); // Returns ElementFn<El, string>
 ```
 
 ## Type Guards
@@ -778,7 +793,7 @@ function isValidTarget(value: any): value is WatchTarget;
 
 ```typescript
 // Check if function is generator
-function isGeneratorFunction(fn: any): fn is GeneratorFunction;
+function isGeneratorFunction(fn: any): fn is GeneratorFn;
 
 // Check if function is async generator
 function isAsyncGeneratorFunction(fn: any): fn is AsyncGeneratorFunction;

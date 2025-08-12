@@ -21,9 +21,7 @@ import type { ElementFn } from "../types";
 export function showElement(element: Element): void {
   if (!element) return;
 
-  if (element instanceof HTMLElement) {
-    element.style.display = "";
-
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
     // Remove display property to restore default
     element.style.removeProperty("display");
   }
@@ -104,7 +102,7 @@ export function showGen(): ElementFn<Element, void> {
 export function hideElement(element: Element): void {
   if (!element) return;
 
-  if (element instanceof HTMLElement) {
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
     element.style.display = "none";
   }
 }
@@ -185,7 +183,7 @@ export function hideGen(): ElementFn<Element, void> {
 export function toggleElement(element: Element, force?: boolean): void {
   if (!element) return;
 
-  if (element instanceof HTMLElement) {
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
     if (force !== undefined) {
       if (force) {
         showElement(element);
@@ -193,8 +191,8 @@ export function toggleElement(element: Element, force?: boolean): void {
         hideElement(element);
       }
     } else {
-      // Check if element has inline display: none
-      const isHidden = element.style.display === "none";
+      // Use shared visibility check to decide toggle behavior
+      const isHidden = !isVisibleElement(element);
       if (isHidden) {
         showElement(element);
       } else {
@@ -284,17 +282,14 @@ export function toggleGen(force?: boolean): ElementFn<Element, void> {
 export function isVisibleElement(element: Element): boolean {
   if (!element) return false;
 
-  if (element instanceof HTMLElement) {
-    // In happy-dom, check inline styles first
-    if (
-      element.style.display === "none" ||
-      element.style.visibility === "hidden" ||
-      element.style.opacity === "0"
-    ) {
-      return false;
-    }
-    // If no inline styles hide it, consider it visible
-    return true;
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
+    // Check computed styles for accurate visibility
+    const style = window.getComputedStyle(element);
+    return !(
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      parseFloat(style.opacity) === 0
+    );
   }
 
   return true;

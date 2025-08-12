@@ -462,6 +462,11 @@ export function text(...args: any[]): any {
 
 // Internal implementations for html function
 function _impl_html_set(element: HTMLElement, content: string): void {
+  // WARNING: Direct innerHTML assignment can introduce XSS vulnerabilities
+  // Consider using a safer alternative for untrusted content
+  console.warn(
+    "[watch-selector] Direct innerHTML assignment detected. Use safeHtml() or text() for untrusted content to prevent XSS.",
+  );
   element.innerHTML = String(content);
 }
 
@@ -584,6 +589,95 @@ export function html(...args: any[]): any {
       >;
     }
   }
+}
+
+/**
+ * Sets sanitized HTML content on an element to prevent XSS attacks.
+ * Removes dangerous elements like script, iframe, and event handlers.
+ *
+ * @param args - Overloaded parameters supporting multiple usage patterns
+ * @returns void, ElementFn, or the element depending on usage
+ *
+ * @example Direct element usage
+ * ```typescript
+ * const div = document.getElementById('content');
+ * safeHtml(div, userGeneratedContent);
+ * ```
+ *
+ * @example Selector usage
+ * ```typescript
+ * safeHtml('#content', untrustedHtml);
+ * ```
+ *
+ * @example Generator usage
+ * ```typescript
+ * watch('.user-content', function* () {
+ *   yield safeHtml(userInput);
+ * });
+ * ```
+ */
+export function safeHtml<El extends HTMLElement = HTMLElement>(
+  ...args: any[]
+): any {
+  // Helper function to sanitize HTML content
+  function sanitizeHtml(content: string): string {
+    // Create a temporary element to parse the HTML
+    const temp = document.createElement("div");
+    temp.innerHTML = content;
+
+    // Remove dangerous elements
+    const dangerousElements = temp.querySelectorAll(
+      "script, iframe, object, embed, link, style, meta, base",
+    );
+    dangerousElements.forEach((elem) => elem.remove());
+
+    // Remove dangerous attributes
+    const allElements = temp.querySelectorAll("*");
+    allElements.forEach((elem) => {
+      // Remove event handlers and javascript: URLs
+      for (const attr of Array.from(elem.attributes)) {
+        if (
+          attr.name.startsWith("on") ||
+          (attr.name === "href" && attr.value.startsWith("javascript:")) ||
+          (attr.name === "src" && attr.value.startsWith("javascript:"))
+        ) {
+          elem.removeAttribute(attr.name);
+        }
+      }
+    });
+
+    return temp.innerHTML;
+  }
+
+  // Direct element usage: safeHtml(element, content)
+  if (args.length === 2 && isElementLike(args[0])) {
+    const [elementLike, content] = args;
+    const element = resolveElement(elementLike);
+    if (element) {
+      element.innerHTML = sanitizeHtml(String(content));
+    }
+    return;
+  }
+
+  // Selector usage: safeHtml(selector, content)
+  if (args.length === 2 && typeof args[0] === "string") {
+    const [selector, content] = args;
+    const element = resolveElement(selector);
+    if (element) {
+      element.innerHTML = sanitizeHtml(String(content));
+    }
+    return;
+  }
+
+  // Generator usage: yield safeHtml(content)
+  if (args.length === 1) {
+    const [content] = args;
+    return ((element: HTMLElement) => {
+      element.innerHTML = sanitizeHtml(String(content));
+    }) as ElementFn<HTMLElement, void>;
+  }
+
+  throw new Error("Invalid arguments for safeHtml");
 }
 
 // Internal implementations for addClass function

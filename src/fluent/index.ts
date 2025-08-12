@@ -98,12 +98,55 @@ export class FluentSelector<El extends Element = Element> {
   // ============================================================================
 
   /**
-   * Sets HTML content on all matched elements.
+   * Sets HTML content on all matched elements WITHOUT sanitization.
+   * WARNING: This method is unsafe and can introduce XSS vulnerabilities.
+   * Use safeHtml() for untrusted content.
+   * @deprecated Use safeHtml() for untrusted content
    */
   html(content: string): FluentSelector<El> {
+    console.warn(
+      "[watch-selector] html() is unsafe for untrusted content. Consider using safeHtml() instead.",
+    );
     this.elements.forEach((el) => {
       if (el instanceof HTMLElement) {
         el.innerHTML = content;
+      }
+    });
+    return this;
+  }
+
+  /**
+   * Sets sanitized HTML content on all matched elements.
+   * Sanitizes content by parsing it in a sandboxed element and removing dangerous elements/attributes.
+   */
+  safeHtml(content: string): FluentSelector<El> {
+    this.elements.forEach((el) => {
+      if (el instanceof HTMLElement) {
+        // Create a temporary element to parse the HTML
+        const temp = document.createElement("div");
+        temp.innerHTML = content;
+
+        // Remove dangerous elements
+        const dangerousElements = temp.querySelectorAll(
+          "script, iframe, object, embed, link, style, meta, base",
+        );
+        dangerousElements.forEach((elem) => elem.remove());
+
+        // Remove dangerous attributes
+        const allElements = temp.querySelectorAll("*");
+        allElements.forEach((elem) => {
+          // Remove event handlers
+          for (const attr of Array.from(elem.attributes)) {
+            if (
+              attr.name.startsWith("on") ||
+              (attr.name === "href" && attr.value.startsWith("javascript:"))
+            ) {
+              elem.removeAttribute(attr.name);
+            }
+          }
+        });
+
+        el.innerHTML = temp.innerHTML;
       }
     });
     return this;

@@ -126,9 +126,9 @@ yield query('.child');
 yield queryAll('.items');
 
 // Get related elements
-const parent = parentDOM(element);
-const children = childrenDOM(element);
-const siblings = siblingsDOM(element);
+const parent = parent(element);
+const children = children(element);
+const siblings = siblings(element);
 ```
 
 ## Event Handling
@@ -401,7 +401,8 @@ Watch elements within a specific parent:
 
 ```typescript
 // Basic scoped watch
-const watcher = scopedWatch('#container', '.item', function* () {
+const container = document.querySelector('#container');
+const watcher = scopedWatch(container, '.item', function* () {
   yield addClass('found');
 });
 
@@ -409,10 +410,12 @@ const watcher = scopedWatch('#container', '.item', function* () {
 watcher.disconnect();
 
 // With timeout (auto-disconnect)
-scopedWatchTimeout('#temp', '.item', handler, 5000);
+const temp = document.querySelector('#temp');
+scopedWatchTimeout(temp, '.item', handler, 5000);
 
 // Process limited elements
-scopedWatchOnce('#stream', '.message', handler, 3);
+const stream = document.querySelector('#stream');
+scopedWatchOnce(stream, '.message', handler, 3);
 
 // Batch multiple selectors
 scopedWatchBatch('#form', [

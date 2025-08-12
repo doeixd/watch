@@ -2534,7 +2534,7 @@ function* withErrorHandling(innerGen) {
 | `createState` | `(key, initial) => TypedState` | Create element-scoped state |
 | `createTypedState` | `(key, initial) => TypedState` | Create typed element-scoped state |
 | `createComputed` | `(fn, deps) => () => T` | Create computed value |
-| `getState` | `(key, ctx?) => T` | Get state value (optionally pass context) |
+| `getState` | `(key, defaultValue?, ctx?) => T` | Get state value (optionally pass context) |
 | `setState` | `(key, val, ctx?) => void` | Set state value (optionally pass context) |
 | `updateState` | `(key, fn, ctx?) => void` | Update state value (optionally pass context) |
 | `hasState` | `(key, ctx?) => boolean` | Check if state exists (optionally pass context) |

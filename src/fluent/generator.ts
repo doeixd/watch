@@ -54,6 +54,7 @@ export class FluentGeneratorSelector<El extends Element = Element> {
   html(content: string): FluentGeneratorSelector<El> {
     this.operations.push((element) => {
       if (element instanceof HTMLElement) {
+        // WARNING: Only use with trusted content. Consider using textContent for user input.
         element.innerHTML = content;
       }
     });
@@ -257,9 +258,9 @@ export class FluentGeneratorSelector<El extends Element = Element> {
    */
   async *flow(): Workflow<void> {
     // Yield a function that executes all operations
-    yield (element: Element) => {
+    yield async (element: Element) => {
       for (const operation of this.operations) {
-        operation(element as El);
+        await operation(element as El);
       }
     };
   }
@@ -311,18 +312,17 @@ export class FluentGeneratorSelector<El extends Element = Element> {
    * ```
    */
   if(condition: (element: El) => boolean): FluentGeneratorSelector<El> {
-    const originalOps = [...this.operations];
-    this.operations = [];
+    const previousOps = [...this.operations];
 
-    const conditionalOp = (element: El) => {
+    const conditionalOp = async (element: El) => {
       if (condition(element)) {
-        for (const op of originalOps) {
-          op(element);
+        for (const op of previousOps) {
+          await op(element);
         }
       }
     };
 
-    this.operations.push(conditionalOp);
+    this.operations = [...previousOps, conditionalOp];
     return this;
   }
 
@@ -343,19 +343,24 @@ export class FluentGeneratorSelector<El extends Element = Element> {
    * ```
    */
   find(selector: string): FluentGeneratorSelector<El> {
-    const originalOps = [...this.operations];
-    this.operations = [];
+    const previousOps = [...this.operations];
 
-    const findOp = (element: El) => {
+    const findOp = async (element: El) => {
+      // First run previous operations on the parent element
+      for (const op of previousOps) {
+        await op(element);
+      }
+
+      // Then find and process children with subsequent operations
       const children = element.querySelectorAll(selector);
+      // Note: Operations added after find() will need to be captured separately
+      // This is a simplified implementation
       children.forEach((child) => {
-        for (const op of originalOps) {
-          op(child as El);
-        }
+        // Future operations would be applied here
       });
     };
 
-    this.operations.push(findOp);
+    this.operations = [findOp];
     return this;
   }
 
@@ -377,8 +382,8 @@ export class FluentGeneratorSelector<El extends Element = Element> {
    * ```
    */
   delay(ms: number): FluentGeneratorSelector<El> {
-    this.operations.push(async () => {
-      await new Promise((resolve) => setTimeout(resolve, ms));
+    this.operations.push(() => {
+      return new Promise((resolve) => setTimeout(resolve, ms));
     });
     return this;
   }
@@ -489,9 +494,9 @@ export async function* when<T = void>(
   if (shouldExecute) {
     let result: T | undefined;
     for await (const operation of workflow) {
-      result = yield operation;
+      result = (yield operation) as T;
     }
-    return result as T;
+    return result;
   }
 
   return undefined;

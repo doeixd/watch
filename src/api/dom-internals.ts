@@ -23,6 +23,11 @@ export function _impl_text_get(element: HTMLElement): string {
 // ============================================================================
 
 export function _impl_html_set(element: HTMLElement, content: string): void {
+  // WARNING: Direct innerHTML assignment can introduce XSS vulnerabilities
+  // Consider using safeHtml() for untrusted content
+  console.warn(
+    "[watch-selector] Direct innerHTML assignment detected. Use safeHtml() for untrusted content to prevent XSS.",
+  );
   element.innerHTML = String(content);
 }
 
@@ -34,16 +39,22 @@ export function _impl_html_get(element: HTMLElement): string {
 // CLASS MANIPULATION IMPLEMENTATIONS
 // ============================================================================
 
-export function _impl_addClass(element: HTMLElement, ...classNames: string[]): void {
+export function _impl_addClass(
+  element: HTMLElement,
+  ...classNames: string[]
+): void {
   const splitClassNames = classNames.flatMap((name) =>
-    name.split(/\s+/).filter(Boolean)
+    name.split(/\s+/).filter(Boolean),
   );
   element.classList.add(...splitClassNames);
 }
 
-export function _impl_removeClass(element: HTMLElement, ...classNames: string[]): void {
+export function _impl_removeClass(
+  element: HTMLElement,
+  ...classNames: string[]
+): void {
   const splitClassNames = classNames.flatMap((name) =>
-    name.split(/\s+/).filter(Boolean)
+    name.split(/\s+/).filter(Boolean),
   );
   element.classList.remove(...splitClassNames);
 }
@@ -51,12 +62,15 @@ export function _impl_removeClass(element: HTMLElement, ...classNames: string[])
 export function _impl_toggleClass(
   element: HTMLElement,
   className: string,
-  force?: boolean
+  force?: boolean,
 ): boolean {
   return element.classList.toggle(className, force);
 }
 
-export function _impl_hasClass(element: HTMLElement, className: string): boolean {
+export function _impl_hasClass(
+  element: HTMLElement,
+  className: string,
+): boolean {
   return element.classList.contains(className);
 }
 
@@ -66,7 +80,7 @@ export function _impl_hasClass(element: HTMLElement, className: string): boolean
 
 export function _impl_style_set_object(
   element: HTMLElement,
-  styles: Partial<CSSStyleDeclaration>
+  styles: Partial<CSSStyleDeclaration>,
 ): void {
   Object.entries(styles).forEach(([prop, value]) => {
     if (prop.startsWith("--")) {
@@ -80,14 +94,14 @@ export function _impl_style_set_object(
 export function _impl_style_set_property(
   element: HTMLElement,
   property: string,
-  value: string
+  value: string,
 ): void {
   element.style.setProperty(property, value);
 }
 
 export function _impl_style_get_property(
   element: HTMLElement,
-  property: string
+  property: string,
 ): string {
   return (
     element.style.getPropertyValue(property) ||
@@ -102,7 +116,7 @@ export function _impl_style_get_property(
 
 export function _impl_attr_set_object(
   element: HTMLElement,
-  attrs: Record<string, any>
+  attrs: Record<string, any>,
 ): void {
   Object.entries(attrs).forEach(([key, val]) => {
     element.setAttribute(key, String(val));
@@ -112,14 +126,14 @@ export function _impl_attr_set_object(
 export function _impl_attr_set_property(
   element: HTMLElement,
   name: string,
-  value: any
+  value: any,
 ): void {
   element.setAttribute(name, String(value));
 }
 
 export function _impl_attr_get_property(
   element: HTMLElement,
-  name: string
+  name: string,
 ): string | null {
   return element.getAttribute(name);
 }
@@ -138,7 +152,7 @@ export function _impl_hasAttr(element: HTMLElement, name: string): boolean {
 
 export function _impl_prop_set_object(
   element: HTMLElement,
-  props: Record<string, any>
+  props: Record<string, any>,
 ): void {
   Object.assign(element, props);
 }
@@ -146,14 +160,14 @@ export function _impl_prop_set_object(
 export function _impl_prop_set_property(
   element: HTMLElement,
   name: string,
-  value: any
+  value: any,
 ): void {
   (element as any)[name] = value;
 }
 
 export function _impl_prop_get_property(
   element: HTMLElement,
-  name: string
+  name: string,
 ): any {
   return (element as any)[name];
 }
@@ -164,7 +178,7 @@ export function _impl_prop_get_property(
 
 export function _impl_data_set_object(
   element: HTMLElement,
-  data: Record<string, any>
+  data: Record<string, any>,
 ): void {
   Object.entries(data).forEach(([key, val]) => {
     element.dataset[key] = String(val);
@@ -174,14 +188,14 @@ export function _impl_data_set_object(
 export function _impl_data_set_property(
   element: HTMLElement,
   name: string,
-  value: any
+  value: any,
 ): void {
   element.dataset[name] = String(value);
 }
 
 export function _impl_data_get_property(
   element: HTMLElement,
-  name: string
+  name: string,
 ): string | undefined {
   return element.dataset[name];
 }
@@ -192,18 +206,21 @@ export function _impl_data_get_property(
 
 export function _impl_value_set(
   element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-  val: string
+  val: string,
 ): void {
   element.value = val;
 }
 
 export function _impl_value_get(
-  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
 ): string {
   return element.value || "";
 }
 
-export function _impl_checked_set(element: HTMLInputElement, val: boolean): void {
+export function _impl_checked_set(
+  element: HTMLInputElement,
+  val: boolean,
+): void {
   element.checked = val;
 }
 
@@ -251,21 +268,21 @@ export function _impl_hide(element: HTMLElement): void {
 
 export function _impl_query<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector: string
+  selector: string,
 ): T | null {
   return element.querySelector(selector) as T | null;
 }
 
 export function _impl_queryAll<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector: string
+  selector: string,
 ): T[] {
   return Array.from(element.querySelectorAll(selector)) as T[];
 }
 
 export function _impl_parent<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T | null {
   if (selector) {
     return element.closest(selector) as T | null;
@@ -275,7 +292,7 @@ export function _impl_parent<T extends HTMLElement = HTMLElement>(
 
 export function _impl_children<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T[] {
   const children = Array.from(element.children) as T[];
   if (selector) {
@@ -286,13 +303,13 @@ export function _impl_children<T extends HTMLElement = HTMLElement>(
 
 export function _impl_siblings<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T[] {
   const parent = element.parentElement;
   if (!parent) return [];
 
   const siblings = Array.from(parent.children).filter(
-    (child) => child !== element
+    (child) => child !== element,
   ) as T[];
 
   if (selector) {
@@ -307,7 +324,7 @@ export function _impl_siblings<T extends HTMLElement = HTMLElement>(
 
 export function _impl_batchAll<El extends HTMLElement = HTMLElement>(
   elements: El[],
-  operations: Array<(element: El) => any>
+  operations: Array<(element: El) => any>,
 ): void {
   for (const element of elements) {
     for (const operation of operations) {

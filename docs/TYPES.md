@@ -239,10 +239,10 @@ interface GeneratorContext<El extends HTMLElement = HTMLElement> {
   self: () => El;
   
   /** Query child element */
-  el: <S extends string>(selector: S) => ElementFromSelector<S> | null;
+  query: <S extends string>(selector: S) => ElementFromSelector<S> | null;
   
   /** Query all child elements */
-  all: <S extends string>(selector: S) => ElementFromSelector<S>[];
+  queryAll: <S extends string>(selector: S) => ElementFromSelector<S>[];
   
   /** Register cleanup */
   cleanup: (fn: CleanupFunction) => void;

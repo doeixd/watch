@@ -453,7 +453,7 @@ describe("Generator Support", () => {
       document.body.innerHTML = '<div class="watched">Initial</div>';
 
       // Simulate what would happen inside a watch generator
-      const mockGeneratorContext = async function* () {
+      const mockGeneratorContext = async function() {
         const element = document.querySelector(".watched")!;
 
         // Using explicit Flow functions

@@ -3,8 +3,23 @@
  *
  * This module provides pure state management operations that return Workflow<T>
  * directly, enabling the new `yield*` pattern without needing wrapper functions.
+ * Each element maintains its own isolated state that persists across DOM mutations
+ * and re-observations.
  *
- * @example Basic Usage
+ * ## State Persistence
+ *
+ * State is stored per-element and survives:
+ * - Element re-observation (element removed and re-added to DOM)
+ * - Attribute changes
+ * - Class changes
+ * - Parent changes
+ *
+ * State is cleared when:
+ * - The element is garbage collected
+ * - `clearState()` is explicitly called
+ * - The watch controller is destroyed
+ *
+ * @example Basic State Management
  * ```typescript
  * import { watch } from 'watch-selector';
  * import { getState, setState, updateState } from 'watch-selector/generator';
@@ -18,33 +33,68 @@
  *   yield* updateState<number>('total', (prev) => (prev || 0) + count);
  * });
  * ```
+ *
+ * @example Complex State Objects
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { getState, setState, mergeState } from 'watch-selector/generator';
+ *
+ * interface UserData {
+ *   name: string;
+ *   email: string;
+ *   preferences: Record<string, any>;
+ * }
+ *
+ * watch('.user-profile', async function*() {
+ *   // Initialize complex state
+ *   const user = yield* getState<UserData>('user', {
+ *     name: '',
+ *     email: '',
+ *     preferences: {}
+ *   });
+ *
+ *   // Merge partial updates
+ *   yield* mergeState('user', {
+ *     preferences: { theme: 'dark' }
+ *   });
+ * });
+ * ```
+ *
+ * @module generator/state
  */
 
-import type { Workflow, WatchContext } from "../types";
+import type { Workflow, WatchContext, Operation } from "../types";
 
 // ============================================================================
 // BASIC STATE OPERATIONS
 // ============================================================================
 
 /**
- * Get a state value for the current element using the pure generator API.
+ * Gets a state value for the current element using the pure generator API.
  *
  * This function retrieves state that is isolated to the current element, providing
  * persistent data storage that survives DOM mutations and element lifecycle events.
- * Each element maintains its own independent state scope.
+ * Each element maintains its own independent state scope. State keys are strings
+ * and values can be any serializable type.
  *
- * @param key The state key to retrieve
- * @param defaultValue Optional default value if state doesn't exist
- * @returns Workflow<T> that returns the state value when yielded
+ * @template T - The type of the state value
+ * @param key - The state key to retrieve
+ * @param defaultValue - Optional default value if state doesn't exist
+ * @returns A Workflow<T> that returns the state value when yielded
  *
- * @example Basic state retrieval
+ * @example Basic state retrieval with typing
  * ```typescript
  * import { watch } from 'watch-selector';
  * import { getState, setState, text } from 'watch-selector/generator';
  *
  * watch('.counter', async function* () {
- *   const count = yield* getState<number>('count', 0);
- *   yield* text(`Current count: ${count}`);
+ *   // Type is inferred from default value
+ *   const count = yield* getState('count', 0);  // number
+ *
+ *   // Explicit type for complex objects
+ *   const user = yield* getState<{name: string; id: number}>('user');
+ *
+ *   yield* text(`Count: ${count}`);
  * });
  * ```
  *
@@ -54,8 +104,12 @@ import type { Workflow, WatchContext } from "../types";
  * import { getState, addClass } from 'watch-selector/generator';
  *
  * watch('.user-profile', async function* () {
+ *   // Default values prevent undefined
  *   const theme = yield* getState<string>('theme', 'light');
- *   const preferences = yield* getState<object>('prefs', {});
+ *   const preferences = yield* getState('prefs', {
+ *     notifications: true,
+ *     sound: false
+ *   });
  *
  *   yield* addClass(`theme-${theme}`);
  * });
@@ -68,36 +122,44 @@ import type { Workflow, WatchContext } from "../types";
  *
  * watch('.notification', async function* () {
  *   const hasBeenSeen = yield* getState<boolean>('seen', false);
+ *   const viewCount = yield* getState<number>('views', 0);
  *
  *   if (!hasBeenSeen) {
  *     yield* addClass('new-notification');
- *     yield* text('🔔 New message!');
+ *     yield* text(`🔔 New message!`);
  *   } else {
  *     yield* removeClass('new-notification');
+ *     yield* text(`Viewed ${viewCount} times`);
  *   }
  * });
  * ```
+ *
+ * @see {@link setState} - For setting state values
+ * @see {@link updateState} - For updating state with a function
+ * @see {@link hasState} - For checking if state exists
  */
 export function getState<T = any>(key: string, defaultValue?: T): Workflow<T> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       const state = (context as any).state || new Map();
       return state.has(key) ? state.get(key) : defaultValue;
-    };
+    }) as Operation<T>;
     return result;
   })();
 }
 
 /**
- * Set a state value for the current element using the pure generator API.
+ * Sets a state value for the current element using the pure generator API.
  *
  * This function stores state that is isolated to the current element, providing
  * persistent data storage that survives DOM mutations and element lifecycle events.
- * State changes can trigger reactive updates in other parts of your application.
+ * The state is stored in a Map associated with the element, so any serializable
+ * value can be stored.
  *
- * @param key The state key to set
- * @param value The value to store
- * @returns Workflow<void> that sets the state when yielded
+ * @template T - The type of the state value
+ * @param key - The state key to set
+ * @param value - The value to store (can be any type)
+ * @returns A Workflow<void> that sets the state when yielded
  *
  * @example Basic state setting
  * ```typescript
@@ -174,14 +236,12 @@ export function getState<T = any>(key: string, defaultValue?: T): Workflow<T> {
  */
 export function setState<T = any>(key: string, value: T): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
       (context as any).state.set(key, value);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -283,7 +343,7 @@ export function updateState<T = any>(
   updater: (current: T | undefined) => T,
 ): Workflow<T> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -292,7 +352,7 @@ export function updateState<T = any>(
       const newValue = updater(currentValue);
       state.set(key, newValue);
       return newValue;
-    };
+    }) as Operation<T>;
     return result;
   })();
 }
@@ -303,8 +363,8 @@ export function updateState<T = any>(
  * This function checks whether a specific state key has been set for the current element,
  * useful for conditional logic and state validation.
  *
- * @param key The state key to check
- * @returns Workflow<boolean> that returns whether the state exists
+ * @param key - The state key to check
+ * @returns A Workflow<boolean> that returns true if the key exists
  *
  * @example Conditional initialization
  * ```typescript
@@ -376,10 +436,10 @@ export function updateState<T = any>(
  */
 export function hasState(key: string): Workflow<boolean> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       const state = (context as any).state;
       return state ? state.has(key) : false;
-    };
+    }) as Operation<boolean>;
     return result;
   })();
 }
@@ -390,8 +450,8 @@ export function hasState(key: string): Workflow<boolean> {
  * This function removes a specific state key from the current element's state,
  * useful for cleanup operations and state management.
  *
- * @param key The state key to delete
- * @returns Workflow<boolean> that returns whether the key was deleted
+ * @param key - The state key to delete
+ * @returns A Workflow<boolean> that returns true if the key was deleted
  *
  * @example Cleanup on completion
  * ```typescript
@@ -453,10 +513,10 @@ export function hasState(key: string): Workflow<boolean> {
  */
 export function deleteState(key: string): Workflow<boolean> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       const state = (context as any).state;
       return state ? state.delete(key) : false;
-    };
+    }) as Operation<boolean>;
     return result;
   })();
 }
@@ -473,7 +533,7 @@ export function deleteState(key: string): Workflow<boolean> {
  */
 export function initState<T = any>(key: string, defaultValue: T): Workflow<T> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -482,23 +542,38 @@ export function initState<T = any>(key: string, defaultValue: T): Workflow<T> {
         state.set(key, defaultValue);
       }
       return state.get(key);
-    };
+    }) as Operation<T>;
     return result;
   })();
 }
 
 /**
- * Increment a numeric state value
- * @param key The state key
- * @param amount The amount to increment by (default: 1)
- * @returns Workflow that returns the new value
+ * Increments a numeric state value by a specified amount.
+ *
+ * If the state doesn't exist or is not a number, treats it as 0.
+ * This is a convenience function for the common pattern of incrementing counters.
+ *
+ * @param key - The state key to increment
+ * @param amount - The amount to increment by (default: 1)
+ * @returns A Workflow<number> that returns the new value
+ *
+ * @example Simple counter
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { incrementState, text } from 'watch-selector/generator';
+ *
+ * watch('.counter', async function* () {
+ *   const count = yield* incrementState('clicks');
+ *   yield* text(`Clicks: ${count}`);
+ * });
+ * ```
  */
 export function incrementState(
   key: string,
   amount: number = 1,
 ): Workflow<number> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -507,23 +582,43 @@ export function incrementState(
       const newValue = currentValue + amount;
       state.set(key, newValue);
       return newValue;
-    };
+    }) as Operation<number>;
     return result;
   })();
 }
 
 /**
- * Decrement a numeric state value
- * @param key The state key
- * @param amount The amount to decrement by (default: 1)
- * @returns Workflow that returns the new value
+ * Decrements a numeric state value by a specified amount.
+ *
+ * If the state doesn't exist or is not a number, treats it as 0.
+ * This is a convenience function for the common pattern of decrementing counters.
+ *
+ * @param key - The state key to decrement
+ * @param amount - The amount to decrement by (default: 1)
+ * @returns A Workflow<number> that returns the new value
+ *
+ * @example Countdown timer
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { decrementState, text, hide } from 'watch-selector/generator';
+ *
+ * watch('.countdown', async function* () {
+ *   const remaining = yield* decrementState('seconds');
+ *
+ *   if (remaining <= 0) {
+ *     yield* hide();
+ *   } else {
+ *     yield* text(`${remaining} seconds remaining`);
+ *   }
+ * });
+ * ```
  */
 export function decrementState(
   key: string,
   amount: number = 1,
 ): Workflow<number> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -532,19 +627,34 @@ export function decrementState(
       const newValue = currentValue - amount;
       state.set(key, newValue);
       return newValue;
-    };
+    }) as Operation<number>;
     return result;
   })();
 }
 
 /**
- * Toggle a boolean state value
- * @param key The state key
- * @returns Workflow that returns the new boolean value
+ * Toggles a boolean state value between true and false.
+ *
+ * If the state doesn't exist or is not a boolean, treats it as false initially.
+ * Returns the new boolean value after toggling.
+ *
+ * @param key - The state key to toggle
+ * @returns A Workflow<boolean> that returns the new boolean value
+ *
+ * @example Toggle UI state
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { toggleState, toggleClass } from 'watch-selector/generator';
+ *
+ * watch('.expandable', async function* () {
+ *   const isExpanded = yield* toggleState('expanded');
+ *   yield* toggleClass('expanded', isExpanded);
+ * });
+ * ```
  */
 export function toggleState(key: string): Workflow<boolean> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -553,20 +663,37 @@ export function toggleState(key: string): Workflow<boolean> {
       const newValue = !currentValue;
       state.set(key, newValue);
       return newValue;
-    };
+    }) as Operation<boolean>;
     return result;
   })();
 }
 
 /**
- * Append a value to an array state
- * @param key The state key
- * @param value The value to append
- * @returns Workflow that returns the new array
+ * Appends a value to an array stored in state.
+ *
+ * If the state doesn't exist or is not an array, creates a new array with the value.
+ * Returns the updated array. This creates a new array rather than mutating the existing one.
+ *
+ * @template T - The type of array elements
+ * @param key - The state key containing the array
+ * @param value - The value to append
+ * @returns A Workflow<T[]> that returns the new array
+ *
+ * @example Building a list
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { appendToState, getState } from 'watch-selector/generator';
+ *
+ * watch('.add-item', async function* () {
+ *   const newItem = { id: Date.now(), text: 'New Item' };
+ *   const items = yield* appendToState('items', newItem);
+ *   console.log(`Total items: ${items.length}`);
+ * });
+ * ```
  */
 export function appendToState<T = any>(key: string, value: T): Workflow<T[]> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -575,20 +702,36 @@ export function appendToState<T = any>(key: string, value: T): Workflow<T[]> {
       const newArray = [...currentArray, value];
       state.set(key, newArray);
       return newArray;
-    };
+    }) as Operation<T[]>;
     return result;
   })();
 }
 
 /**
- * Prepend a value to an array state
- * @param key The state key
- * @param value The value to prepend
- * @returns Workflow that returns the new array
+ * Prepends a value to the beginning of an array stored in state.
+ *
+ * If the state doesn't exist or is not an array, creates a new array with the value.
+ * Returns the updated array. This creates a new array rather than mutating the existing one.
+ *
+ * @template T - The type of array elements
+ * @param key - The state key containing the array
+ * @param value - The value to prepend
+ * @returns A Workflow<T[]> that returns the new array
+ *
+ * @example Adding notifications to the top
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { prependToState } from 'watch-selector/generator';
+ *
+ * watch('.notification-list', async function* () {
+ *   const notification = { message: 'New alert!', timestamp: Date.now() };
+ *   const notifications = yield* prependToState('notifications', notification);
+ * });
+ * ```
  */
 export function prependToState<T = any>(key: string, value: T): Workflow<T[]> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -597,20 +740,38 @@ export function prependToState<T = any>(key: string, value: T): Workflow<T[]> {
       const newArray = [value, ...currentArray];
       state.set(key, newArray);
       return newArray;
-    };
+    }) as Operation<T[]>;
     return result;
   })();
 }
 
 /**
- * Remove a value from an array state
- * @param key The state key
- * @param value The value to remove
- * @returns Workflow that returns the new array
+ * Removes a value from an array stored in state.
+ *
+ * Removes all occurrences of the value from the array using strict equality (===).
+ * If the state doesn't exist or is not an array, returns an empty array.
+ * This creates a new array rather than mutating the existing one.
+ *
+ * @template T - The type of array elements
+ * @param key - The state key containing the array
+ * @param value - The value to remove
+ * @returns A Workflow<T[]> that returns the new array
+ *
+ * @example Removing items from a list
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { removeFromState, getState } from 'watch-selector/generator';
+ *
+ * watch('.remove-item', async function* () {
+ *   const itemToRemove = yield* getState('selectedItem');
+ *   const items = yield* removeFromState('items', itemToRemove);
+ *   console.log(`Items remaining: ${items.length}`);
+ * });
+ * ```
  */
 export function removeFromState<T = any>(key: string, value: T): Workflow<T[]> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -619,23 +780,43 @@ export function removeFromState<T = any>(key: string, value: T): Workflow<T[]> {
       const newArray = currentArray.filter((item) => item !== value);
       state.set(key, newArray);
       return newArray;
-    };
+    }) as Operation<T[]>;
     return result;
   })();
 }
 
 /**
- * Merge an object into an object state
- * @param key The state key
- * @param updates The object to merge
- * @returns Workflow that returns the new merged object
+ * Merges a partial object into existing object state.
+ *
+ * Performs a shallow merge of the updates into the existing state object.
+ * If the state doesn't exist or is not an object, treats it as an empty object.
+ * This creates a new object rather than mutating the existing one.
+ *
+ * @template T - The type of the state object
+ * @param key - The state key containing the object
+ * @param updates - The partial object to merge
+ * @returns A Workflow<T> that returns the merged object
+ *
+ * @example Updating user preferences
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { mergeState } from 'watch-selector/generator';
+ *
+ * watch('.settings', async function* () {
+ *   const updated = yield* mergeState('preferences', {
+ *     theme: 'dark',
+ *     fontSize: 'large'
+ *   });
+ *   // Existing preferences are preserved, only specified keys are updated
+ * });
+ * ```
  */
 export function mergeState<T extends Record<string, any> = Record<string, any>>(
   key: string,
   updates: Partial<T>,
 ): Workflow<T> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
@@ -644,7 +825,7 @@ export function mergeState<T extends Record<string, any> = Record<string, any>>(
       const newObject = { ...currentObject, ...updates };
       state.set(key, newObject);
       return newObject;
-    };
+    }) as Operation<T>;
     return result;
   })();
 }
@@ -664,16 +845,14 @@ export function watchState<T = any>(
   callback: (newValue: T, oldValue: T | undefined) => void,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // This is a simplified implementation - in a real system you'd
       // want to integrate with the actual state management system
       if (!(context as any).stateWatchers) {
         (context as any).stateWatchers = new Map();
       }
       (context as any).stateWatchers.set(key, callback);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -689,31 +868,27 @@ export function watchState<T = any>(
  * @returns Workflow that sets up the computed state
  */
 export function computedState<T = any>(
-  key: string,
   dependencies: string[],
-  compute: (values: any[]) => T,
+  compute: (values: Record<string, any>) => T,
 ): Workflow<T> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       if (!(context as any).state) {
         (context as any).state = new Map();
       }
       const state = (context as any).state;
 
-      // Get current values of dependencies
-      const dependencyValues = dependencies.map((dep) => state.get(dep));
+      // Get current values of dependencies as an object
+      const dependencyValues: Record<string, any> = {};
+      dependencies.forEach((dep) => {
+        dependencyValues[dep] = state.get(dep);
+      });
 
-      // Compute the new value
+      // Compute the value
       const computedValue = compute(dependencyValues);
 
-      // Store the computed value
-      state.set(key, computedValue);
-
-      // In a real implementation, you'd set up reactivity here
-      // to recompute when dependencies change
-
       return computedValue;
-    };
+    }) as Operation<T>;
     return result;
   })();
 }
@@ -723,13 +898,31 @@ export function computedState<T = any>(
 // ============================================================================
 
 /**
- * Log all state for the current element
- * @param prefix Optional prefix for the log message
- * @returns Workflow that logs the state
+ * Logs all state for the current element to the console for debugging.
+ *
+ * Outputs the entire state Map as an object, making it easy to inspect
+ * all stored values. Useful for debugging state-related issues.
+ *
+ * @param prefix - Optional prefix for the log message (default: "State")
+ * @returns A Workflow<void> that logs the state when yielded
+ *
+ * @example Debugging state
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { setState, logState } from 'watch-selector/generator';
+ *
+ * watch('.debug-element', async function* () {
+ *   yield* setState('user', { name: 'John', age: 30 });
+ *   yield* setState('theme', 'dark');
+ *
+ *   yield* logState('Current State');
+ *   // Logs: [Current State] { user: {...}, theme: 'dark' } <element>
+ * });
+ * ```
  */
 export function logState(prefix: string = "State"): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       const state = (context as any).state;
       if (state) {
         const stateObject = Object.fromEntries(state.entries());
@@ -737,28 +930,42 @@ export function logState(prefix: string = "State"): Workflow<void> {
       } else {
         console.log(`[${prefix}] No state`, context.element);
       }
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
 /**
- * Log a specific state key
- * @param key The state key to log
- * @param prefix Optional prefix for the log message
- * @returns Workflow that logs the state key
+ * Logs a specific state key value to the console for debugging.
+ *
+ * Outputs just the value of a single state key, useful for tracking
+ * specific state changes during development.
+ *
+ * @param key - The state key to log
+ * @param prefix - Optional prefix for the log message (defaults to "State[key]")
+ * @returns A Workflow<void> that logs the state value when yielded
+ *
+ * @example Tracking specific state
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { setState, logStateKey, updateState } from 'watch-selector/generator';
+ *
+ * watch('.counter', async function* () {
+ *   yield* setState('count', 0);
+ *   yield* logStateKey('count', 'Initial');
+ *
+ *   yield* updateState('count', c => c + 1);
+ *   yield* logStateKey('count', 'After increment');
+ * });
+ * ```
  */
 export function logStateKey(key: string, prefix?: string): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       const state = (context as any).state;
       const value = state ? state.get(key) : undefined;
       const logPrefix = prefix || `State[${key}]`;
       console.log(`[${logPrefix}]`, value, context.element);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -768,26 +975,44 @@ export function logStateKey(key: string, prefix?: string): Workflow<void> {
  */
 export function getStateSnapshot(): Workflow<Record<string, any>> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    const result = yield ((context: WatchContext) => {
       const state = (context as any).state;
       return state ? Object.fromEntries(state.entries()) : {};
-    };
+    }) as Operation<Record<string, any>>;
     return result;
   })();
 }
 
 /**
- * Clear all state for the current element
- * @returns Workflow that clears all state
+ * Clears all state for the current element.
+ *
+ * Removes all state keys and values, effectively resetting the element's state
+ * to an empty Map. Use with caution as this cannot be undone.
+ *
+ * @returns A Workflow<void> that clears all state when yielded
+ *
+ * @example Resetting element state
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { setState, clearState, hasState } from 'watch-selector/generator';
+ *
+ * watch('.resettable', async function* () {
+ *   yield* setState('temp1', 'value1');
+ *   yield* setState('temp2', 'value2');
+ *
+ *   // Reset everything
+ *   yield* clearState();
+ *
+ *   const hasTemp1 = yield* hasState('temp1'); // false
+ * });
+ * ```
  */
 export function clearState(): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       if ((context as any).state) {
         (context as any).state.clear();
       }
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }

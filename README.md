@@ -42,6 +42,7 @@ Watch handles all of this automatically.
 - [Quick Start](#quick-start)
 - [Why Choose Watch?](#why-choose-watch)
 - [Installation](#installation)
+- [Documentation](#documentation)
 - [Core Concepts](#core-concepts)
 - [Real-World Examples](#real-world-examples)
 - [Advanced Features](#advanced-features)
@@ -162,6 +163,109 @@ watch('button', function* () {
   yield click(() => console.log('Hello from CDN!'));
 });
 ```
+
+<br>
+
+## Documentation
+
+### 📚 Comprehensive Guides
+
+- **[API Reference](./docs/API.md)** - Complete documentation of all functions, types, and patterns
+- **[Quick Reference](./docs/QUICK-REFERENCE.md)** - Concise guide to commonly used functions
+- **[Type Definitions](./docs/TYPES.md)** - Full TypeScript type reference
+- **[Explicit API Spec](./docs/EXPLICIT-API-SPEC.md)** - Specification for non-overloaded functions
+- **[Examples](./examples/)** - Real-world usage examples and patterns
+
+### 🚀 Getting Started
+
+The library provides multiple ways to interact with the DOM:
+
+1. **Direct manipulation** - Call functions directly on elements
+2. **CSS selectors** - Target elements by selector strings  
+3. **Generator functions** - Compose behaviors with `yield`
+4. **Async generators** - Use `yield*` for type-safe async flows
+5. **Pure workflows** - Import from `/generator` for clean syntax
+
+```typescript
+// All these patterns are supported:
+import { text, addClass } from 'watch-selector';
+
+// Direct element manipulation
+const button = document.querySelector('button');
+text(button, 'Click me!');
+
+// CSS selector manipulation  
+text('#my-button', 'Click me!');
+
+// Generator pattern
+watch('button', function* () {
+  yield text('Click me!');
+  yield addClass('interactive');
+});
+
+// Async generator with $ helper
+watch('button', async function* () {
+  yield* $(text('Click me!'));
+  yield* $(addClass('interactive'));
+});
+
+// Pure generator submodule
+import { text, addClass } from 'watch-selector/generator';
+watch('button', async function* () {
+  yield* text('Click me!');
+  yield* addClass('interactive');
+});
+```
+
+### 🎯 Three API Styles
+
+Watch Selector offers three distinct API styles to match your preferences:
+
+#### 1. **Overloaded API** (Default)
+The flexible, context-aware API with intelligent overloading:
+```typescript
+import { text, addClass, click } from 'watch-selector';
+
+// Functions adapt to context
+text(element, 'Hello');        // Direct element
+text('#button', 'Hello');      // Selector
+yield text('Hello');           // Generator
+```
+
+#### 2. **Explicit API** 
+Clear, unambiguous function names that specify exactly what they do:
+```typescript
+import * as explicit from 'watch-selector/explicit';
+
+explicit.setTextElement(element, 'Hello');     // Set text on element
+explicit.setTextFirst('#button', 'Hello');     // Set text on first match
+explicit.setTextAll('.items', 'Updated');      // Set text on all matches
+explicit.getTextElement(element);              // Get text from element
+```
+
+#### 3. **Fluent API**
+jQuery-like chainable interface for elegant DOM manipulation:
+```typescript
+import { selector, element, $ } from 'watch-selector/fluent';
+
+selector('#button')
+  .text('Click me!')
+  .addClass('primary', 'large')
+  .style('backgroundColor', 'blue')
+  .click(() => console.log('Clicked!'));
+
+// Or use $ for jQuery familiarity
+$('.items')
+  .addClass('found')
+  .each((el, i) => console.log(`Item ${i}:`, el));
+```
+
+Choose the style that best fits your needs:
+- **Overloaded**: Maximum flexibility and conciseness
+- **Explicit**: Crystal clear intent, no ambiguity
+- **Fluent**: Elegant chaining for multiple operations
+
+See [examples/api-comparison.ts](./examples/api-comparison.ts) for detailed comparisons.
 
 <br>
 

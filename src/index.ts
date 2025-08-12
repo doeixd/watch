@@ -156,6 +156,19 @@
 // Core watch function
 export { watch, run, runOn, layer, getInstances, destroy } from "./watch";
 
+// State management
+export {
+  createState,
+  watchState,
+  setState,
+  getState,
+  updateState,
+  hasState,
+  deleteState,
+  clearAllState,
+  createTypedState,
+} from "./core/state";
+
 // Core types for advanced usage
 export type {
   ElementFromSelector,
@@ -185,6 +198,7 @@ export type {
   HybridCustomEventHandler as EnhancedCustomEventHandler,
   HybridEventOptions as EnhancedEventOptions,
   DebounceOptions,
+  TypedState,
   ThrottleOptions,
 } from "./types";
 
@@ -324,19 +338,10 @@ export {
 
 // Enhanced state management
 export {
-  getState,
-  setState,
-  updateState,
-  hasState,
-  deleteState,
-  createTypedState,
-  createState,
   createComputed,
-  watchState,
   setStateReactive,
   batchStateUpdates,
   createPersistedState,
-  clearAllState,
   debugState,
   logState,
 } from "./core/state";
@@ -422,3 +427,20 @@ export { el as elAlias } from "./core/generator";
 
 // Default export is the watch function
 export { watch as default } from "./watch";
+
+// ============================================================================
+// EXPLICIT API - Non-overloaded versions with clear, unambiguous names
+// ============================================================================
+
+// Export explicit API as namespace for cleaner imports
+export * as explicit from "./explicit";
+
+// ============================================================================
+// FLUENT API - Chainable jQuery-like interface
+// ============================================================================
+
+// Export fluent API for method chaining
+export * as fluent from "./fluent";
+
+// Also export main fluent factories directly
+export { selector, element, elements, $fluent } from "./fluent";

@@ -4,16 +4,149 @@
  * This module provides Workflow<T> functions for event handling that can be used
  * directly with `yield*` syntax. These functions return async generators that yield
  * operations to be executed by the watch runtime.
+ *
+ * ## Event Handler Types
+ *
+ * Event handlers in the generator module support three patterns:
+ * 1. **Regular functions**: `(event) => void`
+ * 2. **Async functions**: `async (event) => void`
+ * 3. **Generator functions**: `async function* (event) { ... }`
+ *
+ * Generator event handlers are particularly powerful as they can yield other
+ * operations within the event handler, maintaining full type safety and context.
+ *
+ * @example Basic Event Handling
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, text, addClass } from 'watch-selector/generator';
+ *
+ * watch('button', async function* () {
+ *   // Simple click handler
+ *   yield* click(() => {
+ *     console.log('Button clicked!');
+ *   });
+ *
+ *   // Generator-based handler with DOM operations
+ *   yield* click(async function* (event) {
+ *     yield* text('Clicked!');
+ *     yield* addClass('active');
+ *   });
+ * });
+ * ```
+ *
+ * @example Form Event Handling
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { input, change, submit, getValue, setText } from 'watch-selector/generator';
+ *
+ * watch('form', async function* () {
+ *   yield* input('input[type="text"]', async function* (event) {
+ *     const value = yield* getValue();
+ *     yield* setText('.preview', value);
+ *   });
+ *
+ *   yield* submit(async function* (event) {
+ *     event.preventDefault();
+ *     // Handle form submission
+ *   });
+ * });
+ * ```
+ *
+ * @module generator/events
  */
 
-import type { Workflow, WatchContext } from "../types";
+import type { Workflow, WatchContext, Operation } from "../types";
 import { runOn } from "../watch";
 
 /**
- * Add a click event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the click event listener
+ * Adds a click event listener to an element using the pure generator API.
+ *
+ * This function attaches a click event handler that can be a regular function,
+ * async function, or a generator function. Generator handlers are particularly
+ * powerful as they can yield additional operations within the event handler.
+ *
+ * @param handler - The event handler function that receives the MouseEvent
+ * @param options - Optional event listener options (capture, once, passive, etc.)
+ * @returns A Workflow<void> that adds the click listener when yielded
+ *
+ * @example Basic click handler
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, text } from 'watch-selector/generator';
+ *
+ * watch('button', async function* () {
+ *   yield* click(() => {
+ *     console.log('Button clicked!');
+ *   });
+ * });
+ * ```
+ *
+ * @example Click handler with DOM updates
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, text, addClass, removeClass, getState, setState } from 'watch-selector/generator';
+ *
+ * watch('.toggle-button', async function* () {
+ *   yield* click(async function* (event) {
+ *     event.preventDefault();
+ *
+ *     // Toggle state
+ *     const isActive = yield* getState('active', false);
+ *     yield* setState('active', !isActive);
+ *
+ *     // Update UI
+ *     if (!isActive) {
+ *       yield* addClass('active');
+ *       yield* text('Active');
+ *     } else {
+ *       yield* removeClass('active');
+ *       yield* text('Inactive');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Click counter with state
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, text, updateState } from 'watch-selector/generator';
+ *
+ * watch('.counter-button', async function* () {
+ *   yield* text('Clicks: 0');
+ *
+ *   yield* click(async function* () {
+ *     const count = yield* updateState<number>('clicks', (c = 0) => c + 1);
+ *     yield* text(`Clicks: ${count}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Double-click prevention
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { click, prop, delay } from 'watch-selector/generator';
+ *
+ * watch('.submit-button', async function* () {
+ *   yield* click(async function* (event) {
+ *     const button = event.target as HTMLButtonElement;
+ *
+ *     // Disable to prevent double-clicks
+ *     yield* prop('disabled', true);
+ *     yield* text('Processing...');
+ *
+ *     // Simulate async operation
+ *     yield* delay(2000);
+ *
+ *     // Re-enable
+ *     yield* prop('disabled', false);
+ *     yield* text('Submit');
+ *   });
+ * });
+ * ```
+ *
+ * @see {@link input} - For handling input events
+ * @see {@link change} - For handling change events
+ * @see {@link submit} - For handling form submission
  */
 export function click(
   handler:
@@ -23,7 +156,7 @@ export function click(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: MouseEvent) => {
         const result = handler(event);
@@ -41,17 +174,107 @@ export function click(
       };
 
       context.element.addEventListener("click", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
 /**
- * Add an input event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the input event listener
+ * Adds an input event listener to an element using the pure generator API.
+ *
+ * The input event fires synchronously when the value of an input, select, or
+ * textarea element changes. Unlike the change event, it fires immediately
+ * after each modification.
+ *
+ * @param handler - The event handler function that receives the Event
+ * @param options - Optional event listener options
+ * @returns A Workflow<void> that adds the input listener when yielded
+ *
+ * @example Real-time search
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { input, getValue, queryAll, toggleClass } from 'watch-selector/generator';
+ *
+ * watch('input.search', async function* () {
+ *   yield* input(async function* (event) {
+ *     const searchTerm = yield* getValue();
+ *     const items = yield* queryAll('.search-item');
+ *
+ *     for (const item of items) {
+ *       const text = item.textContent?.toLowerCase() || '';
+ *       const matches = text.includes(searchTerm.toLowerCase());
+ *       yield* toggleClass(item, 'hidden', !matches);
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Character counter
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { input, getValue, text, toggleClass } from 'watch-selector/generator';
+ *
+ * watch('textarea.limited', async function* () {
+ *   const maxLength = 280;
+ *
+ *   yield* input(async function* () {
+ *     const content = yield* getValue();
+ *     const remaining = maxLength - content.length;
+ *
+ *     yield* text(`.counter`, `${remaining} characters remaining`);
+ *     yield* toggleClass('over-limit', remaining < 0);
+ *   });
+ * });
+ * ```
+ *
+ * @example Form validation
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { input, getValue, addClass, removeClass, attr } from 'watch-selector/generator';
+ *
+ * watch('input[type="email"]', async function* () {
+ *   yield* input(async function* (event) {
+ *     const input = event.target as HTMLInputElement;
+ *     const isValid = input.checkValidity();
+ *
+ *     if (isValid) {
+ *       yield* removeClass('invalid');
+ *       yield* addClass('valid');
+ *       yield* attr('aria-invalid', 'false');
+ *     } else {
+ *       yield* removeClass('valid');
+ *       yield* addClass('invalid');
+ *       yield* attr('aria-invalid', 'true');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Debounced input handling
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { input, getValue, delay, text } from 'watch-selector/generator';
+ *
+ * watch('input.debounced', async function* () {
+ *   let timeoutId: any;
+ *
+ *   yield* input(async function* () {
+ *     clearTimeout(timeoutId);
+ *
+ *     yield* text('.status', 'Typing...');
+ *
+ *     // Debounce logic
+ *     await new Promise(resolve => {
+ *       timeoutId = setTimeout(resolve, 500);
+ *     });
+ *
+ *     const value = yield* getValue();
+ *     yield* text('.status', `Saved: ${value}`);
+ *   });
+ * });
+ * ```
+ *
+ * @see {@link change} - For handling value changes on blur
+ * @see {@link click} - For handling click events
  */
 export function input(
   handler:
@@ -61,7 +284,7 @@ export function input(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: Event) => {
         const result = handler(event);
@@ -79,17 +302,82 @@ export function input(
       };
 
       context.element.addEventListener("input", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
 /**
- * Add a change event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the change event listener
+ * Adds a change event listener to an element using the pure generator API.
+ *
+ * The change event fires when an element loses focus after its value has been
+ * changed. For input elements, this happens when the user commits the change
+ * (e.g., by pressing Enter or clicking elsewhere).
+ *
+ * @param handler - The event handler function that receives the Event
+ * @param options - Optional event listener options
+ * @returns A Workflow<void> that adds the change listener when yielded
+ *
+ * @example Select dropdown handling
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { change, getValue, text, addClass, removeClass } from 'watch-selector/generator';
+ *
+ * watch('select.theme-selector', async function* () {
+ *   yield* change(async function* (event) {
+ *     const theme = yield* getValue();
+ *
+ *     // Update body classes
+ *     const body = document.body;
+ *     yield* removeClass(body, 'theme-light theme-dark theme-auto');
+ *     yield* addClass(body, `theme-${theme}`);
+ *
+ *     // Update display
+ *     yield* text('.current-theme', `Current theme: ${theme}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Checkbox state handling
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { change, isChecked, setState, toggleClass } from 'watch-selector/generator';
+ *
+ * watch('input[type="checkbox"].toggle-feature', async function* () {
+ *   yield* change(async function* () {
+ *     const checked = yield* isChecked();
+ *
+ *     yield* setState('featureEnabled', checked);
+ *     yield* toggleClass(document.body, 'feature-enabled', checked);
+ *
+ *     console.log(`Feature ${checked ? 'enabled' : 'disabled'}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Radio button group
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { change, getValue, queryAll, removeClass, addClass } from 'watch-selector/generator';
+ *
+ * watch('input[type="radio"][name="view-mode"]', async function* () {
+ *   yield* change(async function* (event) {
+ *     const input = event.target as HTMLInputElement;
+ *     const mode = input.value;
+ *
+ *     // Update view containers
+ *     const containers = yield* queryAll('.view-container');
+ *     for (const container of containers) {
+ *       yield* removeClass(container, 'active');
+ *       if (container.classList.contains(`view-${mode}`)) {
+ *         yield* addClass(container, 'active');
+ *       }
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @see {@link input} - For real-time input handling
+ * @see {@link submit} - For form submission handling
  */
 export function change(
   handler:
@@ -99,7 +387,7 @@ export function change(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: Event) => {
         const result = handler(event);
@@ -117,17 +405,128 @@ export function change(
       };
 
       context.element.addEventListener("change", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
 /**
- * Add a submit event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the submit event listener
+ * Adds a submit event listener to a form element using the pure generator API.
+ *
+ * The submit event fires when a form is submitted. Remember to call
+ * event.preventDefault() if you want to handle the submission with JavaScript
+ * instead of the default browser behavior.
+ *
+ * @param handler - The event handler function that receives the SubmitEvent
+ * @param options - Optional event listener options
+ * @returns A Workflow<void> that adds the submit listener when yielded
+ *
+ * @example Basic form submission
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { submit, getValue, prop, text, addClass } from 'watch-selector/generator';
+ *
+ * watch('form.contact-form', async function* () {
+ *   yield* submit(async function* (event) {
+ *     event.preventDefault();
+ *
+ *     // Disable form during submission
+ *     const button = event.submitter as HTMLButtonElement;
+ *     yield* prop(button, 'disabled', true);
+ *     yield* text(button, 'Sending...');
+ *
+ *     // Get form data
+ *     const formData = new FormData(event.target as HTMLFormElement);
+ *
+ *     try {
+ *       // Submit form data
+ *       await fetch('/api/contact', {
+ *         method: 'POST',
+ *         body: formData
+ *       });
+ *
+ *       yield* addClass('success');
+ *       yield* text('.message', 'Message sent successfully!');
+ *     } catch (error) {
+ *       yield* addClass('error');
+ *       yield* text('.message', 'Failed to send message');
+ *     } finally {
+ *       yield* prop(button, 'disabled', false);
+ *       yield* text(button, 'Send');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Form validation before submission
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { submit, queryAll, hasClass, addClass, text } from 'watch-selector/generator';
+ *
+ * watch('form.validated-form', async function* () {
+ *   yield* submit(async function* (event) {
+ *     event.preventDefault();
+ *
+ *     // Check required fields
+ *     const requiredFields = yield* queryAll('input[required]');
+ *     let isValid = true;
+ *
+ *     for (const field of requiredFields) {
+ *       const input = field as HTMLInputElement;
+ *       if (!input.value.trim()) {
+ *         yield* addClass(field, 'error');
+ *         isValid = false;
+ *       } else {
+ *         yield* removeClass(field, 'error');
+ *       }
+ *     }
+ *
+ *     if (!isValid) {
+ *       yield* text('.form-error', 'Please fill in all required fields');
+ *       return;
+ *     }
+ *
+ *     // Proceed with submission
+ *     const form = event.target as HTMLFormElement;
+ *     form.submit();
+ *   });
+ * });
+ * ```
+ *
+ * @example AJAX form with progress tracking
+ * ```typescript
+ * import { watch } from 'watch-selector';
+ * import { submit, style, text, addClass, removeClass } from 'watch-selector/generator';
+ *
+ * watch('form.upload-form', async function* () {
+ *   yield* submit(async function* (event) {
+ *     event.preventDefault();
+ *
+ *     const form = event.target as HTMLFormElement;
+ *     const formData = new FormData(form);
+ *
+ *     // Show progress bar
+ *     yield* removeClass('.progress-bar', 'hidden');
+ *
+ *     const xhr = new XMLHttpRequest();
+ *
+ *     // Track upload progress
+ *     xhr.upload.addEventListener('progress', async (e) => {
+ *       if (e.lengthComputable) {
+ *         const percentComplete = (e.loaded / e.total) * 100;
+ *         yield* style('.progress-fill', 'width', `${percentComplete}%`);
+ *         yield* text('.progress-text', `${Math.round(percentComplete)}%`);
+ *       }
+ *     });
+ *
+ *     xhr.open('POST', '/upload');
+ *     xhr.send(formData);
+ *   });
+ * });
+ * ```
+ *
+ * @see {@link input} - For handling individual field changes
+ * @see {@link change} - For handling field value changes
+ * @see {@link click} - For handling button clicks
  */
 export function submit(
   handler:
@@ -137,7 +536,7 @@ export function submit(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: SubmitEvent) => {
         const result = handler(event);
@@ -155,9 +554,7 @@ export function submit(
       };
 
       context.element.addEventListener("submit", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -172,11 +569,9 @@ export function onFocus(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.addEventListener("focus", handler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -191,11 +586,9 @@ export function onBlur(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.addEventListener("blur", handler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -213,7 +606,7 @@ export function keydown(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: KeyboardEvent) => {
         const result = handler(event);
@@ -222,24 +615,8 @@ export function keydown(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -247,9 +624,7 @@ export function keydown(
       };
 
       context.element.addEventListener("keydown", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -264,11 +639,9 @@ export function keyup(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.addEventListener("keyup", handler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -286,7 +659,7 @@ export function mouseenter(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: MouseEvent) => {
         const result = handler(event);
@@ -295,24 +668,8 @@ export function mouseenter(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -320,9 +677,7 @@ export function mouseenter(
       };
 
       context.element.addEventListener("mouseenter", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -340,7 +695,7 @@ export function mouseleave(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: MouseEvent) => {
         const result = handler(event);
@@ -349,24 +704,8 @@ export function mouseleave(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -374,9 +713,7 @@ export function mouseleave(
       };
 
       context.element.addEventListener("mouseleave", wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -396,7 +733,7 @@ export function on(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async (event: Event) => {
         const result = handler(event);
@@ -405,24 +742,8 @@ export function on(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -430,9 +751,7 @@ export function on(
       };
 
       context.element.addEventListener(eventType, wrappedHandler, options);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -449,15 +768,13 @@ export function onCustom(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.addEventListener(
         eventType,
         handler as EventListener,
         options,
       );
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -474,7 +791,7 @@ export function emit(
   options?: CustomEventInit,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       const event = new CustomEvent(eventType, {
         detail,
         bubbles: options?.bubbles ?? true,
@@ -483,9 +800,7 @@ export function emit(
         ...options,
       });
       context.element.dispatchEvent(event);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -496,11 +811,9 @@ export function emit(
  */
 export function emitEvent(event: Event): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.dispatchEvent(event);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -515,7 +828,7 @@ export function onAttr(
   handler: (newValue: string | null, oldValue: string | null) => void,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
           if (
@@ -534,10 +847,7 @@ export function onAttr(
         attributeOldValue: true,
         attributeFilter: [attributeName],
       });
-
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -550,7 +860,7 @@ export function onText(
   handler: (newText: string, oldText: string) => void,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       let oldText = context.element.textContent || "";
 
       const observer = new MutationObserver(() => {
@@ -563,13 +873,10 @@ export function onText(
 
       observer.observe(context.element, {
         childList: true,
-        subtree: true,
         characterData: true,
+        subtree: true,
       });
-
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -582,7 +889,7 @@ export function onVisible(
   handler: (isVisible: boolean) => void,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           handler(entry.isIntersecting);
@@ -590,9 +897,7 @@ export function onVisible(
       });
 
       observer.observe(context.element);
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -605,7 +910,7 @@ export function onResize(
   handler: (entry: ResizeObserverEntry) => void,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       if (typeof ResizeObserver !== "undefined") {
         const observer = new ResizeObserver((entries) => {
           entries.forEach((entry) => {
@@ -617,9 +922,7 @@ export function onResize(
 
         observer.observe(context.element);
       }
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -635,7 +938,7 @@ export function onMount(
     | (() => AsyncGenerator<any, void, any>),
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async () => {
         const result = handler();
@@ -644,64 +947,17 @@ export function onMount(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
         }
       };
 
-      // If element is already in the DOM, call handler immediately
-      if (document.contains(context.element)) {
-        wrappedHandler();
-      } else {
-        // Set up a mutation observer to watch for when element is added
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
-              if (
-                node === context.element ||
-                (node as Element).contains?.(context.element)
-              ) {
-                wrappedHandler();
-                observer.disconnect();
-              }
-            });
-          });
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true,
-        });
-
-        // Store observer for cleanup
-        if (!(context as any).observers) {
-          (context as any).observers = [];
-        }
-        (context as any).observers.push(observer);
-      }
-
-      return undefined;
-    };
-    return result;
+      // Call the handler immediately since element is already mounted
+      queueMicrotask(() => wrappedHandler());
+    }) as Operation<void>;
   })();
 }
 
@@ -717,7 +973,7 @@ export function onUnmount(
     | (() => AsyncGenerator<any, void, any>),
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       // Wrap generator handlers to execute them properly
       const wrappedHandler = async () => {
         const result = handler();
@@ -726,24 +982,8 @@ export function onUnmount(
           typeof result === "object" &&
           Symbol.asyncIterator in result
         ) {
-          // It's an async generator - execute it properly
-          for await (const workflow of result) {
-            if (
-              workflow &&
-              typeof workflow === "object" &&
-              Symbol.asyncIterator in workflow
-            ) {
-              // It's a workflow - execute it
-              for await (const operation of workflow) {
-                if (typeof operation === "function") {
-                  await operation(context);
-                }
-              }
-            } else if (typeof workflow === "function") {
-              // It's a direct operation
-              await workflow(context);
-            }
-          }
+          // It's an async generator - execute it using runOn for proper context
+          await runOn(context.element, () => result);
         } else if (result && typeof result.then === "function") {
           // It's a promise
           await result;
@@ -776,10 +1016,7 @@ export function onUnmount(
         (context as any).cleanup = new Set();
       }
       (context as any).cleanup.add(cleanup);
-
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -796,14 +1033,12 @@ export function once(
   options?: AddEventListenerOptions,
 ): Workflow<void> {
   return (async function* () {
-    const result = yield (context: WatchContext) => {
+    yield ((context: WatchContext) => {
       context.element.addEventListener(eventType, handler, {
         ...options,
         once: true,
       });
-      return undefined;
-    };
-    return result;
+    }) as Operation<void>;
   })();
 }
 
@@ -813,11 +1048,11 @@ export function once(
  */
 export function preventDefault(): Workflow<(event: Event) => void> {
   return (async function* () {
-    const result = yield () => {
+    const result = yield ((_context: WatchContext) => {
       return (event: Event) => {
         event.preventDefault();
       };
-    };
+    }) as Operation<(event: Event) => void>;
     return result;
   })();
 }
@@ -828,11 +1063,11 @@ export function preventDefault(): Workflow<(event: Event) => void> {
  */
 export function stopPropagation(): Workflow<(event: Event) => void> {
   return (async function* () {
-    const result = yield () => {
+    const result = yield ((_context: WatchContext) => {
       return (event: Event) => {
         event.stopPropagation();
       };
-    };
+    }) as Operation<(event: Event) => void>;
     return result;
   })();
 }

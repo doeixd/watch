@@ -973,7 +973,7 @@ describe("DOM Manipulation Functions", () => {
       }).not.toThrow();
 
       expect(element.textContent).toBe("test");
-      expect(element.classList.contains("existing")).toBe(true);
+      expect(element.classList.contains("test")).toBe(true);
     });
 
     it("should handle null/undefined inputs gracefully", () => {

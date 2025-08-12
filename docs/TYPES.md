@@ -134,14 +134,9 @@ watch('button', function* () {
 });
 ```
 
-### `GeneratorFunction<El>`
+### `GeneratorFn<El>`
 
 Generator function type with element context.
-
-```typescript
-type GeneratorFunction<El extends HTMLElement = HTMLElement> = 
-  (this: El) => Generator<any, void, any>;
-```
 
 ### `CleanupFunction`
 

@@ -305,7 +305,8 @@ function mixedApiExample() {
 
   // Use explicit for clear operations
   $cards.get().forEach(card => {
-    const title = explicit.getTextFirst('.title');
+-    const title = explicit.getTextFirst('.title');
++    const title = card.querySelector('.title')?.textContent;
     if (title && title.length > 50) {
       explicit.addClassElement(card, 'long-title');
     }

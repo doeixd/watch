@@ -48,6 +48,15 @@ export function queryElement<E extends Element = Element>(
   parent: Element,
   selector: string,
 ): E | null;
+/**
+ * Query a single descendant of the given parent element using a CSS selector.
+ *
+ * Returns the first matching descendant, or `null` if the parent is falsy or no match is found.
+ *
+ * @param parent - The element to query within. If falsy, the function returns `null`.
+ * @param selector - A CSS selector string used to find the descendant.
+ * @returns The first matching descendant `Element`, or `null` if none is found.
+ */
 export function queryElement(
   parent: Element,
   selector: string,
@@ -90,16 +99,23 @@ export function querySelector<K extends keyof SVGElementTagNameMap>(
 export function querySelector<E extends Element = Element>(
   selector: string,
 ): E | null;
+/**
+ * Returns the first Element in the document that matches the given CSS selector.
+ *
+ * @param selector - A CSS selector string used to match elements.
+ * @returns The first matching Element, or `null` if no match is found.
+ */
 export function querySelector(selector: string): Element | null {
   return document.querySelector(selector);
 }
 
 /**
- * Queries for a single element in the document.
- * Alias for querySelector for clarity.
+ * Query the document for a single element matching `selector`.
  *
- * @param selector - CSS selector to find element
- * @returns The found element or null
+ * Returns the first matching element in the document typed as `E`, or `null` if none found.
+ *
+ * @param selector - CSS selector to match
+ * @returns The first matching element in the document, or `null`
  */
 export function queryDocument<E extends Element = Element>(
   selector: string,
@@ -184,6 +200,15 @@ export function queryAllElement<E extends Element = Element>(
   parent: Element,
   selector: string,
 ): NodeListOf<E>;
+/**
+ * Return all elements matching `selector` scoped to `parent`.
+ *
+ * If `parent` is falsy the document is used as the query root; otherwise the search is limited to `parent`'s descendants.
+ *
+ * @param parent - Element to scope the query (fall back to `document` when falsy)
+ * @param selector - CSS selector string used to match elements
+ * @returns A NodeList of matching elements (may be empty)
+ */
 export function queryAllElement(
   parent: Element,
   selector: string,
@@ -226,6 +251,12 @@ export function queryAllSelector<K extends keyof SVGElementTagNameMap>(
 export function queryAllSelector<E extends Element = Element>(
   selector: string,
 ): NodeListOf<E>;
+/**
+ * Query all elements in the document matching the given CSS selector.
+ *
+ * @param selector - CSS selector string used to match elements.
+ * @returns A NodeList of all matching elements (empty if none).
+ */
 export function queryAllSelector(selector: string): NodeListOf<Element> {
   return document.querySelectorAll(selector);
 }
@@ -244,11 +275,13 @@ export function queryAllDocument<E extends Element = Element>(
 }
 
 /**
- * Returns a generator function that queries for all elements.
- * For use within watch generators.
+ * Create a generator-friendly function that finds all matching descendant elements.
  *
- * @param selector - CSS selector to find elements
- * @returns ElementFn that queries when yielded
+ * Returns a function suitable for use in watch/generator flows; when invoked with a parent
+ * element it returns a NodeList of descendants matching the provided CSS selector.
+ *
+ * @param selector - CSS selector used to match descendant elements
+ * @returns A function that takes a parent Element and returns NodeListOf<E> of matches
  */
 export function queryAllGen<E extends Element = Element>(
   selector: string,
@@ -259,34 +292,12 @@ export function queryAllGen<E extends Element = Element>(
 }
 
 /**
- * Gets the parent element of an element.
+ * Return the direct parent element of the provided element or null.
  *
- * @param element - The DOM element to get the parent of
- * @returns The parent element, or null if element has no parent or is null
+ * If the argument is falsy or the element has no parent element, this returns `null`.
  *
- * @example
- * ```typescript
- * // Get button's container
- * const button = document.querySelector('button');
- * const container = getParentElement(button);
- * ```
- *
- * @example
- * ```typescript
- * // Navigate up the DOM tree
- * let element = document.querySelector('.deep-child');
- * while (element) {
- *   console.log(element.tagName);
- *   element = getParentElement(element);
- * }
- * ```
- *
- * @example
- * ```typescript
- * // Safe with null elements
- * const missing = document.querySelector('#not-found');
- * const parent = getParentElement(missing); // null
- * ```
+ * @param element - The element whose parent should be returned; falsy values are accepted and yield `null`.
+ * @returns The element's parent element, or `null` when none exists.
  */
 export function getParentElement(element: Element): Element | null {
   if (!element) return null;
@@ -323,30 +334,13 @@ export function getParentSelector(selector: string): Element | null {
 }
 
 /**
- * Gets the parent elements of all elements matching a selector.
+ * Return the parent element for each document element that matches `selector`.
  *
- * @param selector - CSS selector string to find child elements
- * @returns Array of parent elements (may contain nulls for orphaned elements)
+ * For every element matched by `selector`, this returns its `parentElement` (or `null` if it has no parent),
+ * preserving the order and length of the matched node list.
  *
- * @example
- * ```typescript
- * // Get all item containers
- * const containers = getParentAll('.item');
- * const uniqueContainers = [...new Set(containers.filter(c => c))];
- * ```
- *
- * @example
- * ```typescript
- * // Find all forms containing inputs
- * const forms = getParentAll('input[required]');
- * ```
- *
- * @example
- * ```typescript
- * // Check if all elements have same parent
- * const parents = getParentAll('.sibling');
- * const sameParent = parents.every(p => p === parents[0]);
- * ```
+ * @param selector - CSS selector used to find child elements
+ * @returns An array of parent elements corresponding to each matched element; entries may be `null`
  */
 export function getParentAll(selector: string): (Element | null)[] {
   const elements = document.querySelectorAll(selector);
@@ -354,10 +348,13 @@ export function getParentAll(selector: string): (Element | null)[] {
 }
 
 /**
- * Returns a generator function that gets the parent element.
- * For use within watch generators.
+ * Return a generator-friendly function that obtains an element's parent.
  *
- * @returns ElementFn that gets parent when yielded
+ * The returned function accepts an Element and returns its direct parent Element
+ * or `null` if the input has no parent. Intended for use inside watch/generator
+ * flows where an ElementFn is yielded.
+ *
+ * @returns A function `(element) => Element | null` that resolves the element's parent
  */
 export function getParentGen(): ElementFn<Element, Element | null> {
   return (element: Element) => {
@@ -366,37 +363,12 @@ export function getParentGen(): ElementFn<Element, Element | null> {
 }
 
 /**
- * Gets all direct child elements of an element.
- * Note: Only returns element nodes, not text or comment nodes.
+ * Return the direct child elements of a given element.
  *
- * @param element - The DOM element to get children of
- * @returns HTMLCollection of direct child elements (empty collection if no children or element is null)
+ * If `element` is falsy, returns an empty HTMLCollection (safe no-op) instead of throwing.
  *
- * @example
- * ```typescript
- * // Get all direct children
- * const container = document.getElementById('container');
- * const children = getChildrenElement(container);
- * console.log(`Container has ${children.length} child elements`);
- * ```
- *
- * @example
- * ```typescript
- * // Iterate over children
- * const list = document.querySelector('ul');
- * const items = getChildrenElement(list);
- * Array.from(items).forEach((li, index) => {
- *   li.textContent = `Item ${index + 1}`;
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Filter children by type
- * const form = document.querySelector('form');
- * const children = getChildrenElement(form);
- * const inputs = Array.from(children).filter(el => el.tagName === 'INPUT');
- * ```
+ * @param element - The parent element whose direct child elements are requested
+ * @returns The parent's HTMLCollection of child elements, or an empty HTMLCollection when `element` is falsy
  */
 export function getChildrenElement(element: Element): HTMLCollection {
   if (!element) return document.createElement("div").children;
@@ -436,15 +408,14 @@ export function getChildrenSelector(selector: string): HTMLCollection {
 }
 
 /**
- * Gets all child elements of all elements matching a selector.
+ * Return the direct child collections for every element matching `selector`.
  *
- * @param selector - CSS selector to find elements
- * @returns Array of HTMLCollections
+ * For each element found via `document.querySelectorAll(selector)` this returns its
+ * `HTMLCollection` of direct children. If no elements match, an empty array is returned;
+ * the result order corresponds to the document order of the matched elements.
  *
- * @example
- * ```typescript
- * const allChildren = getChildrenAll('.container');
- * ```
+ * @param selector - CSS selector used to find the parent elements
+ * @returns An array of `HTMLCollection`, one per matched element
  */
 export function getChildrenAll(selector: string): HTMLCollection[] {
   const elements = document.querySelectorAll(selector);
@@ -452,10 +423,11 @@ export function getChildrenAll(selector: string): HTMLCollection[] {
 }
 
 /**
- * Returns a generator function that gets child elements.
- * For use within watch generators.
+ * Create a generator-friendly function that returns the direct children of a given element.
  *
- * @returns ElementFn that gets children when yielded
+ * The returned ElementFn accepts an Element and returns its `children` as an HTMLCollection.
+ *
+ * @returns A function (for use in watch/generator flows) that, when given an element, yields its children.
  */
 export function getChildrenGen(): ElementFn<Element, HTMLCollection> {
   return (element: Element) => {
@@ -517,15 +489,14 @@ export function getSiblingsSelector(selector: string): Element[] {
 }
 
 /**
- * Gets all sibling elements of all elements matching a selector.
+ * Return the sibling elements for each element matching a CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @returns Array of arrays of sibling elements
+ * Returns an array where each entry is an array of sibling elements corresponding
+ * to the matched elements in document order. If no elements match the selector,
+ * an empty array is returned.
  *
- * @example
- * ```typescript
- * const allSiblings = getSiblingsAll('.item');
- * ```
+ * @param selector - CSS selector used to find elements whose siblings will be returned
+ * @returns An array of sibling-element arrays (one entry per matched element)
  */
 export function getSiblingsAll(selector: string): Element[][] {
   const elements = document.querySelectorAll(selector);
@@ -533,10 +504,11 @@ export function getSiblingsAll(selector: string): Element[][] {
 }
 
 /**
- * Returns a generator function that gets sibling elements.
- * For use within watch generators.
+ * Return a generator-friendly function that, given an element, returns its sibling elements (excluding the element itself).
  *
- * @returns ElementFn that gets siblings when yielded
+ * Useful for use inside watch/generator flows where the returned function is yielded.
+ *
+ * @returns A function that accepts an Element and returns an array of its sibling Elements.
  */
 export function getSiblingsGen(): ElementFn<Element, Element[]> {
   return (element: Element) => {
@@ -583,30 +555,18 @@ export function closestElement<E extends Element = Element>(
 }
 
 /**
- * Finds the closest ancestor for the first element matching a selector.
- * First finds an element, then searches up its DOM tree.
+ * Return the closest ancestor matching `ancestorSelector` for the first element that matches `elementSelector`.
  *
- * @param elementSelector - CSS selector string to find the starting element
- * @param ancestorSelector - CSS selector string to match ancestors
- * @returns The closest matching ancestor, or null if element not found or no ancestor matches
+ * Finds the first element in the document using `elementSelector` and then searches upward from that element
+ * for the nearest ancestor matching `ancestorSelector`.
+ *
+ * @param elementSelector - CSS selector for the starting element to search from
+ * @param ancestorSelector - CSS selector to match an ancestor
+ * @returns The closest ancestor element that matches `ancestorSelector`, or `null` if no starting element is found or no ancestor matches
  *
  * @example
- * ```typescript
- * // Find form containing submit button
+ * // Find the form that contains a submit button
  * const form = closestSelector('button.submit', 'form');
- * ```
- *
- * @example
- * ```typescript
- * // Find section containing specific heading
- * const section = closestSelector('h2#intro', 'section');
- * ```
- *
- * @example
- * ```typescript
- * // Returns null if element doesn't exist
- * const ancestor = closestSelector('#not-found', '.parent'); // null
- * ```
  */
 export function closestSelector<E extends Element = Element>(
   elementSelector: string,
@@ -617,11 +577,13 @@ export function closestSelector<E extends Element = Element>(
 }
 
 /**
- * Returns a generator function that finds the closest ancestor.
- * For use within watch generators.
+ * Create a generator-friendly function that finds the closest ancestor matching a selector.
+ *
+ * The returned function accepts an Element and returns the nearest ancestor (including the element itself)
+ * that matches `selector`, or `null` if none is found. Intended for use in watch/generator flows.
  *
  * @param selector - CSS selector to match ancestors
- * @returns ElementFn that finds closest when yielded
+ * @returns A function that, given an element, returns the closest matching ancestor or `null`
  */
 export function closestGen<E extends Element = Element>(
   selector: string,
@@ -632,41 +594,13 @@ export function closestGen<E extends Element = Element>(
 }
 
 /**
- * Checks if an element contains another element.
- * Returns true if child is a descendant of parent at any level.
+ * Determine whether a given element contains another element.
  *
- * @param parent - The potential parent/ancestor element
- * @param child - The potential child/descendant element
- * @returns True if parent contains child, false otherwise (including if either is null)
+ * Returns true if `child` is a descendant of `parent`; returns false if either argument is falsy or not contained.
  *
- * @example
- * ```typescript
- * // Check if button is inside container
- * const container = document.getElementById('container');
- * const button = document.querySelector('button');
- * const isInside = containsElement(container, button);
- * ```
- *
- * @example
- * ```typescript
- * // Validate drop target
- * const dropZone = document.querySelector('.drop-zone');
- * const dragged = document.querySelector('.dragging');
- * if (!containsElement(dropZone, dragged)) {
- *   allowDrop();
- * }
- * ```
- *
- * @example
- * ```typescript
- * // Check if click was outside element
- * document.addEventListener('click', (e) => {
- *   const modal = document.querySelector('.modal');
- *   if (!containsElement(modal, e.target as Element)) {
- *     closeModal();
- *   }
- * });
- * ```
+ * @param parent - The potential ancestor element
+ * @param child - The potential descendant element
+ * @returns `true` if `parent` contains `child`, otherwise `false`
  */
 export function containsElement(parent: Element, child: Element): boolean {
   if (!parent || !child) return false;
@@ -709,37 +643,13 @@ export function containsSelector(
 }
 
 /**
- * Checks if an element matches a CSS selector.
- * Tests if the element would be selected by the given selector.
+ * Determine whether a given element matches a CSS selector.
  *
- * @param element - The DOM element to test
- * @param selector - CSS selector string to match against
- * @returns True if element matches the selector, false otherwise (including if element is null)
+ * Returns false if `element` is falsy; otherwise delegates to `element.matches(selector)`.
  *
- * @example
- * ```typescript
- * // Check if button has specific class
- * const button = document.querySelector('button');
- * const isPrimary = matchesElement(button, '.primary');
- * ```
- *
- * @example
- * ```typescript
- * // Test multiple conditions
- * const input = document.querySelector('input');
- * const isRequired = matchesElement(input, '[required]');
- * const isEmail = matchesElement(input, '[type="email"]');
- * const isValid = matchesElement(input, ':valid');
- * ```
- *
- * @example
- * ```typescript
- * // Filter elements by selector
- * const elements = document.querySelectorAll('div');
- * const cards = Array.from(elements).filter(el =>
- *   matchesElement(el, '.card:not(.hidden)')
- * );
- * ```
+ * @param element - The element to test
+ * @param selector - CSS selector to test against
+ * @returns `true` if the element matches `selector`, otherwise `false`
  */
 export function matchesElement(element: Element, selector: string): boolean {
   if (!element) return false;

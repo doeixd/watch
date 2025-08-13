@@ -8,41 +8,14 @@
 import type { ElementFn, WatchEventListenerOptions } from "../types";
 
 /**
- * Adds a click event listener to an element.
+ * Attach a click listener to a DOM element if the element exists.
  *
- * @param element - The target DOM element to attach the click listener to
- * @param handler - Function called when element is clicked, receives MouseEvent
- * @param options - Optional event listener options (capture, once, passive, etc.)
- * @returns void
+ * The provided `handler` is registered with `addEventListener("click", ...)`.
+ * If `element` is falsy the function is a no-op.
  *
- * @example
- * ```typescript
- * // Basic click handler
- * const button = document.querySelector('button');
- * clickElement(button, (event) => {
- *   console.log('Button clicked!');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // With event options - handle only once
- * const submitBtn = document.getElementById('submit');
- * clickElement(submitBtn, (event) => {
- *   event.preventDefault();
- *   submitForm();
- * }, { once: true });
- * ```
- *
- * @example
- * ```typescript
- * // Access event properties
- * const link = document.querySelector('a');
- * clickElement(link, (event) => {
- *   console.log('Clicked at:', event.clientX, event.clientY);
- *   console.log('Shift key held:', event.shiftKey);
- * });
- * ```
+ * @param element - Target element to attach the click listener to (no-op if falsy)
+ * @param handler - Callback invoked with the `MouseEvent` when the element is clicked
+ * @param options - Optional listener options (e.g., `capture`, `once`, `passive`) represented by `WatchEventListenerOptions`
  */
 export function clickElement(
   element: Element,
@@ -54,36 +27,13 @@ export function clickElement(
 }
 
 /**
- * Adds a click event listener to all elements matching a selector.
+ * Attaches a click listener to every element matching the provided CSS selector.
  *
- * @param selector - CSS selector string to query elements
- * @param handler - Function called when any matched element is clicked
+ * Attaches the given `handler` to each matched element using the library's click helper; if no elements match the selector the function is a no-op.
+ *
+ * @param selector - CSS selector to find target elements
+ * @param handler - Called with the MouseEvent when a matched element is clicked
  * @param options - Optional event listener options (capture, once, passive, etc.)
- * @returns void
- *
- * @example
- * ```typescript
- * // Handle clicks on all buttons
- * clickSelector('.btn', (event) => {
- *   console.log('Button clicked:', event.target);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Track all link clicks
- * clickSelector('a[href^="http"]', (event) => {
- *   trackExternalLink(event.target.href);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Add interaction to all cards
- * clickSelector('.card', (event) => {
- *   event.currentTarget.classList.toggle('selected');
- * });
- * ```
  */
 export function clickSelector(
   selector: string,
@@ -118,11 +68,14 @@ export function clickAll(
 }
 
 /**
- * Adds a click event listener to the first element matching a selector.
+ * Attach a click listener to the first element that matches the given CSS selector.
  *
- * @param selector - CSS selector to find element
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * Does nothing if no matching element is found. The provided `options` are passed to
+ * the underlying addEventListener call.
+ *
+ * @param selector - CSS selector used to locate the element
+ * @param handler - MouseEvent handler invoked when the element is clicked
+ * @param options - Optional event listener options (capturing, passive, once, etc.)
  *
  * @example
  * ```typescript
@@ -167,40 +120,16 @@ export function clickGen(
 }
 
 /**
- * Adds a delegated click event listener for dynamic child elements.
- * Useful for handling events on elements that may be added/removed dynamically.
+ * Attach a delegated click listener to a parent so clicks on matching child elements invoke a handler.
  *
- * @param parent - Parent element or CSS selector to attach the listener to
- * @param childSelector - CSS selector for child elements that should trigger the handler
- * @param handler - Function called when matching child is clicked, receives event and clicked element
- * @param options - Optional event listener options
- * @returns void
+ * The listener is added to the provided parent element (or the first element matching a selector) and
+ * invokes `handler(event, element)` when the actual click target matches `childSelector`. No-op if the
+ * parent cannot be resolved.
  *
- * @example
- * ```typescript
- * // Handle clicks on dynamically added list items
- * clickDelegate('#todo-list', '.todo-item', (event, item) => {
- *   item.classList.toggle('completed');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Delegate with parent element
- * const table = document.querySelector('table');
- * clickDelegate(table, 'td', (event, cell) => {
- *   console.log('Cell clicked:', cell.textContent);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Handle delete buttons in a dynamic list
- * clickDelegate('.user-list', '.delete-btn', (event, btn) => {
- *   const userId = btn.dataset.userId;
- *   deleteUser(userId);
- * });
- * ```
+ * @param parent - Parent Element or CSS selector string to attach the listener to
+ * @param childSelector - CSS selector used to match child targets that should trigger the handler
+ * @param handler - Called with the click `MouseEvent` and the matching child `Element`
+ * @param options - Optional event listener options (e.g., `{ capture, passive, once }`)
  */
 export function clickDelegate(
   parent: Element | string,
@@ -226,43 +155,13 @@ export function clickDelegate(
 }
 
 /**
- * Adds an input event listener to an element.
- * Fires on every keystroke, paste, or programmatic value change.
+ * Attach an "input" event listener to a given element.
  *
- * @param element - The form element to attach the listener to (input, textarea, etc.)
- * @param handler - Function called on input, receives InputEvent
- * @param options - Optional event listener options
- * @returns void
+ * The handler is invoked on user input (keystrokes, paste) and when the element's value is changed programmatically.
  *
- * @example
- * ```typescript
- * // Live search as user types
- * const searchBox = document.querySelector('input[type="search"]');
- * inputElement(searchBox, (event) => {
- *   const query = (event.target as HTMLInputElement).value;
- *   performSearch(query);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Character counter for textarea
- * const textarea = document.querySelector('textarea');
- * inputElement(textarea, (event) => {
- *   const length = (event.target as HTMLTextAreaElement).value.length;
- *   updateCharCount(length);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Input validation
- * const emailInput = document.getElementById('email');
- * inputElement(emailInput, (event) => {
- *   const email = (event.target as HTMLInputElement).value;
- *   validateEmail(email);
- * });
- * ```
+ * @param element - The target form element (e.g., <input>, <textarea>) to attach the listener to. No-op if falsy.
+ * @param handler - Called with the originating InputEvent when the element's value changes.
+ * @param options - Optional listener options (capture, passive, once) forwarded to addEventListener.
  */
 export function inputElement(
   element: Element,
@@ -274,18 +173,14 @@ export function inputElement(
 }
 
 /**
- * Adds an input event listener to all elements matching a selector.
+ * Attach an `input` event listener to every element that matches the given CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * This is a convenience wrapper that queries `document` for `selector` and attaches the provided
+ * `handler` to each matching element. If no elements match, the function is a no-op.
  *
- * @example
- * ```typescript
- * inputSelector('.field', (event) => {
- *   console.log('Field changed');
- * });
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param handler - Called with the `InputEvent` when an input occurs on a matched element
+ * @param options - Optional event listener options (e.g., `{ passive: true }`)
  */
 export function inputSelector(
   selector: string,
@@ -297,12 +192,13 @@ export function inputSelector(
 }
 
 /**
- * Adds an input event listener to all elements matching a selector.
- * Alias for inputSelector for clarity.
+ * Attach an `input` event listener to every element matching `selector`.
  *
- * @param selector - CSS selector to find elements
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * This is an alias of `inputSelector` that forwards `selector`, `handler`, and `options`.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param handler - Handler invoked with the `InputEvent` for each matched element
+ * @param options - Optional event listener options forwarded to `addEventListener`
  */
 export function inputAll(
   selector: string,
@@ -313,11 +209,14 @@ export function inputAll(
 }
 
 /**
- * Adds an input event listener to the first element matching a selector.
+ * Attach an `input` event listener to the first element matching `selector`.
  *
- * @param selector - CSS selector to find element
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * If no element matches the selector this is a no-op. The provided `options`
+ * are passed through to the underlying event listener.
+ *
+ * @param selector - CSS selector for the target element
+ * @param handler - Called with the `InputEvent` when the element emits `input`
+ * @param options - Optional listener options (e.g., `capture`, `once`, `passive`)
  */
 export function inputFirst(
   selector: string,
@@ -331,12 +230,14 @@ export function inputFirst(
 }
 
 /**
- * Returns a generator function that adds an input listener.
- * For use within watch generators.
+ * Returns a generator-compatible function that attaches an `input` listener to a provided element.
  *
- * @param handler - The event handler function
- * @param options - Optional event listener options
- * @returns ElementFn that adds input listener when yielded
+ * The returned ElementFn is intended for use in watch-style generators; when invoked with an Element it
+ * will add the given `handler` as an `input` event listener using the supplied `options`.
+ *
+ * @param handler - Function invoked with the InputEvent when the element emits an `input` event
+ * @param options - Optional listener options (e.g., `{ passive: true }`)
+ * @returns An ElementFn that attaches the input listener to the given element
  */
 export function inputGen(
   handler: (event: InputEvent) => void,
@@ -440,8 +341,14 @@ export function changeFirst(
 }
 
 /**
- * Returns a generator function that adds a change listener.
- * For use within watch generators.
+ * Create an ElementFn that attaches a `change` event listener to a given element.
+ *
+ * The returned function accepts an Element and registers `handler` for its `change` events using the provided `options`.
+ * Intended for use in watch-style generators or other flows that receive elements and need to bind change handlers.
+ *
+ * @param handler - Function invoked when the `change` event fires on the element.
+ * @param options - Optional listener options forwarded to addEventListener.
+ * @returns A function that, when called with an Element, attaches the configured `change` listener (no return value).
  */
 export function changeGen(
   handler: (event: Event) => void,
@@ -453,47 +360,15 @@ export function changeGen(
 }
 
 /**
- * Adds a submit event listener to a form element.
- * Only fires on form elements when submitted (button click, Enter key, etc.).
+ * Attach a submit event listener to a form element. No-op if `element` is falsy.
  *
- * @param element - The form element to attach the listener to
- * @param handler - Function called on form submission, receives SubmitEvent
- * @param options - Optional event listener options
- * @returns void
+ * The `handler` is invoked with the DOM `SubmitEvent` when the form is submitted
+ * (e.g., submit button click or pressing Enter). Use `event.preventDefault()` to
+ * intercept the submission and `event.submitter` to access the submitter button.
  *
- * @example
- * ```typescript
- * // Handle form submission with validation
- * const form = document.querySelector('form');
- * submitElement(form, (event) => {
- *   event.preventDefault();
- *   if (validateForm(form)) {
- *     submitData(new FormData(form));
- *   }
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Ajax form submission
- * const loginForm = document.getElementById('login-form');
- * submitElement(loginForm, async (event) => {
- *   event.preventDefault();
- *   const formData = new FormData(event.target as HTMLFormElement);
- *   await sendLogin(formData);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Access submitter button
- * const form = document.querySelector('.multi-action-form');
- * submitElement(form, (event) => {
- *   event.preventDefault();
- *   const action = (event.submitter as HTMLButtonElement)?.value;
- *   handleFormAction(action);
- * });
- * ```
+ * @param element - The target form element; if falsy the function returns without action
+ * @param handler - Callback invoked with the `SubmitEvent` when the form is submitted
+ * @param options - Optional event listener options forwarded to `addEventListener`
  */
 export function submitElement(
   element: Element,
@@ -505,11 +380,13 @@ export function submitElement(
 }
 
 /**
- * Adds a submit event listener to all forms matching a selector.
+ * Attaches a submit listener to every element matching the CSS selector.
  *
- * @param selector - CSS selector to find forms
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * Does nothing if no elements match.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param handler - Handler invoked with the `SubmitEvent` when a matched form is submitted
+ * @param options - Optional listener options forwarded to the underlying event registration
  */
 export function submitSelector(
   selector: string,
@@ -521,8 +398,15 @@ export function submitSelector(
 }
 
 /**
- * Returns a generator function that adds a submit listener.
- * For use within watch generators.
+ * Create a function that attaches a submit listener to an element.
+ *
+ * Returns an ElementFn suitable for use in watch-style generators. The returned
+ * function, when invoked with an Element, registers `handler` as a submit
+ * event listener on that element using the provided `options`.
+ *
+ * @param handler - Callback invoked with the SubmitEvent when the element's form is submitted
+ * @param options - Optional listener options forwarded to the underlying add/remove listener calls
+ * @returns A function that accepts an Element and attaches the submit listener (returns void)
  */
 export function submitGen(
   handler: (event: SubmitEvent) => void,
@@ -534,47 +418,15 @@ export function submitGen(
 }
 
 /**
- * Adds a generic event listener to an element.
- * Use for any DOM event type not covered by specific functions.
+ * Attach a generic event listener to a single DOM element.
  *
- * @param element - The target DOM element to attach the listener to
- * @param eventName - Name of the DOM event (e.g., 'mouseover', 'keydown', 'scroll')
- * @param handler - Function called when event fires, receives Event
- * @param options - Optional event listener options
- * @returns void
+ * Does nothing if `element` is falsy. Use for events not covered by the specialized helpers
+ * (e.g., `"mouseover"`, `"keydown"`, custom event names).
  *
- * @example
- * ```typescript
- * // Mouse events
- * const card = document.querySelector('.card');
- * onElement(card, 'mouseenter', (event) => {
- *   card.classList.add('hover');
- * });
- * onElement(card, 'mouseleave', (event) => {
- *   card.classList.remove('hover');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Keyboard events
- * const input = document.querySelector('input');
- * onElement(input, 'keydown', (event) => {
- *   if ((event as KeyboardEvent).key === 'Enter') {
- *     submitSearch();
- *   }
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Custom events
- * const widget = document.getElementById('widget');
- * onElement(widget, 'widget:update', (event) => {
- *   const data = (event as CustomEvent).detail;
- *   updateWidget(data);
- * });
- * ```
+ * @param element - Target element to attach the listener to; listener is not added when falsy
+ * @param eventName - DOM event name (for example: `'mouseenter'`, `'keydown'`, `'widget:update'`)
+ * @param handler - Callback invoked with the event object when the event fires
+ * @param options - Optional event listener options (capture, passive, once, etc.)
  */
 export function onElement(
   element: Element,
@@ -587,12 +439,14 @@ export function onElement(
 }
 
 /**
- * Adds a generic event listener to all elements matching a selector.
+ * Attaches an event listener for `eventName` to every element matching `selector`.
  *
- * @param selector - CSS selector to find elements
- * @param eventName - The name of the event
- * @param handler - The event handler function
- * @param options - Optional event listener options
+ * If no elements match, the function does nothing.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param eventName - Event type to listen for (e.g., `"click"`)
+ * @param handler - Handler invoked with the Event when triggered
+ * @param options - Optional listener options forwarded to addEventListener
  */
 export function onSelector(
   selector: string,
@@ -618,7 +472,15 @@ export function onAll(
 }
 
 /**
- * Adds a generic event listener to the first element matching a selector.
+ * Attaches an event listener for `eventName` to the first element matching `selector`.
+ *
+ * This is a no-op when no matching element is found. `options` are forwarded to the underlying
+ * `addEventListener` call.
+ *
+ * @param selector - CSS selector used to find the first matching element
+ * @param eventName - Name of the DOM event to listen for
+ * @param handler - Callback invoked with the event when it occurs on the matched element
+ * @param options - Optional listener options (capturing, passive, once, etc.)
  */
 export function onFirst(
   selector: string,
@@ -633,8 +495,16 @@ export function onFirst(
 }
 
 /**
- * Returns a generator function that adds a generic event listener.
- * For use within watch generators.
+ * Creates a function that attaches a listener for the given DOM `eventName` to an Element.
+ *
+ * The returned function accepts an Element and registers `handler` for `eventName`
+ * using the provided `options`. Designed for use in watch-style generator flows
+ * where listeners are added when elements become available.
+ *
+ * @param eventName - DOM event type to listen for (e.g., `"click"`)
+ * @param handler - Callback invoked with the event when it occurs
+ * @param options - Optional listener options forwarded to `addEventListener`
+ * @returns A function that, when given an Element, attaches the configured listener
  */
 export function onGen(
   eventName: string,
@@ -647,39 +517,23 @@ export function onGen(
 }
 
 /**
- * Adds a delegated event listener for any event type.
- * Efficiently handles events on dynamic child elements.
+ * Attach a delegated event listener to a parent so matching child elements trigger the handler.
  *
- * @param parent - Parent element or CSS selector to attach the listener to
- * @param childSelector - CSS selector for child elements that should trigger the handler
- * @param eventName - Name of the DOM event to listen for
- * @param handler - Function called when matching child triggers event, receives event and element
- * @param options - Optional event listener options
- * @returns void
+ * When an event with the given name bubbles to the parent, the handler is invoked only if the
+ * original event target matches the provided child selector. Useful for efficiently handling
+ * events on dynamic or many child elements.
  *
- * @example
- * ```typescript
- * // Hover effects on dynamic items
- * onDelegate('.gallery', '.image', 'mouseenter', (event, img) => {
- *   img.classList.add('zoomed');
- * });
- * ```
+ * @param parent - Parent Element or a CSS selector string used to resolve the parent element
+ * @param childSelector - CSS selector that child elements must match to trigger the handler
+ * @param eventName - DOM event name to listen for (e.g., `"click"`, `"focus"`)
+ * @param handler - Called with the event and the matching child element when triggered
+ * @param options - Optional event listener options (capture, passive, once) forwarded to addEventListener
  *
  * @example
- * ```typescript
- * // Handle various events on table cells
- * onDelegate('table', 'td', 'dblclick', (event, cell) => {
- *   editCell(cell);
+ * // Delegate clicks from any `.item` inside `.list`
+ * onDelegate('.list', '.item', 'click', (event, item) => {
+ *   item.classList.toggle('selected');
  * });
- * ```
- *
- * @example
- * ```typescript
- * // Focus events on dynamically added inputs
- * onDelegate('#dynamic-form', 'input', 'focus', (event, input) => {
- *   input.parentElement.classList.add('focused');
- * });
- * ```
  */
 export function onDelegate(
   parent: Element | string,
@@ -706,39 +560,15 @@ export function onDelegate(
 }
 
 /**
- * Removes an event listener from an element.
- * The handler must be the exact same function reference that was added.
+ * Remove a previously attached event listener from a specific element.
  *
- * @param element - The DOM element to remove the listener from
- * @param eventName - Name of the event to stop listening for
- * @param handler - The exact same function reference that was added
- * @param options - Optional event listener options (should match what was used when adding)
- * @returns void
+ * The provided `handler` must be the same function reference that was added; if the listener
+ * was registered with specific `options` (e.g., `{ capture: true }`), the same options should
+ * be passed when removing.
  *
- * @example
- * ```typescript
- * // Remove a specific handler
- * const button = document.querySelector('button');
- * const handler = (e) => console.log('Clicked');
- *
- * // Add it
- * onElement(button, 'click', handler);
- *
- * // Later, remove it
- * offElement(button, 'click', handler);
- * ```
- *
- * @example
- * ```typescript
- * // Remove handler with options
- * const scrollHandler = (e) => updateScrollPosition();
- *
- * // Added with capture
- * onElement(window, 'scroll', scrollHandler, { capture: true });
- *
- * // Must remove with same options
- * offElement(window, 'scroll', scrollHandler, { capture: true });
- * ```
+ * @param handler - The exact function reference that was originally added as the listener.
+ * @param options - Optional listener options; if used when adding the listener, the same
+ *                  options should be supplied to remove it successfully.
  */
 export function offElement(
   element: Element,
@@ -782,40 +612,22 @@ export function offAll(
 }
 
 /**
- * Emits a custom event on an element.
- * The event bubbles up through the DOM tree by default.
+ * Dispatches a bubbling CustomEvent with optional detail from the given element.
  *
- * @param element - The DOM element to dispatch the event from
- * @param eventName - Name of the custom event to create and dispatch
- * @param detail - Optional data to attach to the event (accessible via event.detail)
- * @returns void
+ * Creates and dispatches a CustomEvent named `eventName` on `element` with
+ * `{ detail, bubbles: true }`. If `element` is falsy the function is a no-op.
+ *
+ * @param element - The element to dispatch the event from
+ * @param eventName - The custom event name
+ * @param detail - Optional payload available as `event.detail`
  *
  * @example
- * ```typescript
  * // Emit simple custom event
- * const widget = document.querySelector('.widget');
- * emitElement(widget, 'widget:ready');
- * ```
+ * emitElement(document.querySelector('.widget'), 'widget:ready');
  *
  * @example
- * ```typescript
  * // Emit event with data
- * const form = document.querySelector('form');
- * emitElement(form, 'form:validated', {
- *   isValid: true,
- *   fields: ['email', 'password']
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Component communication
- * const modal = document.getElementById('modal');
- * emitElement(modal, 'modal:closed', {
- *   reason: 'user_action',
- *   timestamp: Date.now()
- * });
- * ```
+ * emitElement(document.querySelector('form'), 'form:validated', { isValid: true });
  */
 export function emitElement(
   element: Element,
@@ -828,11 +640,13 @@ export function emitElement(
 }
 
 /**
- * Emits a custom event on all elements matching a selector.
+ * Dispatches a CustomEvent with the given name and optional detail on every element matching `selector`.
  *
- * @param selector - CSS selector to find elements
- * @param eventName - The name of the custom event
- * @param detail - Optional data to include with the event
+ * If no elements match the selector the function is a no-op.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param eventName - Name of the CustomEvent to dispatch
+ * @param detail - Optional value assigned to the event's `detail` property
  */
 export function emitSelector(
   selector: string,
@@ -856,40 +670,13 @@ export function emitAll(
 }
 
 /**
- * Creates and dispatches a custom event on a target.
- * Useful for application-wide events or specific target events.
+ * Create and dispatch a CustomEvent with an optional detail payload on a target.
  *
- * @param eventName - Name of the custom event to create and dispatch
- * @param detail - Optional data to attach to the event (accessible via event.detail)
- * @param target - EventTarget to dispatch on (defaults to document for global events)
- * @returns void
+ * The created event bubbles by default. The `target` defaults to `document` when omitted.
  *
- * @example
- * ```typescript
- * // Global application event
- * emitCustom('app:ready', { version: '1.0.0' });
- *
- * // Listen for it anywhere
- * document.addEventListener('app:ready', (e) => {
- *   console.log('App version:', e.detail.version);
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Emit on specific element
- * const container = document.getElementById('container');
- * emitCustom('data:loaded', { items: 10 }, container);
- * ```
- *
- * @example
- * ```typescript
- * // Window-level event for cross-component communication
- * emitCustom('user:login', {
- *   userId: '123',
- *   timestamp: Date.now()
- * }, window);
- * ```
+ * @param eventName - Event name to dispatch
+ * @param detail - Optional payload available as `event.detail`
+ * @param target - EventTarget to dispatch the event on (defaults to `document`)
  */
 export function emitCustom(
   eventName: string,

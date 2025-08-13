@@ -31,11 +31,14 @@ export function setPropElement<El extends Element, K extends keyof El>(
 }
 
 /**
- * Sets a DOM property on all elements matching a selector.
+ * Set a DOM property on every HTMLElement that matches the given CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param name - The property name
- * @param value - The property value
+ * Finds all elements matching `selector` and assigns `value` to the property `name` on each matched element.
+ * If no elements match, the call is a no-op.
+ *
+ * @param selector - CSS selector used to locate target elements
+ * @param name - The HTMLElement property name to set
+ * @param value - The value to assign to the property
  *
  * @example
  * ```typescript
@@ -52,12 +55,13 @@ export function setPropSelector<K extends keyof HTMLElement>(
 }
 
 /**
- * Sets a DOM property on all elements matching a selector.
- * Alias for setPropSelector for clarity.
+ * Set the given property on every HTMLElement matching the provided CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param name - The property name
- * @param value - The property value
+ * Alias of `setPropSelector`.
+ *
+ * @param selector - CSS selector used to find elements
+ * @param name - Property name to set on each matched element
+ * @param value - Value to assign to the property
  *
  * @example
  * ```typescript
@@ -73,11 +77,13 @@ export function setPropAll<K extends keyof HTMLElement>(
 }
 
 /**
- * Sets a DOM property on the first element matching a selector.
+ * Set the specified DOM property on the first element matching the CSS selector.
  *
- * @param selector - CSS selector to find element
- * @param name - The property name
- * @param value - The property value
+ * If no element matches the selector, this function is a no-op.
+ *
+ * @param selector - CSS selector used to find the target element
+ * @param name - Property name (constrained to keys of `HTMLElement`)
+ * @param value - Property value to assign
  *
  * @example
  * ```typescript
@@ -96,20 +102,13 @@ export function setPropFirst<K extends keyof HTMLElement>(
 }
 
 /**
- * Returns a generator function that sets a property.
- * For use within watch generators.
+ * Create an ElementFn for use in generator/watch workflows that sets a specified property on an element.
  *
- * @param name - The property name
- * @param value - The property value
- * @returns ElementFn that sets property when yielded
+ * The returned function, when invoked with an element, assigns `value` to the element's property `name`.
  *
- * @example
- * ```typescript
- * watch('input', function* () {
- *   yield setPropGen('value', 'Default text');
- *   yield setPropGen('disabled', false);
- * });
- * ```
+ * @param name - The property name (a key of the element type)
+ * @param value - The value to assign to the property
+ * @returns An ElementFn that sets the given property on its element and returns void
  */
 export function setPropGen<El extends Element, K extends keyof El>(
   name: K,
@@ -121,18 +120,13 @@ export function setPropGen<El extends Element, K extends keyof El>(
 }
 
 /**
- * Gets a DOM property from an element.
+ * Retrieve the value of a property from a DOM element.
  *
- * @param element - The element to get property from
- * @param name - The property name
- * @returns The property value
+ * Returns the property value, or `undefined` if `element` is falsy.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * const value = getPropElement(input, 'value');
- * const isDisabled = getPropElement(input, 'disabled');
- * ```
+ * @param element - The element to read the property from
+ * @param name - The property name/key to retrieve
+ * @returns The value of the property, or `undefined` when unavailable
  */
 export function getPropElement<El extends Element, K extends keyof El>(
   element: El,
@@ -184,17 +178,15 @@ export function getPropFirst<K extends keyof HTMLElement>(
 }
 
 /**
- * Gets a DOM property from all elements matching a selector.
+ * Retrieve the values of a specified DOM property from all elements matching a selector.
  *
- * @param selector - CSS selector to find elements
- * @param name - The property name
- * @returns Array of property values
+ * Returns an array whose entries correspond to the matched elements in document order; each entry
+ * is the property's value for that element or `undefined` if the element is absent or the value
+ * cannot be retrieved.
  *
- * @example
- * ```typescript
- * const values = getPropAll('input', 'value');
- * const checkedStates = getPropAll('input[type="checkbox"]', 'checked');
- * ```
+ * @param selector - CSS selector used to find elements
+ * @param name - Property name to read from each matched element
+ * @returns An array of property values (or `undefined`) for each matched element
  */
 export function getPropAll<K extends keyof HTMLElement>(
   selector: string,
@@ -205,11 +197,13 @@ export function getPropAll<K extends keyof HTMLElement>(
 }
 
 /**
- * Returns a generator function that gets a property.
- * For use within watch generators.
+ * Creates a generator-compatible function that reads a named property from an element.
  *
- * @param name - The property name
- * @returns ElementFn that gets property when yielded
+ * The returned function takes an element and returns the element's property value or `undefined`.
+ * Designed for use in watch-style generator workflows where the function is yielded to obtain a value.
+ *
+ * @param name - The property name to read from the element
+ * @returns An ElementFn that returns the property's value (or `undefined`)
  *
  * @example
  * ```typescript
@@ -228,16 +222,19 @@ export function getPropGen<El extends Element, K extends keyof El>(
 }
 
 /**
- * Copies a property value from one element to another.
+ * Copy a property value from a source element to a target element.
  *
- * @param source - The source element
- * @param target - The target element
+ * If either element is falsy the function is a no-op. The target property is only
+ * set when the source property's value is not `undefined`.
+ *
+ * @param source - The element to read the property value from
+ * @param target - The element to write the property value to
  * @param name - The property name to copy
  *
  * @example
  * ```typescript
- * const input1 = document.querySelector('#input1');
- * const input2 = document.querySelector('#input2');
+ * const input1 = document.querySelector<HTMLInputElement>('#input1');
+ * const input2 = document.querySelector<HTMLInputElement>('#input2');
  * copyPropElement(input1, input2, 'value');
  * ```
  */
@@ -254,16 +251,18 @@ export function copyPropElement<El extends Element, K extends keyof El>(
 }
 
 /**
- * Swaps a property value between two elements.
+ * Swap the given property between two elements.
  *
- * @param element1 - The first element
- * @param element2 - The second element
- * @param name - The property name to swap
+ * Swaps the property `name` values of `element1` and `element2`. No action is taken if either element is falsy or if either element's property value is `undefined`.
+ *
+ * @param element1 - First element whose property will be swapped
+ * @param element2 - Second element whose property will be swapped
+ * @param name - Property name to swap
  *
  * @example
  * ```typescript
- * const input1 = document.querySelector('#input1');
- * const input2 = document.querySelector('#input2');
+ * const input1 = document.querySelector<HTMLInputElement>('#input1');
+ * const input2 = document.querySelector<HTMLInputElement>('#input2');
  * swapPropElement(input1, input2, 'value');
  * ```
  */

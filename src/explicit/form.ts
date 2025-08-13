@@ -8,16 +8,12 @@
 import type { ElementFn } from '../types';
 
 /**
- * Sets the value of a form element.
+ * Set the stringified value on a DOM element that exposes a `value` property.
  *
- * @param element - The form element to set value on
- * @param value - The value to set
+ * The function is a no-op if `element` is falsy or does not have a `value` property.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * setValueElement(input, 'Hello World');
- * ```
+ * @param element - Target element (e.g., HTMLInputElement, HTMLTextAreaElement, HTMLSelectElement)
+ * @param value - Value to set; non-string values are converted to a string
  */
 export function setValueElement(element: Element, value: string | number): void {
   if (!element) return;
@@ -28,10 +24,13 @@ export function setValueElement(element: Element, value: string | number): void 
 }
 
 /**
- * Sets the value of all form elements matching a selector.
+ * Set the string value for every element that matches the given CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param value - The value to set
+ * The provided `value` (string or number) will be applied to each matched element's `value` property;
+ * numeric values are converted to string before assignment.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param value - Value to assign to each element's `value` property
  *
  * @example
  * ```typescript
@@ -73,18 +72,14 @@ export function setValueFirst(selector: string, value: string | number): void {
 }
 
 /**
- * Returns a generator function that sets a form value.
- * For use within watch generators.
+ * Creates a generator-compatible function that sets an element's value.
  *
- * @param value - The value to set
- * @returns ElementFn that sets value when yielded
+ * Returns a function intended for use inside watch-style generator flows; when
+ * invoked with an Element it will set that element's value to the provided
+ * string or number (stringified as needed).
  *
- * @example
- * ```typescript
- * watch('input', function* () {
- *   yield setValueGen('Default value');
- * });
- * ```
+ * @param value - The value to assign to the element's `value` property.
+ * @returns A function which accepts an Element and sets its value.
  */
 export function setValueGen(value: string | number): ElementFn<Element, void> {
   return (element: Element) => {
@@ -93,16 +88,9 @@ export function setValueGen(value: string | number): ElementFn<Element, void> {
 }
 
 /**
- * Gets the value of a form element.
+ * Return the string value of a form element.
  *
- * @param element - The form element to get value from
- * @returns The value of the element
- *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * const value = getValueElement(input);
- * ```
+ * Returns the element's `value` if present; otherwise returns an empty string (also returned when `element` is falsy).
  */
 export function getValueElement(element: Element): string {
   if (!element) return '';
@@ -158,18 +146,12 @@ export function getValueAll(selector: string): string[] {
 }
 
 /**
- * Returns a generator function that gets a form value.
- * For use within watch generators.
+ * Returns an ElementFn suitable for generator-based watchers that yields an element's value.
  *
- * @returns ElementFn that gets value when yielded
+ * The returned function, when invoked with an Element, returns the element's string value
+ * using the same semantics as `getValueElement` (empty string if the element is missing or has no value).
  *
- * @example
- * ```typescript
- * watch('input', function* () {
- *   const value = yield getValueGen();
- *   console.log('Current value:', value);
- * });
- * ```
+ * @returns An ElementFn that takes an Element and returns its value as a string
  */
 export function getValueGen(): ElementFn<Element, string> {
   return (element: Element) => {
@@ -214,11 +196,12 @@ export function setCheckedSelector(selector: string, checked: boolean): void {
 }
 
 /**
- * Sets the checked state of all inputs matching a selector.
- * Alias for setCheckedSelector for clarity.
+ * Set the checked state for every element that matches `selector`.
  *
- * @param selector - CSS selector to find elements
- * @param checked - Whether the elements should be checked
+ * This is an alias of `setCheckedSelector`.
+ *
+ * @param selector - CSS selector used to find elements
+ * @param checked - Desired checked state
  */
 export function setCheckedAll(selector: string, checked: boolean): void {
   setCheckedSelector(selector, checked);
@@ -263,16 +246,12 @@ export function setCheckedGen(checked: boolean): ElementFn<Element, void> {
 }
 
 /**
- * Gets the checked state of a checkbox or radio button.
+ * Return whether an element (typically an input[type="checkbox" | "radio"]) is checked.
  *
- * @param element - The input element
- * @returns Whether the element is checked
+ * If `element` is falsy or does not have a `checked` property the function returns `false`.
  *
- * @example
- * ```typescript
- * const checkbox = document.querySelector('input[type="checkbox"]');
- * const isChecked = isCheckedElement(checkbox);
- * ```
+ * @param element - The element to inspect (may be `null`/`undefined`); expected to be an input element for meaningful results
+ * @returns `true` if the element has a `checked` property that is truthy, otherwise `false`
  */
 export function isCheckedElement(element: Element): boolean {
   if (!element) return false;
@@ -301,15 +280,10 @@ export function isCheckedSelector(selector: string): boolean | null {
 }
 
 /**
- * Checks if all inputs matching a selector are checked.
+ * Return true only if every element matching `selector` is checked. If no elements match, returns `false`.
  *
- * @param selector - CSS selector to find elements
- * @returns True if all elements are checked
- *
- * @example
- * ```typescript
- * const allChecked = isCheckedAll('input[type="checkbox"]');
- * ```
+ * @param selector - CSS selector used to locate elements to inspect
+ * @returns `true` when at least one matching element exists and every matched element is checked; otherwise `false`
  */
 export function isCheckedAll(selector: string): boolean {
   const elements = document.querySelectorAll(selector);
@@ -319,15 +293,12 @@ export function isCheckedAll(selector: string): boolean {
 }
 
 /**
- * Checks if any input matching a selector is checked.
+ * Returns true if any element matching the selector is checked.
  *
- * @param selector - CSS selector to find elements
- * @returns True if any element is checked
+ * If no elements match the selector, this returns `false`.
  *
- * @example
- * ```typescript
- * const anyChecked = isCheckedAny('input[type="checkbox"]');
- * ```
+ * @param selector - CSS selector used to find input elements
+ * @returns `true` when at least one matched element has a checked state of `true`, otherwise `false`
  */
 export function isCheckedAny(selector: string): boolean {
   const elements = document.querySelectorAll(selector);
@@ -355,16 +326,13 @@ export function isCheckedGen(): ElementFn<Element, boolean> {
 }
 
 /**
- * Sets the selected state of an option element.
+ * Sets selection on a SELECT or OPTION element.
  *
- * @param element - The option or select element
- * @param value - The value to select (for select elements)
+ * If `element` is a `SELECT`, sets its `value` to `value`. If `element` is an `OPTION`, marks that option as selected.
+ * No-op if `element` is falsy or not a select/option.
  *
- * @example
- * ```typescript
- * const select = document.querySelector('select');
- * setSelectedElement(select, 'option2');
- * ```
+ * @param element - The target `SELECT` or `OPTION` element
+ * @param value - Value to select when `element` is a `SELECT`
  */
 export function setSelectedElement(element: Element, value: string): void {
   if (!element) return;
@@ -377,10 +345,13 @@ export function setSelectedElement(element: Element, value: string): void {
 }
 
 /**
- * Sets the selected state for elements matching a selector.
+ * Set the selected value/state on every element matching the given selector.
  *
- * @param selector - CSS selector to find elements
- * @param value - The value to select
+ * For matching <select> elements this sets the element's `value`. For matching <option>
+ * elements this marks the option as selected. If no elements match the selector this is a no-op.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param value - The value to select (string)
  *
  * @example
  * ```typescript
@@ -393,16 +364,12 @@ export function setSelectedSelector(selector: string, value: string): void {
 }
 
 /**
- * Gets the selected value of a select element.
+ * Return the selected value of a <select> element.
  *
- * @param element - The select element
- * @returns The selected value
+ * If `element` is falsy or not a `SELECT`, returns an empty string.
  *
- * @example
- * ```typescript
- * const select = document.querySelector('select');
- * const selected = getSelectedElement(select);
- * ```
+ * @param element - The element expected to be an HTMLSelectElement (non-`SELECT` values return `''`)
+ * @returns The select's current `value`, or `''` when not applicable
  */
 export function getSelectedElement(element: Element): string {
   if (!element) return '';
@@ -450,15 +417,12 @@ export function getSelectedOptionsElement(element: Element): HTMLOptionElement[]
 }
 
 /**
- * Gets all selected options from the first select matching a selector.
+ * Return the selected <option> elements from the first element matching `selector`.
  *
- * @param selector - CSS selector to find element
- * @returns Array of selected option elements
+ * If no element matches or the matched element is not a <select>, an empty array is returned.
  *
- * @example
- * ```typescript
- * const selectedOptions = getSelectedOptionsSelector('#multi-select');
- * ```
+ * @param selector - CSS selector to locate the first <select> element
+ * @returns An array of the matched element's selected HTMLOptionElement instances (or empty array)
  */
 export function getSelectedOptionsSelector(selector: string): HTMLOptionElement[] {
   const element = document.querySelector(selector);

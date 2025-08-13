@@ -8,15 +8,12 @@
 import type { ElementFn } from "../types";
 
 /**
- * Shows an element by removing display: none.
+ * Make an element visible by clearing its inline `display` style.
  *
- * @param element - The element to show
+ * If `element` is an `HTMLElement`, this clears the inline `display` value (sets it to `""` and removes the `display` property)
+ * so the element will follow stylesheet or browser default layout rules. No action is taken for falsy values or non-HTMLElements.
  *
- * @example
- * ```typescript
- * const modal = document.querySelector('.modal');
- * showElement(modal);
- * ```
+ * @param element - The element to show; may be `null`/`undefined`, in which case the function is a no-op.
  */
 export function showElement(element: Element): void {
   if (!element) return;
@@ -45,10 +42,9 @@ export function showSelector(selector: string): void {
 }
 
 /**
- * Shows all elements matching a selector.
- * Alias for showSelector for clarity.
+ * Show all elements matching the given CSS selector.
  *
- * @param selector - CSS selector to find elements
+ * Alias of `showSelector` that delegates to that implementation.
  */
 export function showAll(selector: string): void {
   showSelector(selector);
@@ -72,17 +68,11 @@ export function showFirst(selector: string): void {
 }
 
 /**
- * Returns a generator function that shows an element.
- * For use within watch generators.
+ * Returns a function that shows a given element.
  *
- * @returns ElementFn that shows element when yielded
+ * The returned ElementFn calls `showElement` for the provided element and is intended for use in watch/generator flows.
  *
- * @example
- * ```typescript
- * watch('.modal', function* () {
- *   yield showGen();
- * });
- * ```
+ * @returns A function that accepts an Element and shows it (void).
  */
 export function showGen(): ElementFn<Element, void> {
   return (element: Element) => {
@@ -91,15 +81,11 @@ export function showGen(): ElementFn<Element, void> {
 }
 
 /**
- * Hides an element by setting display: none.
+ * Hide the given element by setting its inline `display` style to `"none"`.
  *
- * @param element - The element to hide
+ * If `element` is falsy or not an `HTMLElement`, this function does nothing.
  *
- * @example
- * ```typescript
- * const modal = document.querySelector('.modal');
- * hideElement(modal);
- * ```
+ * @param element - The element to hide; only `HTMLElement` instances are affected
  */
 export function hideElement(element: Element): void {
   if (!element) return;
@@ -125,10 +111,11 @@ export function hideSelector(selector: string): void {
 }
 
 /**
- * Hides all elements matching a selector.
- * Alias for hideSelector for clarity.
+ * Hides all elements that match the given CSS selector.
  *
- * @param selector - CSS selector to find elements
+ * Alias for `hideSelector` that delegates to the selector-based hide operation.
+ *
+ * @param selector - CSS selector used to find elements to hide
  */
 export function hideAll(selector: string): void {
   hideSelector(selector);
@@ -152,17 +139,11 @@ export function hideFirst(selector: string): void {
 }
 
 /**
- * Returns a generator function that hides an element.
- * For use within watch generators.
+ * Returns a generator-friendly function that hides a given element.
  *
- * @returns ElementFn that hides element when yielded
+ * The returned ElementFn can be yielded in watch/generator flows; when invoked with an Element it calls `hideElement` to set its inline display to `"none"`.
  *
- * @example
- * ```typescript
- * watch('.modal', function* () {
- *   yield hideGen();
- * });
- * ```
+ * @returns An ElementFn<Element, void> that hides the provided element when invoked.
  */
 export function hideGen(): ElementFn<Element, void> {
   return (element: Element) => {
@@ -171,15 +152,22 @@ export function hideGen(): ElementFn<Element, void> {
 }
 
 /**
- * Toggles the visibility of an element.
+ * Toggle an element's visibility by manipulating its inline `display` style.
  *
- * @param element - The element to toggle
- * @param force - Optional force show (true) or hide (false)
+ * If `force` is provided, the element is shown when `true` and hidden when `false`.
+ * If `force` is omitted, the function checks the element's inline `display` value:
+ * if it strictly equals `"none"` the element is shown; otherwise it is hidden.
+ *
+ * Non-HTMLElement inputs or falsy `element` values are ignored (no-op).
+ *
+ * @param element - The target element (must be an HTMLElement to be affected)
+ * @param force - Optional: explicitly show (`true`) or hide (`false`) the element
  *
  * @example
  * ```typescript
  * const dropdown = document.querySelector('.dropdown');
- * toggleElement(dropdown);
+ * toggleElement(dropdown); // toggles based on inline display
+ * toggleElement(dropdown, true); // forces show
  * ```
  */
 export function toggleElement(element: Element, force?: boolean): void {
@@ -250,18 +238,13 @@ export function toggleFirst(selector: string, force?: boolean): void {
 }
 
 /**
- * Returns a generator function that toggles visibility.
- * For use within watch generators.
+ * Create a generator-friendly function that toggles an element's visibility.
  *
- * @param force - Optional force show (true) or hide (false)
- * @returns ElementFn that toggles element when yielded
+ * Returns a function that, when invoked with an Element, toggles its inline visibility.
+ * If `force` is provided, the returned function will show the element when `true` and hide it when `false`.
  *
- * @example
- * ```typescript
- * watch('.dropdown', function* () {
- *   yield toggleGen();
- * });
- * ```
+ * @param force - Optional flag to force show (`true`) or hide (`false`) instead of toggling
+ * @returns A function suitable for use in generator/watch flows that toggles the given element
  */
 export function toggleGen(force?: boolean): ElementFn<Element, void> {
   return (element: Element) => {
@@ -270,16 +253,14 @@ export function toggleGen(force?: boolean): ElementFn<Element, void> {
 }
 
 /**
- * Checks if an element is visible.
+ * Determines whether a DOM element is considered visible based on its inline styles.
  *
- * @param element - The element to check
- * @returns True if the element is visible
+ * Checks only the element's inline style properties. Returns false if `element` is falsy.
+ * For HTMLElements this returns false when any of these inline styles are set: `display: "none"`,
+ * `visibility: "hidden"`, or `opacity: "0"`. Non-HTMLElement nodes are treated as visible.
  *
- * @example
- * ```typescript
- * const modal = document.querySelector('.modal');
- * const visible = isVisibleElement(modal);
- * ```
+ * @param element - The element to inspect
+ * @returns True if the element is considered visible, false otherwise
  */
 export function isVisibleElement(element: Element): boolean {
   if (!element) return false;
@@ -317,16 +298,13 @@ export function isVisibleSelector(selector: string): boolean | null {
 }
 
 /**
- * Checks if an element is hidden.
+ * Returns whether the given element is hidden.
+ *
+ * An element is considered hidden if `isVisibleElement` reports it not visible.
+ * If `element` is falsy, this function returns `true`.
  *
  * @param element - The element to check
- * @returns True if the element is hidden
- *
- * @example
- * ```typescript
- * const spinner = document.querySelector('.spinner');
- * const hidden = isHiddenElement(spinner);
- * ```
+ * @returns `true` when the element is hidden (or when `element` is falsy); otherwise `false`
  */
 export function isHiddenElement(element: Element): boolean {
   if (!element) return true;

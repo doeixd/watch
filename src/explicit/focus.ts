@@ -8,15 +8,12 @@
 import type { ElementFn } from '../types';
 
 /**
- * Sets focus on an element.
+ * Focuses the given element if it is an HTMLElement.
  *
- * @param element - The element to focus
+ * If `element` is falsy this function returns immediately. Only instances of
+ * `HTMLElement` will receive focus; other Element subtypes are ignored.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * focusElement(input);
- * ```
+ * @param element - The element to focus (ignored if falsy or not an `HTMLElement`)
  */
 export function focusElement(element: Element): void {
   if (!element) return;
@@ -44,25 +41,23 @@ export function focusSelector(selector: string): void {
 }
 
 /**
- * Sets focus on the first element matching a selector.
- * Alias for focusSelector for clarity.
+ * Focuses the first element that matches the provided CSS selector.
  *
- * @param selector - CSS selector to find element
+ * This function is an alias of `focusSelector`.
  *
- * @example
- * ```typescript
- * focusFirst('input[type="text"]');
- * ```
+ * @param selector - CSS selector used to locate the element to focus
  */
 export function focusFirst(selector: string): void {
   focusSelector(selector);
 }
 
 /**
- * Returns a generator function that sets focus.
- * For use within watch generators.
+ * Create a generator-friendly function that focuses a given element.
  *
- * @returns ElementFn that sets focus when yielded
+ * The returned function is compatible with watch-style generator helpers: when yielded
+ * with an Element it will call focusElement(element) (which safely no-ops for falsy inputs).
+ *
+ * @returns A function `(element: Element) => void` that focuses the provided element.
  *
  * @example
  * ```typescript
@@ -78,15 +73,12 @@ export function focusGen(): ElementFn<Element, void> {
 }
 
 /**
- * Removes focus from an element.
+ * Remove keyboard/mouse focus from the given DOM element.
  *
- * @param element - The element to blur
+ * If `element` is falsy the call is a no-op. Only instances of `HTMLElement` will
+ * have their `blur()` method invoked; other Element subtypes are ignored.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * blurElement(input);
- * ```
+ * @param element - The target DOM element; only `HTMLElement` instances are blurred
  */
 export function blurElement(element: Element): void {
   if (!element) return;
@@ -97,14 +89,11 @@ export function blurElement(element: Element): void {
 }
 
 /**
- * Removes focus from the first element matching a selector.
+ * Removes focus from the first element that matches the given CSS selector.
  *
- * @param selector - CSS selector to find element
+ * If no matching element is found, the function is a no-op.
  *
- * @example
- * ```typescript
- * blurSelector('#username');
- * ```
+ * @param selector - CSS selector used to locate the element to blur.
  */
 export function blurSelector(selector: string): void {
   const element = document.querySelector(selector);
@@ -129,17 +118,12 @@ export function blurFirst(selector: string): void {
 }
 
 /**
- * Returns a generator function that removes focus.
- * For use within watch generators.
+ * Returns a generator-friendly function that blurs a provided element.
  *
- * @returns ElementFn that removes focus when yielded
+ * The returned function accepts an Element and invokes blurElement on it.
+ * Intended for use as a yielded value inside watch-style generator helpers.
  *
- * @example
- * ```typescript
- * watch('input', function* () {
- *   yield blurGen();
- * });
- * ```
+ * @returns A function (ElementFn) that blurs the given Element when called
  */
 export function blurGen(): ElementFn<Element, void> {
   return (element: Element) => {
@@ -148,10 +132,13 @@ export function blurGen(): ElementFn<Element, void> {
 }
 
 /**
- * Checks if an element has focus.
+ * Determine whether the given element currently has document focus.
  *
- * @param element - The element to check
- * @returns True if the element has focus
+ * Returns false for falsy inputs. For non-null elements, this is true when
+ * the element strictly equals `document.activeElement`.
+ *
+ * @param element - The element to check for focus
+ * @returns `true` if `element` is the active element in the document; otherwise `false`
  *
  * @example
  * ```typescript

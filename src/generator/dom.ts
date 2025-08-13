@@ -435,28 +435,22 @@ export function getHtml(): Workflow<string> {
 }
 
 /**
- * Appends HTML to the existing content using the pure generator API.
+ * Appends the given HTML string to the element's current innerHTML.
  *
- * ⚠️ **Security Warning**: Always sanitize user input to prevent XSS attacks.
+ * Appends without replacing existing content. The operation is returned as a Workflow and performs the append when yielded by the watch runtime.
  *
- * @param content - The HTML to append to existing content
- * @returns A Workflow<void> that appends the HTML when yielded
+ * ⚠️ Security: Always sanitize untrusted input before passing it to this function to avoid XSS.
  *
- * @example Adding list items dynamically
+ * @param content - HTML fragment to append to the element's existing content
+ * @returns A Workflow<void> that performs the append when yielded
+ *
+ * @example
  * ```typescript
- * import { watch } from 'watch-selector';
- * import { appendHtml, getState } from 'watch-selector/generator';
- *
- * watch('ul.todo-list', async function* () {
- *   const todos = yield* getState<string[]>('todos', []);
- *   for (const todo of todos) {
- *     yield* appendHtml(`<li>${todo}</li>`);
- *   }
- * });
+ * yield* appendHtml(`<li>${escapeHtml(todo)}</li>`);
  * ```
  *
- * @see {@link html} - For replacing all HTML content
- * @see {@link prependHtml} - For prepending HTML content
+ * @see {@link html} - Replaces the element's entire HTML content
+ * @see {@link prependHtml} - Prepends HTML instead of appending
  */
 export function appendHtml(content: string): Workflow<void> {
   return (async function* () {
@@ -747,10 +741,13 @@ export function hasClass(className: string): Workflow<boolean> {
 }
 
 /**
- * Replace one class with another
- * @param oldClass The class to remove
- * @param newClass The class to add
- * @returns Workflow that replaces the class
+ * Replace a CSS class on the current element.
+ *
+ * Replaces `oldClass` with `newClass` on the element's classList.
+ *
+ * @param oldClass - The class name to remove.
+ * @param newClass - The class name to add.
+ * @returns True if `oldClass` was present and replaced; otherwise `false`.
  */
 export function replaceClass(
   oldClass: string,
@@ -765,9 +762,12 @@ export function replaceClass(
 }
 
 /**
- * Set the entire class list of an element
- * @param classes The classes to set (space-separated string or array)
- * @returns Workflow that sets the classes
+ * Replace the element's entire class list.
+ *
+ * Sets the element's `className` to the provided value. If `classes` is an array, its items are joined with a single space.
+ *
+ * @param classes - A space-separated class string or an array of class names.
+ * @returns A Workflow that sets the element's classes.
  */
 export function setClasses(classes: string | string[]): Workflow<void> {
   return (async function* () {
@@ -882,6 +882,17 @@ export function setClasses(classes: string | string[]): Workflow<void> {
  */
 export function style(property: string, value: string): Workflow<void>;
 export function style(styles: Record<string, string>): Workflow<void>;
+/**
+ * Sets inline CSS styles on the current element.
+ *
+ * When `propertyOrStyles` is a string and `value` is provided, sets that single CSS property
+ * to `value`. When `propertyOrStyles` is an object, assigns each key/value as an inline style
+ * (multiple properties). If a string property is passed without a `value`, no change is made.
+ *
+ * @param propertyOrStyles - A CSS property name or an object mapping CSS property names to values.
+ * @param value - The value to set when `propertyOrStyles` is a single property name.
+ * @returns A workflow that applies the style changes to the current element.
+ */
 export function style(
   propertyOrStyles: string | Record<string, string>,
   value?: string,
@@ -898,10 +909,13 @@ export function style(
 }
 
 /**
- * Set a specific CSS style property
- * @param property The CSS property name
- * @param value The value to set
- * @returns Workflow that sets the style property
+ * Set a single inline CSS style property on the current element.
+ *
+ * The `property` is the DOM style property name (JavaScript form, e.g. `backgroundColor`, not a CSS declaration string).
+ * The provided `value` is assigned directly to element.style[property].
+ *
+ * @param property - The JavaScript-style CSS property name to set (e.g. `marginTop`, `opacity`)
+ * @param value - The value to assign to the property (applied as an inline style)
  */
 export function setStyleProperty(
   property: string,
@@ -915,43 +929,18 @@ export function setStyleProperty(
 }
 
 /**
- * Gets a specific CSS style property value from an element.
+ * Get the computed or inline value of a CSS property for the current element.
  *
- * This function retrieves the computed or inline style value for a given CSS property.
- * Returns the current value as a string, which may be empty if the property is not set.
+ * Returns the property's computed value as a string (may be empty if not set).
  *
- * @param property - The CSS property name to retrieve (camelCase or kebab-case)
- * @returns A Workflow<string> that returns the style value when yielded
+ * @param property - CSS property name (camelCase or kebab-case). If a shorthand is provided the returned value may be the expanded/computed result.
+ * @returns The property's value from getComputedStyle for the current element.
  *
- * @example Reading style values
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { styleProperty, style } from 'watch-selector/generator';
+ * @example
+ * const color = yield* styleProperty('color');
+ * const padding = yield* styleProperty('padding-top');
  *
- * watch('.styled-element', async function* () {
- *   const currentColor = yield* styleProperty('color');
- *   const currentPadding = yield* styleProperty('padding');
- *
- *   console.log(`Current color: ${currentColor}`);
- *   console.log(`Current padding: ${currentPadding}`);
- * });
- * ```
- *
- * @example Toggling styles based on current value
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { styleProperty, style, click } from 'watch-selector/generator';
- *
- * watch('.toggle-visibility', async function* () {
- *   yield* click(async function* () {
- *     const currentDisplay = yield* styleProperty('display');
- *     yield* style('display', currentDisplay === 'none' ? 'block' : 'none');
- *   });
- * });
- * ```
- *
- * @see {@link style} - For setting style properties
- * @see {@link getStyle} - Alternative method for getting styles
+ * @see {@link style} - Use to set one or more CSS properties
  */
 export function styleProperty(property: string): Workflow<string> {
   return (async function* () {
@@ -1095,6 +1084,17 @@ export function removeStyle(property: string): Workflow<void> {
  */
 export function attr(name: string, value: string): Workflow<void>;
 export function attr(attributes: Record<string, string>): Workflow<void>;
+/**
+ * Sets one or more attributes on the current element.
+ *
+ * When called with a string `name` and a `value`, sets that single attribute.
+ * When called with an object, sets each key/value pair as an attribute.
+ * Existing attributes with the same name are overwritten.
+ *
+ * @param nameOrAttributes - The attribute name to set (requires `value`) or an object map of attribute names to values.
+ * @param value - The attribute value when `nameOrAttributes` is a string. If omitted for the string overload, no attribute is set.
+ * @returns A workflow that applies the attribute changes to the current element.
+ */
 export function attr(
   nameOrAttributes: string | Record<string, string>,
   value?: string,
@@ -1169,44 +1169,13 @@ export function getAttr(name: string): Workflow<string | null> {
 }
 
 /**
- * Removes an attribute from an element using the pure generator API.
+ * Sets a DOM property on the current element.
  *
- * This completely removes the attribute from the element. For boolean attributes
- * like 'disabled' or 'checked', this effectively sets them to false.
+ * Assigns the given value to the element's property with the specified name (this mutates the live DOM property and is distinct from setting an HTML attribute).
  *
- * @param name - The name of the attribute to remove
- * @returns A Workflow<void> that removes the attribute when yielded
- *
- * @example Removing form field attributes
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { removeAttr, removeClass } from 'watch-selector/generator';
- *
- * watch('input.validated', async function* () {
- *   // Enable the field
- *   yield* removeAttr('disabled');
- *   yield* removeAttr('readonly');
- *   yield* removeClass('disabled');
- * });
- * ```
- *
- * @example Cleaning up data attributes
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { removeAttr } from 'watch-selector/generator';
- *
- * watch('.processed-item', async function* () {
- *   // Remove temporary data attributes
- *   yield* removeAttr('data-processing');
- *   yield* removeAttr('data-temp-id');
- *   yield* removeAttr('data-validation-error');
- * });
- * ```
- *
- * @see {@link getProp} - For reading property values
- * @see {@link attr} - For setting HTML attributes (different from properties)
- * @see {@link value} - Specialized method for form element values
- * @see {@link checked} - Specialized method for checkbox/radio checked state
+ * @param name - Property name to set on the element (e.g., `checked`, `value`, `datasetKey`)
+ * @param value - Value to assign to the property
+ * @returns A Workflow<void> that applies the property change when yielded
  */
 export function prop(name: string, value: any): Workflow<void> {
   return (async function* () {
@@ -1919,8 +1888,9 @@ export function focus(): Workflow<void> {
 }
 
 /**
- * Blur an element
- * @returns Workflow that blurs the element
+ * Removes focus from the current WatchContext element.
+ *
+ * @returns A Workflow that calls `blur()` on the current element.
  */
 export function blur(): Workflow<void> {
   return (async function* () {
@@ -1935,52 +1905,14 @@ export function blur(): Workflow<void> {
 // ============================================================================
 
 /**
- * Shows an element by setting its display property using the pure generator API.
+ * Shows the current element by setting or removing its inline `display` style.
  *
- * Removes the 'display: none' style. You can specify the display value to use
- * when showing the element (block, flex, grid, inline, etc.).
+ * If `displayValue` is an empty string (the default) the element's inline `display`
+ * property is removed; otherwise the inline `display` is set to the provided value
+ * (e.g., `"block"`, `"flex"`, `"grid"`, `"inline-block"`).
  *
- * @param displayValue - The display value to set (default: 'block')
- * @returns A Workflow<void> that shows the element when yielded
- *
- * @example Basic show/hide
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { show, hide, isChecked } from 'watch-selector/generator';
- *
- * watch('.toggleable', async function* () {
- *   const checkbox = yield* query('input[type="checkbox"]');
- *   const shouldShow = yield* isChecked();
- *
- *   if (shouldShow) {
- *     yield* show();
- *   } else {
- *     yield* hide();
- *   }
- * });
- * ```
- *
- * @example Showing with specific display values
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { show } from 'watch-selector/generator';
- *
- * watch('.flex-container', async function* () {
- *   yield* show('flex');
- * });
- *
- * watch('.grid-container', async function* () {
- *   yield* show('grid');
- * });
- *
- * watch('.inline-element', async function* () {
- *   yield* show('inline-block');
- * });
- * ```
- *
- * @see {@link hide} - For hiding elements
- * @see {@link toggle} - For toggling visibility
- * @see {@link style} - For other style manipulations
+ * @param displayValue - The CSS `display` value to apply; an empty string removes the inline `display` property (default: `""`)
+ * @returns A Workflow that, when executed, updates the element's display style
  */
 export function show(displayValue: string = ""): Workflow<void> {
   return (async function* () {
@@ -2029,9 +1961,13 @@ export function hide(): Workflow<void> {
 }
 
 /**
- * Toggle visibility of an element
- * @param displayValue The display value to use when showing (default: 'block')
- * @returns Workflow that returns whether the element is visible after toggle
+ * Toggles the element's visibility by switching its inline `display` between `"none"` and the provided value.
+ *
+ * If `displayValue` is an empty string (default) the inline `display` property is removed when showing the element;
+ * otherwise the element's inline `display` is set to `displayValue` when showing.
+ *
+ * @param displayValue - The display value to use when showing the element; when empty, the inline `display` property is removed.
+ * @returns `true` if the element was hidden before the toggle (it will be shown after); `false` if it was visible before the toggle (it will be hidden after).
  */
 export function toggle(displayValue: string = ""): Workflow<boolean> {
   return (async function* () {
@@ -2057,8 +1993,11 @@ export function toggle(displayValue: string = ""): Workflow<boolean> {
 // ============================================================================
 
 /**
- * Get the current element with proper typing
- * @returns Workflow that returns the current element
+ * Returns the current element from the workflow context, typed as `El`.
+ *
+ * The generic `El` allows callers to narrow the returned HTMLElement subtype.
+ *
+ * @returns The current element (`El`) from the WatchContext
  */
 export function self<El extends HTMLElement = HTMLElement>(): Workflow<El> {
   return (async function* () {
@@ -2189,57 +2128,12 @@ export function queryAll<T extends HTMLElement = HTMLElement>(
 }
 
 /**
- * Gets the current element being watched using the pure generator API.
+ * Returns the parent element of the currently watched element (or `null` if none).
  *
- * Returns a typed reference to the element that the watch function is currently
- * processing. The type can be specified for better TypeScript support.
+ * Retrieves the parentElement of the element the watch context is currently processing and returns it typed as `T`.
  *
- * @template El - The specific HTML element type (defaults to HTMLElement)
- * @returns A Workflow<El> that returns the current element
- *
- * @example Getting typed element reference
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { self } from 'watch-selector/generator';
- *
- * watch('button', async function* () {
- *   const button = yield* self<HTMLButtonElement>();
- *
- *   // TypeScript knows this is a button
- *   console.log(button.type);  // 'button' | 'submit' | 'reset'
- *   button.disabled = true;
- * });
- *
- * watch('input[type="file"]', async function* () {
- *   const fileInput = yield* self<HTMLInputElement>();
- *
- *   // Access file-specific properties
- *   const files = fileInput.files;
- *   if (files && files.length > 0) {
- *     console.log('Selected file:', files[0].name);
- *   }
- * });
- * ```
- *
- * @example Using element reference for direct manipulation
- * ```typescript
- * import { watch } from 'watch-selector';
- * import { self, addClass } from 'watch-selector/generator';
- *
- * watch('.draggable', async function* () {
- *   const element = yield* self();
- *
- *   // Use native methods when needed
- *   element.addEventListener('dragstart', (e) => {
- *     e.dataTransfer?.setData('text/plain', element.id);
- *   });
- *
- *   yield* addClass('drag-enabled');
- * });
- * ```
- *
- * @see {@link query} - For finding child elements
- * @see {@link parent} - For getting parent element
+ * @typeParam T - The expected parent element type (defaults to `HTMLElement`).
+ * @returns A Workflow that yields the parent element typed as `T` or `null` when there is no parent.
  */
 export function parent<
   T extends HTMLElement = HTMLElement,
@@ -2253,8 +2147,10 @@ export function parent<
 }
 
 /**
- * Get the children elements
- * @returns Workflow that returns an array of child elements
+ * Returns an array of the current element's direct child elements.
+ *
+ * @typeParam T - Element type for the returned children (defaults to `HTMLElement`).
+ * @returns An array of child elements typed as `T[]`.
  */
 export function children<T extends HTMLElement = HTMLElement>(): Workflow<T[]> {
   return (async function* () {
@@ -2266,8 +2162,11 @@ export function children<T extends HTMLElement = HTMLElement>(): Workflow<T[]> {
 }
 
 /**
- * Get the sibling elements
- * @returns Workflow that returns an array of sibling elements
+ * Returns a Workflow that yields the element's sibling elements.
+ *
+ * The returned array contains the parent's direct children excluding the current element.
+ *
+ * @returns An array of sibling elements (typed as `T[]`)
  */
 export function siblings<T extends HTMLElement = HTMLElement>(): Workflow<T[]> {
   return (async function* () {
@@ -2333,9 +2232,13 @@ export function log(message: string): Workflow<void> {
 }
 
 /**
- * Run a custom function with the current context
- * @param fn The function to run
- * @returns Workflow that runs the function and returns its result
+ * Runs a user-provided function with the current WatchContext and returns its result.
+ *
+ * The provided function receives the current WatchContext and may return a value or a Promise.
+ * The workflow yields an operation that executes `fn` inside the watch runtime and resolves to `fn`'s returned value.
+ *
+ * @param fn - Function invoked with the current WatchContext; its return (or resolved Promise) becomes the workflow result.
+ * @returns A Workflow that executes `fn` and yields its result of type `T`.
  */
 export function run<T>(
   fn: (context: WatchContext) => T | Promise<T>,

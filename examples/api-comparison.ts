@@ -17,7 +17,15 @@ import { selector, element, $ } from 'watch-selector/fluent';
 
 // ----------------------------------------------------------------------------
 // 1. OVERLOADED API (Default)
-// ----------------------------------------------------------------------------
+/**
+ * Demonstrates the overloaded (default) watch-selector API by updating buttons and selectors in the DOM.
+ *
+ * Performs three example flows: direct element manipulation (sets text, classes, style, and a click handler on the first <button>),
+ * selector-based updates for the `#submit` element (text, class, and an ARIA attribute), and a generator-based watch that
+ * applies a sequence of text, class, style, and click actions to matching `button.dynamic` elements.
+ *
+ * Side effects: mutates DOM elements and registers event listeners.
+ */
 
 function enhanceButtonOverloaded() {
   // Direct element manipulation
@@ -47,7 +55,19 @@ function enhanceButtonOverloaded() {
 
 // ----------------------------------------------------------------------------
 // 2. EXPLICIT API - Clear, unambiguous function names
-// ----------------------------------------------------------------------------
+/**
+ * Demonstrates using the Explicit API to perform clear, unambiguous DOM updates and watches.
+ *
+ * Performs three kinds of operations:
+ * - Direct element manipulation (text, classes, style, click handler) when an element is present.
+ * - Selector-scoped updates (first-only, all-matches, attribute updates).
+ * - Generator-based dynamic updates via `watch` using the explicit generator helpers.
+ *
+ * Side effects: mutates DOM, registers an event handler, and registers a watch for dynamic elements.
+ *
+ * Notes:
+ * - The explicit getters used here return concrete types: `getTextElement` -> `string`, `getTextFirst` -> `string | null`, `getTextAll` -> `string[]`.
+ */
 
 function enhanceButtonExplicit() {
   // Direct element operations - clear intent
@@ -80,7 +100,15 @@ function enhanceButtonExplicit() {
 
 // ----------------------------------------------------------------------------
 // 3. FLUENT API - Chainable jQuery-like interface
-// ----------------------------------------------------------------------------
+/**
+ * Demonstrates the Fluent API for common DOM updates using chainable calls.
+ *
+ * Uses element(), selector(), and $() helpers to show single-element chaining,
+ * selector-based operations, collection-style (jQuery-like) chaining, and
+ * complex traversal (find/parent/siblings). Effects include setting text/html,
+ * attributes, styles, classes, and registering event handlers — i.e., it mutates
+ * the DOM and attaches listeners as shown.
+ */
 
 function enhanceButtonFluent() {
   // Chain operations on single element
@@ -136,7 +164,16 @@ function enhanceButtonFluent() {
 // ============================================================================
 
 // Task 1: Toggle a class based on current state
-// ----------------------------------------------------------------------------
+/**
+ * Toggle the "active" class on three example buttons using three API styles.
+ *
+ * Performs the following mutations:
+ * - Overloaded API: reads and toggles the `active` class on element `#btn1`.
+ * - Explicit API: reads and toggles the `active` class on element `#btn2` using the explicit helpers.
+ * - Fluent API: toggles the `active` class on selector `#btn3` and updates its text to "Active" or "Inactive" based on the new state.
+ *
+ * This function has side effects on DOM elements with IDs `btn1`, `btn2`, and `btn3`.
+ */
 
 function toggleActiveClass() {
   // Overloaded API
@@ -160,7 +197,16 @@ function toggleActiveClass() {
 }
 
 // Task 2: Get and set multiple attributes
-// ----------------------------------------------------------------------------
+/**
+ * Update anchor elements to open in a new tab and append a referral query param.
+ *
+ * Uses three API styles shown in this file:
+ * - Overloaded: updates the first `a` element (reads and rewrites `href`, sets `target` and `rel`).
+ * - Explicit: updates the first `a.external` element via the explicit API equivalents.
+ * - Fluent: updates all `a.external` elements with fluent chaining and per-element `href` adjustment.
+ *
+ * Side effects: mutates DOM elements' `href`, `target`, and `rel` attributes.
+ */
 
 function manipulateAttributes() {
   // Overloaded API
@@ -192,7 +238,14 @@ function manipulateAttributes() {
 }
 
 // Task 3: Process a list of items
-// ----------------------------------------------------------------------------
+/**
+ * Process elements with the `.item` selector: mark them processed, flag "special" items, and attach a click handler that toggles selection.
+ *
+ * This demo runs the same workflow three ways:
+ * - Overloaded API: uses `watch` + generator yields to add the `processed` class, set `data-processed="true"`, detect `"special"` in text to add `special-item`, and register a click handler that toggles `selected`.
+ * - Explicit API: performs the same steps via the `explicit` generator helpers and element utilities.
+ * - Fluent API: performs the processing immediately on the matched collection, using chaining and `.each` for per-element checks and `.click` for the toggle handler.
+ */
 
 function processItemList() {
   // Overloaded API
@@ -295,7 +348,14 @@ function processItemList() {
 
 // ============================================================================
 // MIXING APIS - They can work together!
-// ============================================================================
+/**
+ * Demonstrates mixing the Overloaded, Explicit, and Fluent watch-selector APIs in one flow.
+ *
+ * Uses the Fluent API to initialize a collection of `.card` elements, the Explicit API for
+ * clear per-element checks and targeted mutations, and the Overloaded API inside a `watch`
+ * generator for concise event-driven updates. Side effects: mutates DOM (classes, attributes,
+ * visibility) and registers a `watch` handler that attaches click behavior to `.card` elements.
+ */
 
 function mixedApiExample() {
   // Start with fluent for setup

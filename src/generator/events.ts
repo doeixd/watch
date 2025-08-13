@@ -559,10 +559,14 @@ export function submit(
 }
 
 /**
- * Add a focus event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the focus event listener
+ * Attach a focus event listener to the current watch context element.
+ *
+ * The provided `handler` is called with the FocusEvent when the element receives focus.
+ * The handler may be synchronous or return a Promise; generator-based handlers are not run via the watch runtime.
+ *
+ * @param handler - Function invoked on `focus` with the event
+ * @param options - Optional AddEventListenerOptions forwarded to `addEventListener`
+ * @returns A Workflow that registers the focus listener on the context element
  */
 export function onFocus(
   handler: (event: FocusEvent) => void | Promise<void>,
@@ -576,10 +580,15 @@ export function onFocus(
 }
 
 /**
- * Add a blur event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the blur event listener
+ * Attach a "blur" event listener to the element from the current watch context.
+ *
+ * The provided `handler` is called with the FocusEvent when the element loses focus.
+ * If `handler` returns a Promise it will be awaited; generator-style handlers are not
+ * executed via the watch runtime. Any exceptions thrown by the handler propagate to callers.
+ *
+ * @param handler - Function invoked on blur; may be synchronous or return a Promise.
+ * @param options - Optional AddEventListenerOptions passed through to addEventListener.
+ * @returns A Workflow that, when yielded, registers the listener on the current element.
  */
 export function onBlur(
   handler: (event: FocusEvent) => void | Promise<void>,
@@ -593,10 +602,17 @@ export function onBlur(
 }
 
 /**
- * Add a keydown event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the keydown event listener
+ * Creates a workflow that attaches a `keydown` listener to the current watch context element.
+ *
+ * The provided `handler` may be synchronous, return a `Promise`, or be an async generator.
+ * If it returns an async generator, the generator is executed with `runOn` bound to the element so it runs in the watch runtime; if it returns a `Promise` it is awaited. Errors thrown by the handler propagate to the caller.
+ *
+ * @param handler - Function invoked with the `KeyboardEvent`. Can be:
+ *   - a synchronous handler,
+ *   - an async function returning a `Promise<void>`,
+ *   - or an async generator (executed via `runOn`).
+ * @param options - Optional `AddEventListenerOptions` forwarded to `addEventListener`.
+ * @returns A `Workflow<void>` that, when run, attaches the keydown listener to the element from the current `WatchContext`.
  */
 export function keydown(
   handler:
@@ -629,10 +645,13 @@ export function keydown(
 }
 
 /**
- * Add a keyup event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the keyup event listener
+ * Returns a workflow that attaches a `keyup` listener to the current watch context's element.
+ *
+ * The provided `handler` will be invoked with the `KeyboardEvent` when a `keyup` occurs on the element.
+ * If the handler returns a `Promise`, it will be awaited; generator-based handlers are not run via the watch runtime.
+ *
+ * @param handler - Function called with the `KeyboardEvent`. May return a `Promise<void>` for asynchronous handling.
+ * @param options - Optional `AddEventListenerOptions` forwarded to `addEventListener`.
  */
 export function keyup(
   handler: (event: KeyboardEvent) => void | Promise<void>,
@@ -682,10 +701,17 @@ export function mouseenter(
 }
 
 /**
- * Add a mouseleave event listener
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the mouseleave event listener
+ * Attach a "mouseleave" listener to the current watch context element.
+ *
+ * The provided `handler` may be synchronous, return a Promise, or be an async generator.
+ * If it returns an async generator, it will be executed with the watch runtime (via `runOn`)
+ * so it runs with the element's context. If it returns a Promise the promise is awaited.
+ * Errors from the handler propagate to the caller/runtime.
+ *
+ * @param handler - Function invoked when the element receives a `mouseleave` event.
+ *                   Can be sync, return a `Promise<void>`, or return an `AsyncGenerator`.
+ * @param options - Optional `AddEventListenerOptions` passed to `addEventListener`.
+ * @returns A Workflow that, when yielded, registers the event listener on the current element.
  */
 export function mouseleave(
   handler:
@@ -718,11 +744,15 @@ export function mouseleave(
 }
 
 /**
- * Add a generic event listener
- * @param eventType The event type to listen for
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the event listener
+ * Attaches an event listener for the specified event type to the current watch context's element.
+ *
+ * The handler may be synchronous, return a Promise, or return an AsyncGenerator. If the handler
+ * returns an async generator, it will be executed with the element's runtime via `runOn`.
+ *
+ * @param eventType - DOM event name (e.g., `"click"`, `"input"`).
+ * @param handler - Function called with the event; may return `void`, a `Promise<void>`, or an `AsyncGenerator`.
+ * @param options - Optional `AddEventListenerOptions` forwarded to `addEventListener`.
+ * @returns A `Workflow<void>` that, when yielded, adds the listener to the current element.
  */
 export function on(
   eventType: string,
@@ -756,11 +786,17 @@ export function on(
 }
 
 /**
- * Add a custom event listener
- * @param eventType The custom event type
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the custom event listener
+ * Attach a listener for a typed CustomEvent on the current watch context element.
+ *
+ * The provided `handler` is called with the dispatched `CustomEvent`. If the
+ * handler returns a Promise it will be awaited by the runtime; exceptions
+ * propagate to the caller. The listener is registered on `context.element`
+ * with the given `options`.
+ *
+ * @param eventType - Name of the custom event to listen for.
+ * @param handler - Handler that receives the `CustomEvent`.
+ * @param options - Optional `AddEventListenerOptions` forwarded to `addEventListener`.
+ * @returns A Workflow that, when yielded, attaches the event listener to the current element.
  */
 export function onCustom(
   eventType: string,
@@ -779,11 +815,17 @@ export function onCustom(
 }
 
 /**
- * Emit a custom event
- * @param eventType The event type to emit
- * @param detail Optional event detail data
- * @param options Optional event init options
- * @returns Workflow that emits the event
+ * Emit a CustomEvent from the current watch context's element.
+ *
+ * The created CustomEvent uses the provided `detail` and merges `options`
+ * with defaults: `bubbles: true`, `cancelable: true`, `composed: false`.
+ * Any fields present in `options` override these defaults. The event is
+ * dispatched synchronously on the context's element.
+ *
+ * @param eventType - Name of the custom event to dispatch.
+ * @param detail - Optional payload assigned to `event.detail`.
+ * @param options - Optional CustomEventInit to control bubbles, cancelable, composed, etc.
+ * @returns A Workflow that, when yielded, dispatches the constructed CustomEvent.
  */
 export function emit(
   eventType: string,
@@ -805,9 +847,13 @@ export function emit(
 }
 
 /**
- * Emit a generic event
- * @param event The event to emit
- * @returns Workflow that emits the event
+ * Dispatches the provided Event on the current watch context element.
+ *
+ * The event is synchronously dispatched via `element.dispatchEvent(event)` when the yielded
+ * operation is executed by the watch runtime.
+ *
+ * @param event - The Event instance to dispatch on the context's element.
+ * @returns A Workflow that, when run, dispatches `event` on the current element.
  */
 export function emitEvent(event: Event): Workflow<void> {
   return (async function* () {
@@ -818,10 +864,16 @@ export function emitEvent(event: Event): Workflow<void> {
 }
 
 /**
- * Watch for attribute changes
- * @param attributeName The attribute to watch
- * @param handler The change handler function
- * @returns Workflow that sets up attribute watching
+ * Observe changes to a specific attribute on the current watched element.
+ *
+ * When the named attribute changes on the element obtained from the current WatchContext,
+ * the provided handler is invoked with the attribute's new value (read from the element)
+ * and the old value reported by the MutationRecord.
+ *
+ * @param attributeName - Name of the attribute to observe.
+ * @param handler - Called as `handler(newValue, oldValue)` when the attribute changes.
+ *   `newValue` is the element's current attribute value (or `null` if absent),
+ *   `oldValue` is the previous value as reported by the MutationRecord (may be `null`).
  */
 export function onAttr(
   attributeName: string,
@@ -852,9 +904,17 @@ export function onAttr(
 }
 
 /**
- * Watch for text content changes
- * @param handler The change handler function
- * @returns Workflow that sets up text watching
+ * Observe and notify when the element's textContent changes.
+ *
+ * Attaches a MutationObserver to the current watch context's element that watches
+ * childList, characterData, and subtree mutations. The provided `handler` is
+ * called whenever the element's `textContent` changes with the new and previous
+ * string values.
+ *
+ * @param handler - Called as `handler(newText, oldText)` when `textContent` changes.
+ *   The initial `oldText` is taken from the element's `textContent` at the time
+ *   the observer is installed.
+ * @returns A workflow that installs the MutationObserver on the watched element.
  */
 export function onText(
   handler: (newText: string, oldText: string) => void,
@@ -881,9 +941,12 @@ export function onText(
 }
 
 /**
- * Watch for visibility changes
- * @param handler The visibility change handler function
- * @returns Workflow that sets up visibility watching
+ * Set up an IntersectionObserver on the current watch context element and call the handler when visibility changes.
+ *
+ * The provided `handler` is invoked with a single boolean argument (`true` when the element is intersecting / visible, `false` otherwise) each time the element's visibility changes.
+ *
+ * @param handler - Called with `isVisible` whenever the element's intersection state changes
+ * @returns A Workflow that installs the visibility observer on the current element
  */
 export function onVisible(
   handler: (isVisible: boolean) => void,
@@ -902,9 +965,14 @@ export function onVisible(
 }
 
 /**
- * Watch for resize changes
- * @param handler The resize handler function
- * @returns Workflow that sets up resize watching
+ * Observe size changes of the current element and invoke a handler for matching entries.
+ *
+ * If `ResizeObserver` is available, installs an observer that calls `handler(entry)` for
+ * each ResizeObserverEntry whose `target` is the workflow's watched element. If `ResizeObserver`
+ * is not defined in the environment, this workflow is a no-op.
+ *
+ * @param handler - Called with the ResizeObserverEntry for the watched element when its size changes.
+ * @returns A Workflow that attaches the ResizeObserver while yielded.
  */
 export function onResize(
   handler: (entry: ResizeObserverEntry) => void,
@@ -927,9 +995,17 @@ export function onResize(
 }
 
 /**
- * Add a mount event handler
- * @param handler The mount handler function
- * @returns Workflow that sets up the mount handler
+ * Register a mount handler that runs immediately for the currently mounted element.
+ *
+ * The provided `handler` will be invoked as a microtask (via `queueMicrotask`) because the element
+ * is already mounted. Supported handler shapes:
+ * - synchronous function: executed immediately,
+ * - function returning a Promise: the promise is awaited,
+ * - async-generator function: the returned async generator is executed with `runOn` using the
+ *   current element as context so it can yield workflows.
+ *
+ * @param handler - Handler to run on mount. May be synchronous, return a `Promise`, or return an `AsyncGenerator`.
+ * @returns A `Workflow<void>` that installs and invokes the mount handler for the current watch context.
  */
 export function onMount(
   handler:
@@ -962,9 +1038,21 @@ export function onMount(
 }
 
 /**
- * Add an unmount event handler
- * @param handler The unmount handler function
- * @returns Workflow that sets up the unmount handler
+ * Registers a handler to run once when the watched element is removed from the DOM.
+ *
+ * The returned workflow installs a MutationObserver on document.body that detects removals.
+ * When the watched element is removed (or removed as part of a subtree), the provided
+ * handler is invoked and the observer is disconnected. Supported handler forms:
+ * - synchronous function
+ * - function returning a Promise (will be awaited)
+ * - function returning an AsyncGenerator (executed with `runOn` using the element as context)
+ *
+ * The observer's disconnect function is also stored on the watch context's `cleanup` set
+ * so it can be disconnected by external cleanup logic if needed. Errors thrown by the
+ * handler propagate to the caller/runtime.
+ *
+ * @param handler - Function to invoke when the element is unmounted; may be sync, return a Promise, or return an AsyncGenerator.
+ * @returns A Workflow that attaches the unmount observer when yielded.
  */
 export function onUnmount(
   handler:
@@ -1021,11 +1109,15 @@ export function onUnmount(
 }
 
 /**
- * Add a one-time event listener
- * @param eventType The event type
- * @param handler The event handler function
- * @param options Optional event listener options
- * @returns Workflow that adds the one-time event listener
+ * Create a Workflow that attaches a one-time event listener to the current watch context element.
+ *
+ * The listener is added to the element from the WatchContext and will be removed automatically after the first invocation
+ * (the `once` option is forced to `true`). If the provided handler returns a Promise, it will be awaited by the caller's runtime.
+ *
+ * @param eventType - The DOM event type to listen for (e.g., `"click"`, `"input"`).
+ * @param handler - The event handler to invoke when the event fires; may be synchronous or return a Promise.
+ * @param options - Optional AddEventListenerOptions; merged with `{ once: true }`, so callers do not need to set `once`.
+ * @returns A Workflow<void> that, when yielded, attaches the one-time listener to the current element.
  */
 export function once(
   eventType: string,
@@ -1043,8 +1135,12 @@ export function once(
 }
 
 /**
- * Prevent default on an event
- * @returns Workflow that creates a preventDefault handler
+ * Creates a workflow that yields an event listener which calls `event.preventDefault()`.
+ *
+ * The returned `Workflow` produces a handler function suitable for use as an event listener;
+ * invoking that handler will call `preventDefault()` on the provided `Event`.
+ *
+ * @returns A `Workflow` that resolves to an `(event: Event) => void` handler which prevents the event's default action.
  */
 export function preventDefault(): Workflow<(event: Event) => void> {
   return (async function* () {
@@ -1058,8 +1154,12 @@ export function preventDefault(): Workflow<(event: Event) => void> {
 }
 
 /**
- * Stop propagation on an event
- * @returns Workflow that creates a stopPropagation handler
+ * Creates a workflow that yields an event handler which calls `event.stopPropagation()`.
+ *
+ * The returned Workflow, when run, provides a function suitable as an event listener.
+ * That listener simply invokes `stopPropagation()` on the received Event.
+ *
+ * @returns A Workflow that produces an `(event: Event) => void` handler which stops event propagation.
  */
 export function stopPropagation(): Workflow<(event: Event) => void> {
   return (async function* () {

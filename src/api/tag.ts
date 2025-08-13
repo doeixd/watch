@@ -85,19 +85,45 @@ const SVG_TAGS = new Set([
 // --- REACTIVITY HELPER ---
 
 /**
- * Marks a state object as a reactive source for a property in the `tag` builder.
- * When used, the element's property will automatically update whenever the state changes.
- * @param state The `TypedState` object created with `createState`.
+ * Wraps a TypedState and marks it as a reactive binding for the `tag` builder.
+ *
+ * Returns a `ReactiveBinding<T>` that signals to the tag builder APIs (attribute,
+ * property, addClass, text, etc.) that the provided state is a reactive source
+ * and should be updated as the state changes. The returned object contains the
+ * original `state` and an internal `__isReactive` flag.
+ *
+ * This function does not itself attach observers; consumers of `ReactiveBinding`
+ * (for example the `tag` builder) are responsible for wiring updates.
+ *
+ * @param state - A `TypedState` instance (typically created via `createState`)
+ * @returns A `ReactiveBinding<T>` wrapper around `state`
  */
 export function reactive<T>(state: TypedState<T>): ReactiveBinding<T> {
   return { __isReactive: true, state };
 }
 
+/**
+ * Type guard that detects a ReactiveBinding.
+ *
+ * Returns true when `value` is an object exposing `__isReactive === true`,
+ * narrowing the type to `ReactiveBinding<any>`.
+ *
+ * @param value - Value to test for the ReactiveBinding marker
+ * @returns `true` if `value` is a ReactiveBinding; otherwise `false`
+ */
 function isReactive(value: any): value is ReactiveBinding<any> {
   return value && value.__isReactive === true;
 }
 
-// --- INTERNAL HELPERS ---
+/**
+ * Flattens a nested array of TagChild values and appends them to the given element.
+ *
+ * Accepts nested arrays (flattened to any depth), ignores null/undefined, converts strings
+ * and numbers to text nodes, and appends Node instances directly.
+ *
+ * @param element - The parent Element to receive the children.
+ * @param children - Nested list of children (Node | string | number | null | undefined).
+ */
 
 function _appendChildren(element: Element, children: TagChild[]) {
   children.flat(Infinity).forEach((child) => {
@@ -109,6 +135,15 @@ function _appendChildren(element: Element, children: TagChild[]) {
     }
   });
 }
+/**
+ * Type guard that detects whether a value is a generator-based tag builder.
+ *
+ * Returns true when `arg` is a function created as a `GeneratorFunction` (i.e. a generator)
+ * that is intended to be called with a TagBuilderContext to build an element.
+ *
+ * @param arg - Value to test
+ * @returns `true` if `arg` is a generator function of the form `(ctx: TagBuilderContext<any>) => Generator`; otherwise `false`.
+ */
 function isGeneratorBuilder(
   arg: any,
 ): arg is (ctx: TagBuilderContext<any>) => Generator {
@@ -144,6 +179,19 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
   ...args: (Record<string, any> | TagChild)[]
 ): HTMLElementTagNameMap[K];
 
+/**
+ * Create a DOM element either via a generator-based declarative builder or a hyperscript-style call.
+ *
+ * When called with a single generator builder function, `tag(name, builder)` runs the builder to configure
+ * the element using the TagBuilderContext primitives (attribute, property, style, on, child, addClass, text,
+ * onMount, onUnmount) and returns a Workflow resolving to `{ element, api }` where `api` is the value returned
+ * by the builder. Builder primitives accept ReactiveBinding values to wire reactive updates.
+ *
+ * When called as a standard hyperscript (`tag(name, ...args)`), it creates and returns the corresponding
+ * HTMLElement (or SVGElement for known SVG tags) after applying attributes/children as provided.
+ *
+ * @returns A Workflow resolving to `{ element, api }` when used with a generator builder; otherwise the created element (`HTMLElement` or `SVGElement`).
+ */
 export function tag<K extends keyof HTMLElementTagNameMap>(
   name: K,
   ...args: any[]

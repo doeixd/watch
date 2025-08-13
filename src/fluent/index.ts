@@ -667,18 +667,12 @@ export function selector<S extends string>(
 }
 
 /**
- * Creates a FluentSelector from an element.
+ * Create a FluentSelector wrapping a single DOM element.
  *
- * @param el - Element to wrap
- * @returns FluentSelector instance for chaining
+ * Wraps the provided element so you can use the fluent, chainable DOM API.
  *
- * @example
- * ```typescript
- * const button = document.querySelector('button');
- * element(button)
- *   .addClass('active')
- *   .text('Active');
- * ```
+ * @param el - The Element to wrap
+ * @returns A FluentSelector instance for the given element
  */
 export function element<El extends Element>(el: El): FluentSelector<El> {
   return new FluentSelector(el);

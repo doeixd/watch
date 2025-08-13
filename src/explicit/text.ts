@@ -8,11 +8,12 @@
 import type { ElementFn } from "../types";
 
 /**
- * Sets the text content of an element.
+ * Set an element's textContent to the provided value (converted to string).
  *
- * @param element - The target DOM element to modify
- * @param content - The text or number to set as content (will be converted to string)
- * @returns void
+ * If `element` is falsy the call is a no-op. `content` may be a string or number and will be coerced with `String()`.
+ *
+ * @param element - Target DOM element to modify; no-op if falsy
+ * @param content - Text or number to set as the element's content
  *
  * @example
  * ```typescript
@@ -22,7 +23,6 @@ import type { ElementFn } from "../types";
  *
  * @example
  * ```typescript
- * // Works with numbers too
  * const counter = document.getElementById('counter');
  * setTextElement(counter, 42);
  * ```
@@ -36,29 +36,21 @@ export function setTextElement(
 }
 
 /**
- * Sets the text content of all elements matching a selector.
+ * Set the textContent of every element matching the given CSS selector.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The text or number to set as content (will be converted to string)
- * @returns void
+ * The provided `content` (string or number) is converted to a string before assignment.
+ * If no elements match the selector this is a no-op.
+ *
+ * @param selector - CSS selector string used to find target elements
+ * @param content - Text or number to set on each matched element (will be converted to string)
  *
  * @example
- * ```typescript
  * // Update all status indicators
  * setTextSelector('.status', 'Active');
- * ```
  *
  * @example
- * ```typescript
  * // Update multiple price displays
  * setTextSelector('.price', 99.99);
- * ```
- *
- * @example
- * ```typescript
- * // Complex selector
- * setTextSelector('div.card > h2.title', 'New Title');
- * ```
  */
 export function setTextSelector(
   selector: string,
@@ -69,53 +61,27 @@ export function setTextSelector(
 }
 
 /**
- * Sets the text content of all elements matching a selector.
- * Alias for setTextSelector that emphasizes operating on all matches.
+ * Sets the text content of all elements matching a CSS selector.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The text or number to set as content (will be converted to string)
- * @returns void
- *
- * @example
- * ```typescript
- * // Emphasizes that ALL items will be updated
- * setTextAll('.item', 'Updated');
- * ```
- *
- * @example
- * ```typescript
- * // Clear all error messages
- * setTextAll('.error-msg', '');
- * ```
+ * @param selector - The CSS selector to query elements
+ * @param content - The text or number to set as the content (will be converted to a string)
  */
 export function setTextAll(selector: string, content: string | number): void {
   setTextSelector(selector, content);
 }
 
 /**
- * Sets the text content of the first element matching a selector.
+ * Set the textContent of the first element that matches the given CSS selector.
  *
- * @param selector - CSS selector string to query element
- * @param content - The text or number to set as content (will be converted to string)
- * @returns void
+ * If no element matches the selector, this function is a no-op. The `content`
+ * value is converted to a string before assignment.
+ *
+ * @param selector - CSS selector used to find the first matching element
+ * @param content - Text or number to set as the element's content
  *
  * @example
- * ```typescript
- * // Only updates the first message
+ * // Update only the first element with class "message"
  * setTextFirst('.message', 'Hello World');
- * ```
- *
- * @example
- * ```typescript
- * // Update first heading only
- * setTextFirst('h1', 'Page Title');
- * ```
- *
- * @example
- * ```typescript
- * // No error if element doesn't exist
- * setTextFirst('#non-existent', 'Safe to call');
- * ```
  */
 export function setTextFirst(selector: string, content: string | number): void {
   const element = document.querySelector(selector);
@@ -239,32 +205,12 @@ export function getTextAll(selector: string): string[] {
 }
 
 /**
- * Returns a generator function that sets text content.
- * For use within watch generators.
+ * Creates a generator-friendly function that sets an element's textContent.
  *
- * @param content - The text or number to set as content (will be converted to string)
- * @returns ElementFn that sets text when yielded in a generator context
+ * The returned function is intended for use inside watch/generator flows; when invoked with an Element it sets that element's `textContent` to `content` (converted to a string). If the provided element is falsy, the call is a no-op.
  *
- * @example
- * ```typescript
- * // Use in a watch generator
- * watch('button', function* () {
- *   yield textGen('Ready');
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Dynamic text in generators
- * watch('.counter', function* () {
- *   let count = 0;
- *   yield textGen(count);
- *   yield click(() => {
- *     count++;
- *     yield textGen(count);
- *   });
- * });
- * ```
+ * @param content - Text or number to set on the element; will be stringified.
+ * @returns A function usable in generator-based watchers which sets the element's text.
  */
 export function textGen(content: string | number): ElementFn<Element, void> {
   return (element: Element) => {
@@ -305,33 +251,11 @@ export function textGetGen(): ElementFn<Element, string> {
 }
 
 /**
- * Appends text to an element's existing content.
+ * Append `content` to an element's `textContent`.
  *
- * @param element - The target DOM element to modify
- * @param content - The text or number to append (will be converted to string)
- * @returns void
+ * Converts `content` to a string and appends it to the element's existing `textContent`. If the element is falsy, the function returns early without changes. A `null` `textContent` is treated as an empty string.
  *
- * @example
- * ```typescript
- * // Add suffix to existing text
- * const div = document.querySelector('div');
- * appendTextElement(div, ' - Updated');
- * // "Original Text" becomes "Original Text - Updated"
- * ```
- *
- * @example
- * ```typescript
- * // Build up text incrementally
- * const log = document.getElementById('log');
- * appendTextElement(log, '\nNew log entry');
- * ```
- *
- * @example
- * ```typescript
- * // Append numbers
- * const score = document.querySelector('.score');
- * appendTextElement(score, 100); // "Score: " becomes "Score: 100"
- * ```
+ * @param content - The string or number to append (will be converted to a string)
  */
 export function appendTextElement(
   element: Element,
@@ -342,30 +266,16 @@ export function appendTextElement(
 }
 
 /**
- * Appends text to all elements matching a selector.
+ * Append the given text (or number) to the textContent of every element matching the selector.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The text or number to append (will be converted to string)
- * @returns void
+ * The `content` is converted to a string before appending. If no elements match the selector this is a no-op.
+ *
+ * @param selector - CSS selector used to find target elements
+ * @param content - Text or number to append to each element's `textContent`
  *
  * @example
- * ```typescript
  * // Add checkmarks to completed items
  * appendTextSelector('.item.completed', ' ✓');
- * ```
- *
- * @example
- * ```typescript
- * // Add timestamps to all logs
- * const time = new Date().toLocaleTimeString();
- * appendTextSelector('.log-entry', ` [${time}]`);
- * ```
- *
- * @example
- * ```typescript
- * // Add version numbers
- * appendTextSelector('.app-name', ' v2.0');
- * ```
  */
 export function appendTextSelector(
   selector: string,
@@ -376,34 +286,13 @@ export function appendTextSelector(
 }
 
 /**
- * Prepends text to an element's existing content.
+ * Prepends the given content (converted to a string) to an element's textContent.
  *
- * @param element - The target DOM element to modify
- * @param content - The text or number to prepend (will be converted to string)
- * @returns void
+ * If `element` is falsy the function is a no-op. If the element's current textContent is `null`,
+ * it is treated as an empty string.
  *
- * @example
- * ```typescript
- * // Add prefix to existing text
- * const div = document.querySelector('div');
- * prependTextElement(div, 'Status: ');
- * // "Active" becomes "Status: Active"
- * ```
- *
- * @example
- * ```typescript
- * // Add line numbers
- * const codeLine = document.querySelector('.code-line');
- * prependTextElement(codeLine, '01: ');
- * ```
- *
- * @example
- * ```typescript
- * // Add currency symbols
- * const price = document.querySelector('.amount');
- * prependTextElement(price, '$');
- * // "99.99" becomes "$99.99"
- * ```
+ * @param element - Target DOM element whose textContent will be updated
+ * @param content - Text or number to prepend (will be converted to string)
  */
 export function prependTextElement(
   element: Element,
@@ -414,32 +303,17 @@ export function prependTextElement(
 }
 
 /**
- * Prepends text to all elements matching a selector.
+ * Prepends the string form of `content` to the textContent of every element matching `selector`.
  *
- * @param selector - CSS selector string to query elements
- * @param content - The text or number to prepend (will be converted to string)
- * @returns void
+ * This queries the document for all elements matching the provided CSS selector and calls
+ * `prependTextElement` for each match. If no elements match, the function is a no-op.
+ *
+ * @param selector - CSS selector to find target elements
+ * @param content - Text or number to prepend (converted to a string)
  *
  * @example
- * ```typescript
  * // Add currency to all prices
  * prependTextSelector('.price', '$');
- * // All "99.99" become "$99.99"
- * ```
- *
- * @example
- * ```typescript
- * // Add icons to menu items
- * prependTextSelector('.menu-item', '▶ ');
- * ```
- *
- * @example
- * ```typescript
- * // Number list items
- * document.querySelectorAll('.list-item').forEach((el, i) => {
- *   prependTextElement(el, `${i + 1}. `);
- * });
- * ```
  */
 export function prependTextSelector(
   selector: string,

@@ -8,11 +8,12 @@
 import type { ElementFn } from '../types';
 
 /**
- * Sets an attribute on an element.
+ * Set a stringified attribute value on a single Element.
  *
- * @param element - The element to set attribute on
- * @param name - The attribute name
- * @param value - The attribute value
+ * If `element` is null/undefined the function returns without side effects. The `value` is coerced to a string before being set.
+ *
+ * @param element - The target Element (may be null/undefined; no-op in that case)
+ * @param value - The attribute value; will be converted to a string
  *
  * @example
  * ```typescript
@@ -26,16 +27,13 @@ export function setAttrElement(element: Element, name: string, value: string | n
 }
 
 /**
- * Sets an attribute on all elements matching a selector.
+ * Set the specified attribute on every element matching the given CSS selector.
  *
- * @param selector - CSS selector to find elements
- * @param name - The attribute name
- * @param value - The attribute value
+ * The provided `value` is coerced to a string before being set. If no elements match the selector, the function does nothing.
  *
- * @example
- * ```typescript
- * setAttrSelector('input', 'disabled', 'true');
- * ```
+ * @param selector - CSS selector used to find target elements
+ * @param name - Attribute name to set
+ * @param value - Attribute value; will be converted to a string
  */
 export function setAttrSelector(selector: string, name: string, value: string | number | boolean): void {
   const elements = document.querySelectorAll(selector);
@@ -79,19 +77,15 @@ export function setAttrFirst(selector: string, name: string, value: string | num
 }
 
 /**
- * Returns a generator function that sets an attribute.
- * For use within watch generators.
+ * Create an ElementFn that sets a given attribute on an element.
  *
- * @param name - The attribute name
- * @param value - The attribute value
- * @returns ElementFn that sets attribute when yielded
+ * The returned function is intended for use inside watch generators (it can be yielded).
+ * The attribute value is coerced to string when applied; if the provided element is falsy
+ * the operation is a no-op.
  *
- * @example
- * ```typescript
- * watch('button', function* () {
- *   yield setAttrGen('aria-pressed', 'false');
- * });
- * ```
+ * @param name - Attribute name to set
+ * @param value - Attribute value (string, number, or boolean). Will be coerced to a string.
+ * @returns An ElementFn that sets the attribute on the provided element when invoked
  */
 export function setAttrGen(name: string, value: string | number | boolean): ElementFn<Element, void> {
   return (element: Element) => {
@@ -169,18 +163,14 @@ export function getAttrAll(selector: string, name: string): (string | null)[] {
 }
 
 /**
- * Returns a generator function that gets an attribute.
- * For use within watch generators.
+ * Creates an ElementFn that retrieves the given attribute from an element.
  *
- * @param name - The attribute name
- * @returns ElementFn that gets attribute when yielded
+ * The returned function accepts an Element and returns the attribute value or `null` if the
+ * element is falsy or the attribute is not present. Intended for use in generator-style
+ * watch flows where the function is yielded.
  *
- * @example
- * ```typescript
- * watch('a', function* () {
- *   const href = yield getAttrGen('href');
- * });
- * ```
+ * @param name - Attribute name to retrieve
+ * @returns An ElementFn that, when given an element, returns the attribute value or `null`
  */
 export function getAttrGen(name: string): ElementFn<Element, string | null> {
   return (element: Element) => {
@@ -189,16 +179,12 @@ export function getAttrGen(name: string): ElementFn<Element, string | null> {
 }
 
 /**
- * Removes an attribute from an element.
+ * Remove a named attribute from a single Element.
  *
- * @param element - The element to remove attribute from
- * @param name - The attribute name
+ * If `element` is falsy the call is a no-op. Otherwise removes the attribute with the given `name`.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * removeAttrElement(input, 'disabled');
- * ```
+ * @param element - The target Element (may be null/undefined; function will no-op)
+ * @param name - Attribute name to remove
  */
 export function removeAttrElement(element: Element, name: string): void {
   if (!element) return;
@@ -256,18 +242,13 @@ export function removeAttrFirst(selector: string, name: string): void {
 }
 
 /**
- * Returns a generator function that removes an attribute.
- * For use within watch generators.
+ * Creates a generator-friendly callback that removes the given attribute from an element.
  *
- * @param name - The attribute name
- * @returns ElementFn that removes attribute when yielded
+ * The returned function is intended to be yielded inside watch generators; when invoked with an
+ * Element it calls `removeAttrElement` for the provided attribute name.
  *
- * @example
- * ```typescript
- * watch('button', function* () {
- *   yield removeAttrGen('disabled');
- * });
- * ```
+ * @param name - The attribute name to remove
+ * @returns A function that, given an Element, removes the named attribute
  */
 export function removeAttrGen(name: string): ElementFn<Element, void> {
   return (element: Element) => {
@@ -276,19 +257,13 @@ export function removeAttrGen(name: string): ElementFn<Element, void> {
 }
 
 /**
- * Checks if an element has an attribute.
+ * Returns true if the provided Element has the specified attribute.
  *
- * @param element - The element to check
- * @param name - The attribute name
- * @returns Whether the element has the attribute
+ * If `element` is falsy the function returns `false`.
  *
- * @example
- * ```typescript
- * const input = document.querySelector('input');
- * if (hasAttrElement(input, 'required')) {
- *   console.log('Input is required');
- * }
- * ```
+ * @param element - Element to inspect
+ * @param name - Attribute name to check
+ * @returns True when the attribute is present, otherwise false
  */
 export function hasAttrElement(element: Element, name: string): boolean {
   if (!element) return false;
@@ -313,16 +288,13 @@ export function hasAttrSelector(selector: string, name: string): boolean | null 
 }
 
 /**
- * Checks if all elements matching a selector have an attribute.
+ * Returns a boolean for each element matching `selector` indicating whether it has the attribute `name`.
  *
- * @param selector - CSS selector to find elements
- * @param name - The attribute name
- * @returns Array of boolean results for each element
+ * The result array preserves document order and will be empty if no elements match.
  *
- * @example
- * ```typescript
- * const results = hasAttrAll('input', 'required');
- * ```
+ * @param selector - CSS selector used to locate elements
+ * @param name - Attribute name to check for on each element
+ * @returns An array of booleans corresponding to the matched elements
  */
 export function hasAttrAll(selector: string, name: string): boolean[] {
   const elements = document.querySelectorAll(selector);
@@ -330,11 +302,14 @@ export function hasAttrAll(selector: string, name: string): boolean[] {
 }
 
 /**
- * Checks if any element matching a selector has an attribute.
+ * Return true if any element matching the selector has the given attribute.
  *
- * @param selector - CSS selector to find elements
- * @param name - The attribute name
- * @returns Whether any element has the attribute
+ * Returns false when no elements match the selector or when none of the matched
+ * elements have the attribute.
+ *
+ * @param selector - CSS selector used to find elements to check
+ * @param name - Attribute name to test for
+ * @returns True if at least one matched element has the attribute, otherwise false
  *
  * @example
  * ```typescript
@@ -349,18 +324,12 @@ export function hasAttrAny(selector: string, name: string): boolean {
 }
 
 /**
- * Returns a generator function that checks for an attribute.
- * For use within watch generators.
+ * Returns a generator-friendly function that checks whether a given element has the specified attribute.
  *
- * @param name - The attribute name
- * @returns ElementFn that checks attribute when yielded
+ * The returned ElementFn accepts an Element and returns `true` if the attribute is present, otherwise `false`.
  *
- * @example
- * ```typescript
- * watch('input', function* () {
- *   const hasRequired = yield hasAttrGen('required');
- * });
- * ```
+ * @param name - Attribute name to check on each element
+ * @returns An ElementFn that performs the attribute presence check
  */
 export function hasAttrGen(name: string): ElementFn<Element, boolean> {
   return (element: Element) => {
@@ -369,18 +338,14 @@ export function hasAttrGen(name: string): ElementFn<Element, boolean> {
 }
 
 /**
- * Toggles an attribute on an element (adds if missing, removes if present).
+ * Toggle the presence of an attribute on a given Element.
  *
- * @param element - The element to toggle attribute on
- * @param name - The attribute name
- * @param value - Optional value to set when adding
- * @returns Whether the attribute is present after toggling
+ * If the attribute is present it is removed; if absent it is added with the provided value (or an empty string).
  *
- * @example
- * ```typescript
- * const button = document.querySelector('button');
- * toggleAttrElement(button, 'aria-expanded');
- * ```
+ * @param element - The element to operate on; if falsy the function returns `false` and makes no changes.
+ * @param name - The attribute name to toggle.
+ * @param value - Optional value to set when adding the attribute; defaults to `''`.
+ * @returns `true` if the attribute is present after toggling, `false` otherwise (also `false` when `element` is falsy).
  */
 export function toggleAttrElement(element: Element, name: string, value?: string): boolean {
   if (!element) return false;

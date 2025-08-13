@@ -153,8 +153,18 @@
 // Watch v5: The Elegant Kernel
 // Main module exports
 
-// Core watch function
-export { watch, run, runOn, layer, getInstances, destroy } from "./watch";
+// Core watch function - Enhanced version as default
+export {
+  watchEnhanced as watch,
+  runOnEnhanced as runOn,
+  scopedWatchEnhanced as scopedWatch,
+} from "./watch-enhanced";
+
+// Also export controller functions from original watch
+export { run, layer, getInstances, destroy } from "./watch";
+
+// Legacy watch functions available for backward compatibility
+export { watch as watchLegacy, runOn as runOnLegacy } from "./watch";
 
 // State management
 export {
@@ -202,7 +212,7 @@ export type {
   ThrottleOptions,
 } from "./types";
 
-// DOM manipulation functions (comprehensive dual API)
+// DOM manipulation functions - Enhanced version (dom-new) as default
 export {
   // Utilities
   isElement,
@@ -251,21 +261,23 @@ export {
   // DOM traversal
   query,
   queryAll,
-  parent as parentDOM,
-  children as childrenDOM,
-  siblings as siblingsDOM,
+  parent,
+  children,
+  siblings,
 
   // Batch operations
   batchAll,
 
-  // Aliases
-  el as elDOM,
-  all as allDOM,
-
   // Component composition
   createChildWatcher,
   child,
-} from "./api/dom";
+} from "./api/dom-new";
+
+// Re-export aliases from dom-new separately to avoid conflicts
+export { el as elDOM, all as allDOM } from "./api/dom-new";
+
+// Legacy DOM functions available for backward compatibility
+export * as domLegacy from "./api/dom";
 
 // Event handling functions (dual API with advanced generator support)
 export {
@@ -299,8 +311,8 @@ export {
 // Context functions for use within generators
 export {
   self,
-  el,
-  all,
+  el as elContext,
+  all as allContext,
   cleanup,
   ctx,
   createGenerator,
@@ -362,7 +374,7 @@ export {
   timeout,
   compose,
   unless,
-  async,
+  async as asyncHelper,
 } from "./core/execution-helpers";
 
 // Low-level context functions
@@ -376,8 +388,8 @@ export {
 } from "./core/observer";
 
 // Scoped watch API - create watchers scoped to specific parent elements
+// Note: scopedWatch is now exported from watch-enhanced as the enhanced version
 export {
-  scopedWatch,
   scopedWatchBatch,
   scopedWatchTimeout,
   scopedWatchOnce,
@@ -386,6 +398,9 @@ export {
   type ScopedWatchOptions,
   type ScopedWatcher,
 } from "./scoped-watch";
+
+// Legacy scoped watch for backward compatibility
+export { scopedWatch as scopedWatchLegacy } from "./scoped-watch";
 
 // Scoped observer utilities
 export {
@@ -417,17 +432,38 @@ export {
 // Explicit un-overloaded DOM functions
 export * from "./api/dom-explicit";
 
+// Enhanced context type and utilities (now the default)
+export {
+  createEnhancedContext,
+  type EnhancedTypedGeneratorContext,
+  type EnhancedTypedGeneratorContext as TypedGeneratorContext,
+} from "./watch-enhanced";
+
+// Original versions still available with explicit names
+export {
+  watchEnhanced,
+  runOnEnhanced,
+  scopedWatchEnhanced,
+} from "./watch-enhanced";
+
 // Generator utilities for workflow composition
 export { $, isWorkflow } from "./core/dollar-helper";
 
-// Re-export for convenience (legacy alias)
-export { el as elAlias } from "./core/generator";
+// Async wrapper for yielding async operations in sync generators
+export { async } from "./core/async-wrapper";
+export type { AsyncInSync } from "./core/async-wrapper";
+
+// Sync/Async generator wrappers have been integrated into the main API
+// The generator module has been removed as all functionality is now unified
+
+// Re-export for convenience
+export { el, all } from "./core/generator";
 
 // Version info
 // export const VERSION = '5.0.0-alpha.1';
 
-// Default export is the watch function
-export { watch as default } from "./watch";
+// Default export is the enhanced watch function
+export { watchEnhanced as default } from "./watch-enhanced";
 
 // ============================================================================
 // EXPLICIT API - Non-overloaded versions with clear, unambiguous names

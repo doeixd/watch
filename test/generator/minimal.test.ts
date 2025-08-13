@@ -5,9 +5,9 @@
 import { describe, it, expect } from "vitest";
 
 describe("Minimal Generator Test", () => {
-  it("should test raw async generator execution", async () => {
-    // Create a simple async generator that yields a function
-    const simpleGenerator = async function* () {
+  it("should test raw sync generator execution", () => {
+    // Create a simple sync generator that yields a function
+    const simpleGenerator = function* () {
       yield (context: any) => {
         console.log("Function executed with context:", context);
         return "result";
@@ -16,7 +16,7 @@ describe("Minimal Generator Test", () => {
 
     // Execute the generator manually
     const gen = simpleGenerator();
-    const { value, done } = await gen.next();
+    const { value, done } = gen.next();
 
     console.log("Yielded value type:", typeof value);
     console.log("Is function?", typeof value === "function");
@@ -31,19 +31,20 @@ describe("Minimal Generator Test", () => {
     expect(typeof value).toBe("function");
   });
 
-  it("should test yield* delegation", async () => {
-    // Create a workflow that returns an async generator
+  it("should test yield* delegation", () => {
+    // Create a workflow that returns a sync generator
     const workflow = () => {
-      return (async function* () {
+      return (function* () {
         yield (context: any) => {
           context.element.textContent = "Set by workflow";
           return "workflow result";
         };
+        return "generator result";
       })();
     };
 
     // Create a generator that uses yield*
-    const mainGenerator = async function* () {
+    const mainGenerator = function* () {
       console.log("Before yield*");
       const result = yield* workflow();
       console.log("After yield*, result:", result);
@@ -52,7 +53,7 @@ describe("Minimal Generator Test", () => {
 
     // Execute the generator
     const gen = mainGenerator();
-    const { value: firstValue, done: firstDone } = await gen.next();
+    const { value: firstValue, done: firstDone } = gen.next();
 
     console.log("First yielded value type:", typeof firstValue);
     console.log("First done?", firstDone);
@@ -69,13 +70,12 @@ describe("Minimal Generator Test", () => {
     }
 
     // Continue generator with the function result
-    const { value: finalValue, done: finalDone } =
-      await gen.next(functionResult);
+    const { value: finalValue, done: finalDone } = gen.next(functionResult);
     console.log("Final value:", finalValue);
     console.log("Final done?", finalDone);
 
     expect(mockContext.element.textContent).toBe("Set by workflow");
-    expect(finalValue).toBe("workflow result");
+    expect(finalValue).toBe("generator result");
   });
 
   it("should test the actual text function structure", async () => {
@@ -85,11 +85,11 @@ describe("Minimal Generator Test", () => {
     // Get the workflow
     const workflow = text("Hello");
     console.log("Workflow type:", typeof workflow);
-    console.log("Has Symbol.asyncIterator?", Symbol.asyncIterator in workflow);
+    console.log("Has Symbol.iterator?", Symbol.iterator in workflow);
 
     // Execute the workflow
-    const iterator = workflow[Symbol.asyncIterator]();
-    const { value, done } = await iterator.next();
+    const iterator = workflow[Symbol.iterator]();
+    const { value, done } = iterator.next();
 
     console.log("Yielded value type:", typeof value);
     console.log("Done?", done);
@@ -129,7 +129,7 @@ describe("Minimal Generator Test", () => {
       console.log("Original button:", originalButton);
 
       // Test with a simple generator that yields a function directly
-      await watch(button, async function* () {
+      await watch(button, function* () {
         console.log("Generator started");
         console.log("Button at generator start:", button);
 
@@ -187,17 +187,17 @@ describe("Minimal Generator Test", () => {
     document.body.appendChild(button);
 
     try {
-      await watch(button, async function* () {
+      await watch(button, function* () {
         console.log("About to use text function");
 
         // Get the workflow
         const workflow = text("From Module");
         console.log("Got workflow:", workflow);
-        console.log("Is async iterable?", Symbol.asyncIterator in workflow);
+        console.log("Is sync iterable?", Symbol.iterator in workflow);
 
         // Try to manually execute the workflow first
-        const iterator = workflow[Symbol.asyncIterator]();
-        const { value, done } = await iterator.next();
+        const iterator = workflow[Symbol.iterator]();
+        const { value, done } = iterator.next();
         console.log("First yield from workflow:", value);
         console.log("Type of yielded value:", typeof value);
 

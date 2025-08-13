@@ -50,7 +50,7 @@ describe("Generator Support", () => {
       const fn = gen1.value;
       let result: string = "";
       if (typeof fn === "function") {
-        result = fn(mockContext.element);
+        result = fn(mockContext.element) as unknown as string;
       }
 
       // Feed result back to generator
@@ -91,9 +91,9 @@ describe("Generator Support", () => {
       const gen1 = await toggleFlow.next();
 
       const fn = gen1.value;
-      let result = false;
+      let result: boolean = false;
       if (typeof fn === "function") {
-        result = fn(mockContext.element);
+        result = fn(mockContext.element) as unknown as boolean;
       }
 
       const gen2 = await toggleFlow.next(result);
@@ -197,13 +197,13 @@ describe("Generator Support", () => {
       const fn = gen1.value;
       let result: HTMLButtonElement | null = null;
       if (typeof fn === "function") {
-        result = fn(mockContext.element);
+        result = fn(mockContext.element) as unknown as HTMLButtonElement | null;
       }
 
       const gen2 = await selfFlow.next(result);
       expect(gen2.done).toBe(true);
       expect(gen2.value).toBe(mockContext.element);
-      expect(gen2.value.tagName).toBe("BUTTON");
+      expect((gen2.value as HTMLButtonElement).tagName).toBe("BUTTON");
     });
   });
 
@@ -229,7 +229,7 @@ describe("Generator Support", () => {
 
       const fn = gen.value;
       if (typeof fn === "function") {
-        fn(mockContext.element);
+        await fn(mockContext.element);
       }
 
       // Verify all operations were applied
@@ -285,10 +285,10 @@ describe("Generator Support", () => {
         .flow();
 
       // Test on active element (should not execute)
-      const gen1 = await workflow.next();
-      const fn1 = gen1.value;
-      if (typeof fn1 === "function") {
-        fn1(activeEl);
+      const gen = await workflow.next();
+      const fn = gen.value;
+      if (typeof fn === "function") {
+        await fn(activeEl);
       }
       expect(activeEl.classList.contains("needs-activation")).toBe(false);
       expect(activeEl.textContent).toBe("Active");
@@ -304,7 +304,7 @@ describe("Generator Support", () => {
       const gen2 = await workflow2.next();
       const fn2 = gen2.value;
       if (typeof fn2 === "function") {
-        fn2(inactiveEl);
+        await fn2(inactiveEl);
       }
       expect(inactiveEl.classList.contains("needs-activation")).toBe(true);
       expect(inactiveEl.textContent).toBe("Activated");
@@ -327,7 +327,7 @@ describe("Generator Support", () => {
       const gen = await workflow.next();
       const fn = gen.value;
       if (typeof fn === "function") {
-        fn(container);
+        await fn(container);
       }
 
       // Verify children were modified
@@ -355,7 +355,7 @@ describe("Generator Support", () => {
       const gen = await workflow.next();
       const fn = gen.value;
       if (typeof fn === "function") {
-        fn(mockContext.element);
+        await fn(mockContext.element);
       }
 
       expect(mockContext.element.disabled).toBe(true);
@@ -437,7 +437,7 @@ describe("Generator Support", () => {
       const gen = await workflow.next();
       const fn = gen.value;
       if (typeof fn === "function") {
-        fn(mockContext.element);
+        await fn(mockContext.element);
       }
 
       expect(mockContext.element.classList.contains("jquery-style")).toBe(true);

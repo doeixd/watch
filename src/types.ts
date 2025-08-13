@@ -439,6 +439,7 @@ export interface ResizeChange {
   contentRect: DOMRectReadOnly;
   borderBoxSize: readonly ResizeObserverSize[];
   contentBoxSize: readonly ResizeObserverSize[];
+  devicePixelContentBoxSize?: readonly ResizeObserverSize[];
 }
 
 // Lifecycle event types
@@ -474,13 +475,22 @@ export type Operation<TReturn, El extends HTMLElement = HTMLElement> = (
   context: WatchContext<El>,
 ) => TReturn | Promise<TReturn>;
 
-// A "Workflow" is what users write with the new API - an async generator
+// A "Workflow" is what users write with the new API - sync generator by default
 // that yields Operations and returns a final value.
-export type Workflow<TReturn = void> = AsyncGenerator<
+export type SyncWorkflow<TReturn = void> = Generator<
   Operation<any, any>,
   TReturn,
   any
 >;
+
+export type AsyncWorkflow<TReturn = void> = AsyncGenerator<
+  Operation<any, any>,
+  TReturn,
+  any
+>;
+
+// Workflow is sync by default - better performance, no async overhead
+export type Workflow<TReturn = void> = SyncWorkflow<TReturn>;
 
 // Enhanced WatchContext for the new pattern - extends existing for compatibility
 export interface EnhancedWatchContext<El extends HTMLElement = HTMLElement>
@@ -526,7 +536,7 @@ export type OperationResult<T = any> = T;
 // Enhanced generator function type for the new API
 export type WorkflowFunction<El extends HTMLElement = HTMLElement, T = void> = (
   context: OperationContext<El>,
-) => Workflow<T>;
+) => SyncWorkflow<T>;
 
 // Operation factory type - functions that return operations
 export type OperationFactory<
@@ -627,4 +637,7 @@ export interface WatchContext<El extends HTMLElement = HTMLElement> {
   addObserver: (
     observer: MutationObserver | IntersectionObserver | ResizeObserver,
   ) => void;
+
+  // AbortSignal for cancellation
+  signal?: AbortSignal;
 }

@@ -283,13 +283,23 @@ export function isVisibleElement(element: Element): boolean {
   if (!element) return false;
 
   if (element instanceof HTMLElement || element instanceof SVGElement) {
-    // Check computed styles for accurate visibility
-    const style = window.getComputedStyle(element);
-    return !(
-      style.display === "none" ||
-      style.visibility === "hidden" ||
-      parseFloat(style.opacity) === 0
-    );
+    // First check inline styles (works for elements not in DOM)
+    if (element.style.display === "none") {
+      return false;
+    }
+
+    // If element is in the DOM, check computed styles for more accuracy
+    if (element.isConnected) {
+      const style = window.getComputedStyle(element);
+      return !(
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        parseFloat(style.opacity) === 0
+      );
+    }
+
+    // For elements not in DOM, only check inline display style
+    return element.style.display !== "none";
   }
 
   return true;

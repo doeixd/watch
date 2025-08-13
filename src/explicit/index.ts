@@ -355,5 +355,5 @@ export {
 
   // Types
   type Workflow,
-  type Operation,
+  type ExplicitOperation as Operation,
 } from "./generator-support";

@@ -73,33 +73,6 @@
       },
       "require": "./dist/cjs/production/index.js",
       "import": "./dist/esm/production/index.js"
-    },
-    "./generator": {
-      "types": "./dist/types/generator/index.d.ts",
-      "development": {
-        "require": "./dist/cjs/development/generator/index.js",
-        "import": "./dist/esm/development/generator/index.js"
-      },
-      "require": "./dist/cjs/production/generator/index.js",
-      "import": "./dist/esm/production/generator/index.js"
-    },
-    "./explicit": {
-      "types": "./dist/types/explicit/index.d.ts",
-      "development": {
-        "require": "./dist/cjs/development/explicit/index.js",
-        "import": "./dist/esm/development/explicit/index.js"
-      },
-      "require": "./dist/cjs/production/explicit/index.js",
-      "import": "./dist/esm/production/explicit/index.js"
-    },
-    "./fluent": {
-      "types": "./dist/types/fluent/index.d.ts",
-      "development": {
-        "require": "./dist/cjs/development/fluent/index.js",
-        "import": "./dist/esm/development/fluent/index.js"
-      },
-      "require": "./dist/cjs/production/fluent/index.js",
-      "import": "./dist/esm/production/fluent/index.js"
     }
   },
   "typesVersions": {

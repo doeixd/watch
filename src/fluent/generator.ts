@@ -355,7 +355,7 @@ export class FluentGeneratorSelector<El extends Element = Element> {
       const children = element.querySelectorAll(selector);
       // Note: Operations added after find() will need to be captured separately
       // This is a simplified implementation
-      children.forEach((child) => {
+      children.forEach((_child) => {
         // Future operations would be applied here
       });
     };

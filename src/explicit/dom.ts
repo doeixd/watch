@@ -749,6 +749,143 @@ export function matchesElement(element: Element, selector: string): boolean {
 /**
  * Checks if the first element matching a selector matches another selector.
  * Finds an element first, then tests if it matches the second selector.
+ */
+export function matchesSelector(selector1: string, selector2: string): boolean {
+  const element = document.querySelector(selector1);
+  if (!element) return false;
+  return element.matches(selector2);
+}
+
+// ============================================================================
+// VISIBILITY OPERATIONS
+// ============================================================================
+
+/**
+ * Shows an element by removing display: none
+ */
+export function showElement(element: Element | null): void {
+  if (!element || !(element instanceof HTMLElement)) return;
+  if (element.style.display === "none") {
+    element.style.display = "";
+  }
+}
+
+/**
+ * Shows the first element matching a selector
+ */
+export function showSelector(selector: string): void {
+  const element = document.querySelector(selector);
+  showElement(element);
+}
+
+/**
+ * Shows all elements matching a selector
+ */
+export function showAll(selector: string): void {
+  const elements = document.querySelectorAll(selector);
+  elements.forEach((el) => showElement(el));
+}
+
+/**
+ * Hides an element by setting display: none
+ */
+export function hideElement(element: Element | null): void {
+  if (!element || !(element instanceof HTMLElement)) return;
+  element.style.display = "none";
+}
+
+/**
+ * Hides the first element matching a selector
+ */
+export function hideSelector(selector: string): void {
+  const element = document.querySelector(selector);
+  hideElement(element);
+}
+
+/**
+ * Hides all elements matching a selector
+ */
+export function hideAll(selector: string): void {
+  const elements = document.querySelectorAll(selector);
+  elements.forEach((el) => hideElement(el));
+}
+
+/**
+ * Toggles an element's visibility
+ */
+export function toggleElement(element: Element | null): boolean {
+  if (!element || !(element instanceof HTMLElement)) return false;
+  if (element.style.display === "none") {
+    element.style.display = "";
+    return true;
+  } else {
+    element.style.display = "none";
+    return false;
+  }
+}
+
+/**
+ * Toggles visibility of the first element matching a selector
+ */
+export function toggleSelector(selector: string): boolean {
+  const element = document.querySelector(selector);
+  return toggleElement(element);
+}
+
+/**
+ * Checks if an element is visible
+ */
+export function isVisibleElement(element: Element | null): boolean {
+  if (!element || !(element instanceof HTMLElement)) return false;
+  return element.style.display !== "none";
+}
+
+/**
+ * Checks if the first element matching a selector is visible
+ */
+export function isVisibleSelector(selector: string): boolean {
+  const element = document.querySelector(selector);
+  return isVisibleElement(element);
+}
+
+/**
+ * Checks if an element is hidden
+ */
+export function isHiddenElement(element: Element | null): boolean {
+  if (!element || !(element instanceof HTMLElement)) return true;
+  return element.style.display === "none";
+}
+
+/**
+ * Checks if the first element matching a selector is hidden
+ */
+export function isHiddenSelector(selector: string): boolean {
+  const element = document.querySelector(selector);
+  return isHiddenElement(element);
+}
+
+/**
+ * Generator function for showing elements
+ */
+export function showGen(): (element: Element) => void {
+  return (element: Element) => showElement(element);
+}
+
+/**
+ * Generator function for hiding elements
+ */
+export function hideGen(): (element: Element) => void {
+  return (element: Element) => hideElement(element);
+}
+
+/**
+ * Generator function for toggling visibility
+ */
+export function toggleGen(): (element: Element) => boolean {
+  return (element: Element) => toggleElement(element);
+}
+
+/**
  *
  * @param elementSelector - CSS selector string to find the element
  * @param matchSelector - CSS selector string to test against
@@ -772,10 +909,4 @@ export function matchesElement(element: Element, selector: string): boolean {
  * const matches = matchesSelector('#not-found', '.active'); // false
  * ```
  */
-export function matchesSelector(
-  elementSelector: string,
-  matchSelector: string,
-): boolean {
-  const element = document.querySelector(elementSelector);
-  return element ? matchesElement(element, matchSelector) : false;
-}
+// matchesSelector function already defined above at line 753

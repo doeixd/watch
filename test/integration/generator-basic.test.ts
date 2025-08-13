@@ -23,13 +23,12 @@ import {
   replaceClass,
   setClasses,
   style,
-  styleProperty,
   getStyle,
   removeStyle,
   attr,
   getAttr,
-  removeAttr,
   hasAttr,
+  removeAttr,
   prop,
   getProp,
   data,
@@ -37,7 +36,7 @@ import {
   removeData,
   value,
   getValue,
-  checked,
+  setChecked,
   isChecked,
   focus,
   blur,
@@ -50,9 +49,9 @@ import {
   parent,
   children,
   siblings,
-  delay,
   run,
 } from "../../src/generator/dom";
+import { delay } from "../../src/core/async-wrapper";
 import {
   getState,
   setState,
@@ -100,7 +99,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set text
         yield* text("Hello World");
         expect(element.textContent).toBe("Hello World");
@@ -123,7 +122,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set HTML
         yield* html("<strong>Bold</strong> text");
         expect(element.innerHTML).toBe("<strong>Bold</strong> text");
@@ -148,7 +147,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Add class
         yield* addClass("active");
         expect(element.classList.contains("active")).toBe(true);
@@ -184,7 +183,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set single style
         yield* style("color", "red");
         expect(element.style.color).toBe("red");
@@ -209,7 +208,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set attribute
         yield* attr("data-id", "123");
         expect(element.getAttribute("data-id")).toBe("123");
@@ -239,14 +238,14 @@ describe("Generator Module Basic Integration Tests", () => {
 
   describe("Property Operations", () => {
     it("should manipulate DOM properties", async () => {
-      const input = document.createElement("input");
-      input.type = "text";
-      container.appendChild(input);
+      const inputElement = document.createElement("input");
+      inputElement.type = "text";
+      container.appendChild(inputElement);
 
-      await watch(input, async function* () {
+      await watch(inputElement as HTMLElement, function* (ctx) {
         // Set property
         yield* prop("value", "Test Value");
-        expect(input.value).toBe("Test Value");
+        expect(inputElement.value).toBe("Test Value");
 
         // Get property
         const val = yield* getProp("value");
@@ -254,7 +253,7 @@ describe("Generator Module Basic Integration Tests", () => {
 
         // Set complex property
         yield* prop("disabled", true);
-        expect(input.disabled).toBe(true);
+        expect(inputElement.disabled).toBe(true);
       });
     });
   });
@@ -264,7 +263,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set data attribute
         yield* data("user-id", "456");
         expect(element.dataset.userId).toBe("456");
@@ -282,14 +281,14 @@ describe("Generator Module Basic Integration Tests", () => {
 
   describe("Form Value Operations", () => {
     it("should handle input values", async () => {
-      const input = document.createElement("input");
-      input.type = "text";
-      container.appendChild(input);
+      const inputElement = document.createElement("input");
+      inputElement.type = "text";
+      container.appendChild(inputElement);
 
-      await watch(input, async function* () {
+      await watch(inputElement as HTMLElement, function* (ctx) {
         // Set value
         yield* value("Test Input");
-        expect(input.value).toBe("Test Input");
+        expect(inputElement.value).toBe("Test Input");
 
         // Get value
         const val = yield* getValue();
@@ -297,14 +296,14 @@ describe("Generator Module Basic Integration Tests", () => {
       });
     });
 
-    it("should handle checkbox state", async () => {
+    it("should handle checkbox values", async () => {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       container.appendChild(checkbox);
 
-      await watch(checkbox, async function* () {
+      await watch(checkbox as HTMLElement, function* (ctx) {
         // Set checked
-        yield* checked(true);
+        yield* setChecked(true);
         expect(checkbox.checked).toBe(true);
 
         // Get checked state
@@ -312,7 +311,7 @@ describe("Generator Module Basic Integration Tests", () => {
         expect(isCheckedResult).toBe(true);
 
         // Uncheck
-        yield* checked(false);
+        yield* setChecked(false);
         expect(checkbox.checked).toBe(false);
       });
     });
@@ -323,7 +322,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Hide
         yield* hide();
         expect(element.style.display).toBe("none");
@@ -356,7 +355,7 @@ describe("Generator Module Basic Integration Tests", () => {
       `;
       container.appendChild(parent);
 
-      await watch(parent, async function* () {
+      await watch(parent as HTMLElement, function* (ctx) {
         // Get self
         const selfEl = yield* self();
         expect(selfEl).toBe(parent);
@@ -376,24 +375,22 @@ describe("Generator Module Basic Integration Tests", () => {
     });
 
     it("should navigate DOM relationships", async () => {
-      const parent = document.createElement("div");
-      parent.className = "parent";
+      const parentDiv = document.createElement("div");
+      parentDiv.className = "parent";
+
       const child1 = document.createElement("span");
-      child1.textContent = "Child 1";
-      const child2 = document.createElement("span");
-      child2.textContent = "Child 2";
+      const child2 = document.createElement("div");
       const child3 = document.createElement("span");
-      child3.textContent = "Child 3";
 
-      parent.appendChild(child1);
-      parent.appendChild(child2);
-      parent.appendChild(child3);
-      container.appendChild(parent);
+      parentDiv.appendChild(child1);
+      parentDiv.appendChild(child2);
+      parentDiv.appendChild(child3);
+      container.appendChild(parentDiv);
 
-      await watch(child2, async function* () {
+      await watch(child2 as HTMLElement, function* (ctx) {
         // Get parent
         const parentEl = yield* parent();
-        expect(parentEl?.className).toBe("parent");
+        expect(parentEl).toBe(parentDiv);
 
         // Get siblings
         const siblingsEls = yield* siblings();
@@ -409,7 +406,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set state
         yield* setState("count", 0);
         yield* setState("name", "Test");
@@ -446,7 +443,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Increment/decrement
         yield* setState("counter", 5);
         const inc = yield* incrementState("counter", 2);
@@ -485,7 +482,7 @@ describe("Generator Module Basic Integration Tests", () => {
       const element = document.createElement("div");
       container.appendChild(element);
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         // Set some state
         yield* setState("firstName", "John");
         yield* setState("lastName", "Doe");
@@ -519,8 +516,8 @@ describe("Generator Module Basic Integration Tests", () => {
 
       let clicked = false;
 
-      await watch(button, async function* () {
-        yield* click(async function* (event) {
+      await watch(button as HTMLElement, function* (ctx) {
+        yield* click(function* (event) {
           clicked = true;
           yield* text("Clicked!");
           yield* addClass("clicked");
@@ -537,18 +534,18 @@ describe("Generator Module Basic Integration Tests", () => {
     });
 
     it("should handle input events", async () => {
-      const input = document.createElement("input");
-      input.type = "text";
-      container.appendChild(input);
+      const inputElement = document.createElement("input");
+      inputElement.type = "text";
+      container.appendChild(inputElement);
 
       let lastValue = "";
 
-      await watch(input, async function* () {
-        yield* input(async function* (event) {
+      await watch(inputElement as HTMLElement, function* (ctx) {
+        yield* input(function* (event) {
           const target = event.target as HTMLInputElement;
           lastValue = target.value;
 
-          if (lastValue.length > 5) {
+          if (target.value.length > 5) {
             yield* addClass("valid");
           } else {
             yield* removeClass("valid");
@@ -557,20 +554,20 @@ describe("Generator Module Basic Integration Tests", () => {
       });
 
       // Simulate input
-      input.value = "test";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      inputElement.value = "test";
+      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(lastValue).toBe("test");
-      expect(input.classList.contains("valid")).toBe(false);
+      expect(inputElement.classList.contains("valid")).toBe(false);
 
       // More input
-      input.value = "testing";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      inputElement.value = "testing";
+      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(lastValue).toBe("testing");
-      expect(input.classList.contains("valid")).toBe(true);
+      expect(inputElement.classList.contains("valid")).toBe(true);
     });
 
     it("should handle form submission", async () => {
@@ -584,8 +581,8 @@ describe("Generator Module Basic Integration Tests", () => {
       let submitted = false;
       let formData: any = null;
 
-      await watch(form, async function* () {
-        yield* submit(async function* (event) {
+      await watch(form as HTMLElement, function* (ctx) {
+        yield* submit(function* (event) {
           event.preventDefault();
           submitted = true;
 
@@ -614,11 +611,11 @@ describe("Generator Module Basic Integration Tests", () => {
       let received = false;
       let eventData: any = null;
 
-      await watch(element, async function* () {
-        yield* on("custom", async function* (event: CustomEvent) {
+      await watch(element as HTMLElement, function* (ctx) {
+        yield* on("custom", function* (event: Event) {
           received = true;
-          eventData = event.detail;
-          yield* text(`Received: ${event.detail.message}`);
+          eventData = (event as CustomEvent).detail;
+          yield* text(`Received: ${(event as CustomEvent).detail.message}`);
         });
 
         // Emit event
@@ -641,7 +638,7 @@ describe("Generator Module Basic Integration Tests", () => {
 
       const start = Date.now();
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         yield* text("Before");
         yield* delay(50);
         yield* text("After");
@@ -658,7 +655,7 @@ describe("Generator Module Basic Integration Tests", () => {
 
       let sideEffect = 0;
 
-      await watch(element, async function* () {
+      await watch(element as HTMLElement, function* (ctx) {
         const result = yield* run(() => {
           sideEffect = 42;
           return "done";
@@ -691,27 +688,29 @@ describe("Generator Module Basic Integration Tests", () => {
       container.appendChild(component);
 
       // Set up state on the container
-      await watch(component, async function* () {
+      await watch(component as HTMLElement, function* (ctx) {
         yield* setState<string[]>("items", []);
       });
 
       // Watch the button for clicks
       const button = component.querySelector(".add") as HTMLButtonElement;
-      const input = component.querySelector(".input") as HTMLInputElement;
+      const inputElement = component.querySelector(
+        ".input",
+      ) as HTMLInputElement;
       const list = component.querySelector(".list") as HTMLUListElement;
       const status = component.querySelector(".status") as HTMLDivElement;
 
-      await watch(button, async function* () {
-        yield* click(async function* () {
+      await watch(button as HTMLElement, function* (ctx) {
+        yield* click(function* (event) {
           // Get items from parent container's state
           const container = document.querySelector(
             ".todo-container",
-          ) as HTMLElement;
+          ) as HTMLDivElement;
 
           // Since we're in button context, we need to work with the button
           // For this test, let's simplify by using the button's state
           const items = yield* getState<string[]>("items", []);
-          const value = input.value.trim();
+          const value = inputElement.value.trim();
 
           if (value) {
             const newItems = [...items, value];
@@ -722,14 +721,14 @@ describe("Generator Module Basic Integration Tests", () => {
               .map((item) => `<li>${item}</li>`)
               .join("");
             status.textContent = `${newItems.length} item(s)`;
-            input.value = "";
+            inputElement.value = "";
           }
         });
       });
 
       // Watch input for changes
-      await watch(input, async function* () {
-        yield* input(async function* () {
+      await watch(inputElement as HTMLElement, function* (ctx) {
+        yield* on("input", function* (event) {
           const value = (yield* self<HTMLInputElement>()).value;
           if (value.length > 0) {
             button.classList.add("ready");
@@ -740,8 +739,8 @@ describe("Generator Module Basic Integration Tests", () => {
       });
 
       // Test the component
-      input.value = "First item";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      inputElement.value = "First item";
+      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(button.classList.contains("ready")).toBe(true);

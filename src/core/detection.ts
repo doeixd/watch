@@ -317,12 +317,13 @@ class TypeDetector {
     // Check if we're in a generator context using the core context
     const currentContext = getCurrentContext();
     if (currentContext) {
-      // We're definitely in a generator context
+      // We're in a generator context executed through executeGenerator
+      // All generators executed through executeGenerator are async and need ElementFn returns
       return {
-        context: ApiContext.SYNC_GENERATOR,
-        confidence: 0.95,
+        context: ApiContext.ASYNC_GENERATOR,
+        confidence: 0.99,
         isGenerator: true,
-        isAsync: false,
+        isAsync: true,
         isYieldStar: false,
       };
     }
@@ -388,12 +389,13 @@ export function detectContext(
   // 2. Check if we're in a generator context using core context (most reliable)
   const coreContext = getCurrentContext();
   if (coreContext) {
-    // We're definitely in a generator context
+    // We're in a generator context executed through executeGenerator
+    // All generators executed through executeGenerator are async and need ElementFn returns
     const result: DetectionResult = {
-      context: ApiContext.SYNC_GENERATOR,
+      context: ApiContext.ASYNC_GENERATOR,
       confidence: 0.99,
       isGenerator: true,
-      isAsync: false,
+      isAsync: true,
       isYieldStar: false,
     };
     DetectionCache.set(cacheKey, result);

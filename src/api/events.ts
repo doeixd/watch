@@ -1117,22 +1117,85 @@ function createObserverEvent<T, O, C>(
 /** Listens for changes to an element's attributes. */
 export function onAttr(
   element: Element,
-  handler: (change: AttributeChange & { element: Element }) => void,
+  handler: (
+    change: AttributeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): CleanupFunction;
 export function onAttr(
-  handler: (change: AttributeChange & { element: Element }) => void,
+  selector: string,
+  handler: (
+    change: AttributeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: MutationObserverInit,
+): CleanupFunction | null;
+export function onAttr(
+  handler: (
+    change: AttributeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): ElementFn<Element, CleanupFunction>;
 export function onAttr(...args: any[]): any {
+  const executeHandler = async (
+    element: Element,
+    handler: any,
+    change: AttributeChange & { element: Element },
+  ) => {
+    const result = handler(change);
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
   const setup = (
     element: Element,
-    handler: (change: AttributeChange & { element: Element }) => void,
+    handler: any,
     options?: MutationObserverInit,
   ) => {
     const observer = new MutationObserver((entries) => {
       for (const entry of entries) {
-        handler({
+        executeHandler(element, handler, {
           attributeName: entry.attributeName!,
           oldValue: entry.oldValue,
           newValue: element.getAttribute(entry.attributeName!),
@@ -1147,31 +1210,113 @@ export function onAttr(...args: any[]): any {
     });
     return () => observer.disconnect();
   };
+
+  // Direct element pattern
   if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && typeof args[1] === "function") {
+    const [selector, handler, options] = args;
+    const elements = document.querySelectorAll(selector);
+    const cleanups: CleanupFunction[] = [];
+
+    elements.forEach((element) => {
+      cleanups.push(setup(element, handler, options));
+    });
+
+    return cleanups.length > 0
+      ? () => cleanups.forEach((cleanup) => cleanup())
+      : null;
+  }
+
+  // Generator pattern
   return (element: Element) => setup(element, args[0], args[1]);
 }
 
 /** Listens for changes to an element's `textContent`. */
 export function onText(
   element: Element,
-  handler: (change: TextChange & { element: Element }) => void,
+  handler: (
+    change: TextChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): CleanupFunction;
 export function onText(
-  handler: (change: TextChange & { element: Element }) => void,
+  selector: string,
+  handler: (
+    change: TextChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: MutationObserverInit,
+): CleanupFunction | null;
+export function onText(
+  handler: (
+    change: TextChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): ElementFn<Element, CleanupFunction>;
 export function onText(...args: any[]): any {
+  const executeHandler = async (
+    element: Element,
+    handler: any,
+    change: TextChange & { element: Element },
+  ) => {
+    const result = handler(change);
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
   const setup = (
     element: Element,
-    handler: (change: TextChange & { element: Element }) => void,
+    handler: any,
     options?: MutationObserverInit,
   ) => {
     let oldText = element.textContent || "";
-    const observer = new MutationObserver((entries) => {
+    const observer = new MutationObserver((_entries) => {
       const newText = element.textContent || "";
       if (oldText !== newText) {
-        handler({
+        executeHandler(element, handler, {
           oldText,
           newText,
           element,
@@ -1188,33 +1333,259 @@ export function onText(...args: any[]): any {
     });
     return () => observer.disconnect();
   };
+
+  // Direct element pattern
   if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && typeof args[1] === "function") {
+    const [selector, handler, options] = args;
+    const elements = document.querySelectorAll(selector);
+    const cleanups: CleanupFunction[] = [];
+
+    elements.forEach((element) => {
+      cleanups.push(setup(element, handler, options));
+    });
+
+    return cleanups.length > 0
+      ? () => cleanups.forEach((cleanup) => cleanup())
+      : null;
+  }
+
+  // Generator pattern
   return (element: Element) => setup(element, args[0], args[1]);
 }
 
 /** Listens for when an element becomes visible or hidden in the viewport. */
-export const onVisible = createObserverEvent<
-  IntersectionObserverEntry,
-  IntersectionObserverInit,
-  VisibilityChange & { element: Element }
->(IntersectionObserver, (entry, element) => ({
-  isVisible: entry.isIntersecting,
-  intersectionRatio: entry.intersectionRatio,
-  boundingClientRect: entry.boundingClientRect,
-  element,
-}));
+export function onVisible(
+  element: Element,
+  handler: (
+    change: VisibilityChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: IntersectionObserverInit,
+): CleanupFunction;
+export function onVisible(
+  selector: string,
+  handler: (
+    change: VisibilityChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: IntersectionObserverInit,
+): CleanupFunction | null;
+export function onVisible(
+  handler: (
+    change: VisibilityChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: IntersectionObserverInit,
+): ElementFn<Element, CleanupFunction>;
+export function onVisible(...args: any[]): any {
+  const executeHandler = async (
+    element: Element,
+    handler: any,
+    change: VisibilityChange & { element: Element },
+  ) => {
+    const result = handler(change);
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
+  const setup = (
+    element: Element,
+    handler: any,
+    options?: IntersectionObserverInit,
+  ) => {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        executeHandler(element, handler, {
+          isVisible: entry.isIntersecting,
+          intersectionRatio: entry.intersectionRatio,
+          boundingClientRect: entry.boundingClientRect,
+          element,
+        });
+      }
+    }, options);
+    observer.observe(element);
+    return () => observer.disconnect();
+  };
+
+  // Direct element pattern
+  if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && typeof args[1] === "function") {
+    const [selector, handler, options] = args;
+    const elements = document.querySelectorAll(selector);
+    const cleanups: CleanupFunction[] = [];
+
+    elements.forEach((element) => {
+      cleanups.push(setup(element, handler, options));
+    });
+
+    return cleanups.length > 0
+      ? () => cleanups.forEach((cleanup) => cleanup())
+      : null;
+  }
+
+  // Generator pattern
+  return (element: Element) => setup(element, args[0], args[1]);
+}
 
 /** Listens for changes to an element's size. */
-export const onResize = createObserverEvent<
-  ResizeObserverEntry,
-  ResizeObserverOptions,
-  ResizeChange & { element: Element }
->(ResizeObserver, (entry, element) => ({
-  contentRect: entry.contentRect,
-  borderBoxSize: entry.borderBoxSize,
-  contentBoxSize: entry.contentBoxSize,
-  element,
-}));
+export function onResize(
+  element: Element,
+  handler: (
+    change: ResizeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: ResizeObserverOptions,
+): CleanupFunction;
+export function onResize(
+  selector: string,
+  handler: (
+    change: ResizeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: ResizeObserverOptions,
+): CleanupFunction | null;
+export function onResize(
+  handler: (
+    change: ResizeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: ResizeObserverOptions,
+): ElementFn<Element, CleanupFunction>;
+export function onResize(...args: any[]): any {
+  const executeHandler = async (
+    element: Element,
+    handler: any,
+    change: ResizeChange & { element: Element },
+  ) => {
+    const result = handler(change);
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
+  const setup = (
+    element: Element,
+    handler: any,
+    options?: ResizeObserverOptions,
+  ) => {
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        executeHandler(element, handler, {
+          contentRect: entry.contentRect,
+          borderBoxSize: entry.borderBoxSize,
+          contentBoxSize: entry.contentBoxSize,
+          devicePixelContentBoxSize: entry.devicePixelContentBoxSize,
+          element,
+        });
+      }
+    });
+    observer.observe(element, options);
+    return () => observer.disconnect();
+  };
+
+  // Direct element pattern
+  if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && typeof args[1] === "function") {
+    const [selector, handler, options] = args;
+    const elements = document.querySelectorAll(selector);
+    const cleanups: CleanupFunction[] = [];
+
+    elements.forEach((element) => {
+      cleanups.push(setup(element, handler, options));
+    });
+
+    return cleanups.length > 0
+      ? () => cleanups.forEach((cleanup) => cleanup())
+      : null;
+  }
+
+  // Generator pattern
+  return (element: Element) => setup(element, args[0], args[1]);
+}
 
 // ==================== LIFECYCLE EVENTS ====================
 
@@ -1224,20 +1595,128 @@ export const onResize = createObserverEvent<
  */
 export function onMount<El extends Element>(
   element: El,
-  handler: (element: El) => void,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
 ): CleanupFunction;
+export function onMount(
+  selector: string,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+): CleanupFunction | null;
 export function onMount<El extends Element>(
-  handler: (element: El) => void,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
 ): ElementFn<El, CleanupFunction>;
 export function onMount(...args: any[]): any {
+  // Helper to execute the handler with generator support
+  const executeHandler = async (element: Element, handler: any) => {
+    const result = handler();
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
+  // Direct element pattern
   if (args[0] instanceof Element) {
     const [element, handler] = args;
-    handler(element);
-  } else {
-    const [handler] = args;
-    return (element: Element) => handler(element);
+    if (element.isConnected) {
+      queueMicrotask(() => executeHandler(element, handler));
+    }
+    return () => {}; // onMount is immediate, so cleanup is a no-op
   }
-  return () => {}; // onMount is immediate, so its cleanup is a no-op.
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && args.length >= 2) {
+    const [selector, handler] = args;
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((element) => {
+      if (element.isConnected) {
+        queueMicrotask(() => executeHandler(element, handler));
+      }
+    });
+    return elements.length > 0 ? () => {} : null;
+  }
+
+  // Generator pattern - returns ElementFn
+  const [handler] = args;
+  return (element: Element) => {
+    const context = getCurrentContext();
+
+    // If we have a context, this is being used in a generator
+    if (context) {
+      // Schedule the handler execution
+      let hasBeenCalled = false;
+
+      const wrappedHandler = async () => {
+        if (hasBeenCalled) return;
+        hasBeenCalled = true;
+        await executeHandler(element, handler);
+      };
+
+      if (element.isConnected) {
+        queueMicrotask(wrappedHandler);
+      } else {
+        // Wait for element to be connected
+        const observer = new MutationObserver(() => {
+          if (element.isConnected) {
+            wrappedHandler();
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Register cleanup for the observer
+        if (context && typeof (context as any).cleanup === "function") {
+          (context as any).cleanup(() => observer.disconnect());
+        }
+      }
+    } else {
+      // Direct call without context
+      if (element.isConnected) {
+        queueMicrotask(() => executeHandler(element, handler));
+      }
+    }
+
+    return () => {}; // onMount cleanup is a no-op
+  };
 }
 
 const unmountHandlers = new WeakMap<Element, Set<(element: Element) => void>>();
@@ -1255,22 +1734,140 @@ export function triggerUnmountHandlers(element: Element): void {
  */
 export function onUnmount<El extends Element>(
   element: El,
-  handler: (element: El) => void,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
 ): CleanupFunction;
+export function onUnmount(
+  selector: string,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+): CleanupFunction | null;
 export function onUnmount<El extends Element>(
-  handler: (element: El) => void,
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
 ): ElementFn<El, CleanupFunction>;
 export function onUnmount(...args: any[]): any {
-  const setup = (element: Element, handler: (el: Element) => void) => {
+  // Helper to execute the handler with generator support
+  const executeHandler = async (element: Element, handler: any) => {
+    const result = handler();
+
+    // Handle async generator
+    if (
+      result &&
+      typeof result === "object" &&
+      Symbol.asyncIterator in result
+    ) {
+      const { runOn } = await import("../watch");
+      await runOn(element as HTMLElement, () => result);
+    }
+    // Handle sync generator
+    else if (
+      result &&
+      typeof result === "object" &&
+      Symbol.iterator in result
+    ) {
+      const context = getCurrentContext();
+      if (context) {
+        const gen = result as Generator<any, void, any>;
+        let genResult = gen.next();
+        while (!genResult.done) {
+          if (typeof genResult.value === "function") {
+            genResult.value(context);
+          }
+          genResult = gen.next();
+        }
+      }
+    }
+    // Handle promise
+    else if (result && typeof result.then === "function") {
+      await result;
+    }
+  };
+
+  const setup = (element: Element, handler: any) => {
+    let hasBeenCalled = false;
+
+    const wrappedHandler = async () => {
+      if (hasBeenCalled) return;
+      hasBeenCalled = true;
+      await executeHandler(element, handler);
+    };
+
+    // Register in the unmount handlers map for triggerUnmountHandlers
     if (!unmountHandlers.has(element)) unmountHandlers.set(element, new Set());
     const handlers = unmountHandlers.get(element)!;
-    handlers.add(handler);
+    handlers.add(wrappedHandler as any);
+
+    // Also set up MutationObserver to detect removal
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const removedNode of Array.from(mutation.removedNodes)) {
+          if (
+            removedNode === element ||
+            (removedNode as Element).contains?.(element)
+          ) {
+            wrappedHandler();
+            observer.disconnect();
+            break;
+          }
+        }
+      }
+    });
+
+    // Observe parent if element is connected
+    if (element.parentNode) {
+      observer.observe(element.parentNode, { childList: true });
+    }
+
+    // Return cleanup function
     return () => {
-      handlers.delete(handler);
+      handlers.delete(wrappedHandler as any);
+      observer.disconnect();
     };
   };
+
+  // Direct element pattern
   if (args[0] instanceof Element) {
     return setup(args[0], args[1]);
   }
-  return (element: Element) => setup(element, args[0]);
+
+  // CSS selector pattern
+  if (typeof args[0] === "string" && args.length >= 2) {
+    const [selector, handler] = args;
+    const elements = document.querySelectorAll(selector);
+    const cleanups: CleanupFunction[] = [];
+
+    elements.forEach((element) => {
+      cleanups.push(setup(element, handler));
+    });
+
+    return cleanups.length > 0
+      ? () => cleanups.forEach((cleanup) => cleanup())
+      : null;
+  }
+
+  // Generator pattern - returns ElementFn
+  const [handler] = args;
+  return (element: Element) => {
+    const context = getCurrentContext();
+
+    // Register the unmount handler with proper cleanup
+    const cleanup = setup(element, handler);
+
+    // If we're in a generator context, register the cleanup
+    if (context && typeof (context as any).cleanup === "function") {
+      (context as any).cleanup(cleanup);
+    }
+
+    return cleanup;
+  };
 }

@@ -33,7 +33,7 @@ function enhanceButtonOverloaded() {
   const button = document.querySelector("button");
   if (button) {
     text(button, "Click me!");
-    addClass(button, "primary", "large");
+    addClass(button, ["primary", "large"]);
     style(button as HTMLElement, "backgroundColor", "blue");
     click(button as HTMLElement, () => console.log("Clicked!"));
   }
@@ -172,9 +172,9 @@ function manipulateAttributes() {
   const link1 = document.querySelector("a");
   if (link1) {
     const href = attr(link1, "href");
-    attr(link1, "href", href + "?ref=app");
-    attr(link1, "target", "_blank");
-    attr(link1, "rel", "noopener");
+    attr(link1, { href: href + "?ref=app" });
+    attr(link1, { target: "_blank" });
+    attr(link1, { rel: "noopener" });
   }
 
   // Explicit API - commented out
@@ -205,7 +205,7 @@ function processItemList() {
     yield addClass("processed");
     yield attr("data-processed", "true");
 
-    const _text = yield text();
+    const _text: string = (yield text()) as any as string;
     if (_text && _text.includes("special")) {
       yield addClass("special-item");
     }

@@ -290,7 +290,7 @@ export function For<T>(
 ): Workflow<void> {
   const CACHE_KEY = "__ForCache__";
 
-  return (async function* () {
+  return (function* () {
     yield (context: WatchContext) => {
       const container = context.element;
       const contextStateMap = getElementStateMap(container);
@@ -384,7 +384,7 @@ export function Show(
 ): Workflow<void> {
   const STATE_KEY = "__showState__";
 
-  return (async function* () {
+  return (function* () {
     yield (context: WatchContext) => {
       const container = context.element;
       const contextStateMap = getElementStateMap(container);
@@ -442,7 +442,7 @@ export function render(
     | AsyncGenerator<any, any, any>,
   dependencies: string[],
 ): Workflow<void> {
-  return (async function* () {
+  return (function* () {
     yield (context: WatchContext) => {
       const container = context.element as HTMLElement;
       const stateMap = getElementStateMap(container);
@@ -572,7 +572,7 @@ export function Switch(
   expression: any,
   ...cases: SwitchCase[]
 ): Workflow<void> {
-  return (async function* () {
+  return (function* () {
     yield (context: WatchContext) => {
       const contextStateMap = getElementStateMap(context.element);
       const state: SwitchState | undefined =
@@ -649,7 +649,7 @@ export function Async<T>(
   promise: Promise<T>,
   templates: AsyncTemplates<T>,
 ): Workflow<void> {
-  return (async function* () {
+  return (function* () {
     // This initial yield sets up the pending state immediately.
     yield (context: WatchContext) => {
       const contextStateMap = getElementStateMap(context.element);

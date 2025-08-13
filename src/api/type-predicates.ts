@@ -7,12 +7,7 @@
  * type narrowing support.
  */
 
-import type {
-  ElementFn,
-  Workflow,
-  ElementHandler,
-  ElementFromSelector,
-} from "../types";
+import type { ElementFn, Workflow } from "../types";
 
 /**
  * Checks if a value is an HTMLElement.
@@ -65,7 +60,7 @@ export function isElement(value: any): value is HTMLElement {
  */
 export function isElementType<T extends HTMLElement>(
   value: any,
-  constructor: new () => T
+  constructor: new () => T,
 ): value is T {
   return value instanceof constructor;
 }
@@ -90,7 +85,7 @@ export function isElementType<T extends HTMLElement>(
  * ```
  */
 export function isInputElement(
-  value: any
+  value: any,
 ): value is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
   return (
     value instanceof HTMLInputElement ||
@@ -192,7 +187,7 @@ export function isClassList(value: any): value is string {
  * ```
  */
 export function isStyleObject(
-  value: any
+  value: any,
 ): value is Partial<CSSStyleDeclaration> {
   return (
     value !== null &&
@@ -200,9 +195,7 @@ export function isStyleObject(
     !Array.isArray(value) &&
     !(value instanceof HTMLElement) &&
     // Check for at least one valid CSS property-like key
-    Object.keys(value).some((key) =>
-      /^[a-z][a-zA-Z]*$|^--/.test(key)
-    )
+    Object.keys(value).some((key) => /^[a-z][a-zA-Z]*$|^--/.test(key))
   );
 }
 
@@ -225,9 +218,7 @@ export function isStyleObject(
  * }
  * ```
  */
-export function isAttributeObject(
-  value: any
-): value is Record<string, any> {
+export function isAttributeObject(value: any): value is Record<string, any> {
   return (
     value !== null &&
     typeof value === "object" &&
@@ -340,7 +331,7 @@ export function isGeneratorFunction(value: any): value is GeneratorFunction {
  * ```
  */
 export function isAsyncGeneratorFunction(
-  value: any
+  value: any,
 ): value is AsyncGeneratorFunction {
   if (typeof value !== "function") return false;
 
@@ -411,9 +402,7 @@ export function isInGeneratorContext(): boolean {
 
 // Type definitions for generator functions
 type GeneratorFunction = (...args: any[]) => Generator<any, any, any>;
-type AsyncGeneratorFunction = (
-  ...args: any[]
-) => AsyncGenerator<any, any, any>;
+type AsyncGeneratorFunction = (...args: any[]) => AsyncGenerator<any, any, any>;
 
 /**
  * Utility to cast a value to a specific element type after validation.
@@ -436,7 +425,7 @@ type AsyncGeneratorFunction = (
  */
 export function asElement<T extends HTMLElement>(
   value: any,
-  constructor: new () => T
+  constructor: new () => T,
 ): T | null {
   return isElementType(value, constructor) ? value : null;
 }
@@ -480,7 +469,7 @@ export function isDefined<T>(value: T | null | undefined): value is T {
  * ```
  */
 export function isValidTarget(
-  value: any
+  value: any,
 ): value is HTMLElement | string | null {
   return isElement(value) || typeof value === "string" || value === null;
 }

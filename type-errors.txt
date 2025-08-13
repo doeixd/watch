@@ -1,0 +1,109 @@
+npm warn Unknown user config "python". This will stop working in the next major version of npm.
+src/api/dom-fixed.ts(16,3): error TS6133: 'isClassName' is declared but its value is never read.
+src/api/dom-fixed.ts(18,8): error TS6133: 'ClassName' is declared but its value is never read.
+src/api/dom-new.ts(12,15): error TS6196: 'ElementFn' is declared but never used.
+src/api/dom-new.ts(16,3): error TS6133: 'isClassName' is declared but its value is never read.
+src/api/dom-new.ts(144,10): error TS6133: 'isSpecificHTMLElement' is declared but its value is never read.
+src/api/dom-new.ts(171,10): error TS6133: 'isNode' is declared but its value is never read.
+src/api/dom-new.ts(178,10): error TS6133: 'isDocument' is declared but its value is never read.
+src/api/dom-new.ts(210,10): error TS6133: 'isFormControl' is declared but its value is never read.
+src/api/dom-new.ts(242,10): error TS6133: 'resolveElementsStrict' is declared but its value is never read.
+src/api/dom-new.ts(265,10): error TS6133: 'resolveElementSafe' is declared but its value is never read.
+src/api/dom-new.ts(280,10): error TS6133: 'queryElement' is declared but its value is never read.
+src/api/dom-new.ts(290,10): error TS6133: 'queryElements' is declared but its value is never read.
+src/api/dom-new.ts(1328,22): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(2226,24): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(2422,22): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(2609,21): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(3059,22): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(3222,25): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(3368,17): error TS2391: Function implementation is missing or not immediately following the declaration.
+src/api/dom-new.ts(3537,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3541,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3544,17): error TS2323: Cannot redeclare exported variable 'children'.
+src/api/dom-new.ts(3544,17): error TS2391: Function implementation is missing or not immediately following the declaration.
+src/api/dom-new.ts(3544,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3574,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3578,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3582,17): error TS2323: Cannot redeclare exported variable 'siblings'.
+src/api/dom-new.ts(3582,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3617,17): error TS2389: Function implementation name must be 'siblings'.
+src/api/dom-new.ts(3681,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3684,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3687,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3691,17): error TS2323: Cannot redeclare exported variable 'children'.
+src/api/dom-new.ts(3691,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3745,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3748,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3751,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3752,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3756,17): error TS2323: Cannot redeclare exported variable 'siblings'.
+src/api/dom-new.ts(3756,17): error TS2393: Duplicate function implementation.
+src/api/dom-new.ts(3824,25): error TS6133: 'T' is declared but its value is never read.
+src/api/dom-new.ts(3956,17): error TS6133: 'context' is declared but its value is never read.
+src/api/dom-new.ts(4024,31): error TS2345: Argument of type 'ChildWatcherInfo<Element>' is not assignable to parameter of type 'ChildWatcherInfo<HTMLElement>'.
+  Types of property 'elements' are incompatible.
+    Type 'Set<Element>' is not assignable to type 'Set<HTMLElement>'.
+      Type 'Element' is missing the following properties from type 'HTMLElement': accessKey, accessKeyLabel, autocapitalize, autocorrect, and 129 more.
+src/api/dom-new.ts(4030,34): error TS2345: Argument of type 'ChildWatcherInfo<Element>' is not assignable to parameter of type 'ChildWatcherInfo<HTMLElement>'.
+  Types of property 'elements' are incompatible.
+    Type 'Set<Element>' is not assignable to type 'Set<HTMLElement>'.
+      Type 'Element' is missing the following properties from type 'HTMLElement': accessKey, accessKeyLabel, autocapitalize, autocorrect, and 129 more.
+src/api/dom-new.ts(4059,7): error TS2353: Object literal may only specify known properties, and 'signal' does not exist in type 'WatchContext<HTMLElement>'.
+src/api/dom-new.ts(4108,11): error TS2741: Property 'elements' is missing in type '{ selector: string; generator: any; contexts: Map<any, any>; cleanup: Map<any, any>; }' but required in type 'ChildWatcherInfo<El>'.
+src/api/dom-new.ts(4179,39): error TS2345: Argument of type '(element: El) => Generator<any, void, any>' is not assignable to parameter of type '(element: HTMLElement) => Generator<any, any, any>'.
+  Types of parameters 'element' and 'element' are incompatible.
+    Type 'HTMLElement' is not assignable to type 'El'.
+      'HTMLElement' is assignable to the constraint of type 'El', but 'El' could be instantiated with a different subtype of constraint 'Element'.
+src/api/dom-new.ts(4200,23): error TS2339: Property 'signal' does not exist on type 'WatchContext<HTMLElement>'.
+src/api/dom-new.ts(4201,21): error TS2339: Property 'signal' does not exist on type 'WatchContext<HTMLElement>'.
+src/api/dom-new.ts(4208,43): error TS2345: Argument of type '(element: El) => Generator<any, void, any>' is not assignable to parameter of type '(element: HTMLElement) => Generator<any, any, any>'.
+  Types of parameters 'element' and 'element' are incompatible.
+    Type 'HTMLElement' is not assignable to type 'El'.
+      'HTMLElement' is assignable to the constraint of type 'El', but 'El' could be instantiated with a different subtype of constraint 'Element'.
+src/api/dom-smart.ts(9,15): error TS6196: 'ElementFn' is declared but never used.
+src/api/dom-smart.ts(285,25): error TS6133: 'T' is declared but its value is never read.
+src/api/events-sync.ts(14,1): error TS6133: 'getCurrentContext' is declared but its value is never read.
+src/api/events-sync.ts(44,10): error TS6133: 'isElement' is declared but its value is never read.
+src/api/events-sync.ts(121,13): error TS2353: Object literal may only specify known properties, and 'signal' does not exist in type 'WatchContext<HTMLElement>'.
+src/api/events.ts(1081,10): error TS6133: 'createObserverEvent' is declared but its value is never read.
+src/api/tag.ts(228,60): error TS2556: A spread argument must either have a tuple type or be passed to a rest parameter.
+src/api/tag.ts(241,9): error TS2322: Type '(p: any, v?: any) => void | Workflow<void>' is not assignable to type '{ (styles: Partial<CSSStyleDeclaration>): ElementFn<any, void>; (prop: keyof CSSStyleDeclaration, value: string): ElementFn<...>; }'.
+  Type 'void | Workflow<void>' is not assignable to type 'ElementFn<any, void>'.
+    Type 'void' is not assignable to type 'ElementFn<any, void>'.
+src/core/api-detection.ts(11,3): error TS6196: 'WatchContext' is declared but never used.
+src/core/api-detection.ts(12,3): error TS6196: 'TypedGeneratorContext' is declared but never used.
+src/core/api-detection.ts(123,25): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/core/api-detection.ts(245,35): error TS6133: 'fnName' is declared but its value is never read.
+src/core/api-detection.ts(494,21): error TS7053: Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type 'Generator<any, T, any> | AsyncGenerator<any, T, any>'.
+  Property '[SymbolConstructor.asyncIterator]' does not exist on type 'Generator<any, T, any> | AsyncGenerator<any, T, any>'.
+src/core/api-wrapper.ts(63,10): error TS2352: Conversion of type 'AsyncGenerator<Operation<T, El>, T, unknown>' to type 'Workflow<T>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'AsyncGenerator<Operation<T, El>, T, unknown>' is missing the following properties from type 'Generator<Operation<any, any>, T, any>': [Symbol.iterator], map, filter, take, and 10 more.
+src/core/api-wrapper.ts(91,23): error TS2352: Conversion of type 'Workflow<T>' to type 'AsyncGenerator<Operation<any, any>, T, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Generator<Operation<any, any>, T, any>' is missing the following properties from type 'AsyncGenerator<Operation<any, any>, T, unknown>': [Symbol.asyncIterator], [Symbol.asyncDispose]
+src/core/api-wrapper.ts(226,10): error TS2352: Conversion of type 'AsyncGenerator<Operation<any, any>, T, unknown>' to type 'Workflow<T>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'AsyncGenerator<Operation<any, any>, T, unknown>' is missing the following properties from type 'Generator<Operation<any, any>, T, any>': [Symbol.iterator], map, filter, take, and 10 more.
+src/core/api-wrapper.ts(297,14): error TS2352: Conversion of type 'AsyncGenerator<Operation<any, any>, TValue | undefined, unknown>' to type 'Workflow<TValue | undefined>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'AsyncGenerator<Operation<any, any>, TValue | undefined, unknown>' is missing the following properties from type 'Generator<Operation<any, any>, TValue | undefined, any>': [Symbol.iterator], map, filter, take, and 10 more.
+src/core/api-wrapper.ts(434,14): error TS2352: Conversion of type 'AsyncGenerator<Operation<any, any>, T, unknown>' to type 'Workflow<T>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'AsyncGenerator<Operation<any, any>, T, unknown>' is missing the following properties from type 'Generator<Operation<any, any>, T, any>': [Symbol.iterator], map, filter, take, and 10 more.
+src/core/async-wrapper.ts(49,3): error TS6196: 'AsyncWorkflow' is declared but never used.
+src/core/async-wrapper.ts(107,30): error TS7053: Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type 'Promise<T> | AsyncGenerator<any, T, any>'.
+  Property '[SymbolConstructor.asyncIterator]' does not exist on type 'Promise<T> | AsyncGenerator<any, T, any>'.
+src/core/dollar-helper.ts(23,3): error TS6196: 'AsyncWorkflow' is declared but never used.
+src/core/dollar-helper.ts(31,10): error TS6133: 'isAsyncContext' is declared but its value is never read.
+src/generator-sync/index.ts(237,10): error TS2724: '"../core/dollar-helper"' has no exported member named 'isSyncWorkflow'. Did you mean 'isWorkflow'?
+src/generator-sync/index.ts(240,10): error TS2305: Module '"../core/dollar-helper"' has no exported member '$sync'.
+src/generator-sync/state.ts(371,13): error TS6133: 'oldValue' is declared but its value is never read.
+src/legacy/index.ts(129,10): error TS2305: Module '"./watch-v4"' has no exported member 'watchLegacy'.
+src/legacy/watch-v4.ts(26,8): error TS2307: Cannot find module './types' or its corresponding type declarations.
+src/legacy/watch-v4.ts(27,39): error TS2307: Cannot find module './core/observer' or its corresponding type declarations.
+src/legacy/watch-v4.ts(28,34): error TS2307: Cannot find module './core/context' or its corresponding type declarations.
+src/legacy/watch-v4.ts(29,42): error TS2307: Cannot find module './core/context-factory' or its corresponding type declarations.
+src/legacy/watch-v4.ts(34,8): error TS2307: Cannot find module './core/generator-utils' or its corresponding type declarations.
+src/legacy/watch-v4.ts(35,31): error TS2307: Cannot find module './core/generator' or its corresponding type declarations.
+src/legacy/watch-v4.ts(444,5): error TS2358: The left-hand side of an 'instanceof' expression must be of type 'any', an object type or a type parameter.
+src/legacy/watch-v4.ts(545,16): error TS7006: Parameter 'returnValue' implicitly has an 'any' type.
+src/legacy/watch-v4.ts(551,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/legacy/watch-v4.ts(635,11): error TS7006: Parameter 'returnValue' implicitly has an 'any' type.

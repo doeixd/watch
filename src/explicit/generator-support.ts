@@ -530,7 +530,7 @@ export async function* selfFlow<E extends Element = Element>(): Workflow<E> {
  * ```
  */
 export async function* delayFlow(ms: number): Workflow<void> {
-  yield (element: Element) => {
+  yield (_element: Element) => {
     // The delay doesn't operate on the element, but still needs to yield a function
     return new Promise<void>((resolve) => setTimeout(resolve, ms));
   };

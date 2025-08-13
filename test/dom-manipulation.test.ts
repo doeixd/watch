@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { runOn, watch } from "../src/watch";
+import { ElementFn } from "../src/types";
 import {
   text,
   html,
@@ -700,11 +701,14 @@ describe("DOM Manipulation Functions", () => {
         let foundElement: HTMLElement | null = null;
 
         await runOn(parent, function* () {
-          foundElement = yield query(".action");
+          // In generator context, query returns ElementFn that must be yielded
+          const result = yield query(".action");
+          foundElement = result as HTMLElement | null;
         });
 
-        expect(foundElement?.textContent).toBe("Click me");
-        expect(foundElement?.tagName).toBe("BUTTON");
+        expect(foundElement).not.toBeNull();
+        expect(foundElement!.textContent).toBe("Click me");
+        expect(foundElement!.tagName).toBe("BUTTON");
       });
     });
 
@@ -738,7 +742,9 @@ describe("DOM Manipulation Functions", () => {
         let foundElements: HTMLElement[] = [];
 
         await runOn(parent, function* () {
-          foundElements = yield queryAll("li");
+          // In generator context, queryAll returns ElementFn that must be yielded
+          const result = yield queryAll("li");
+          foundElements = result as HTMLElement[];
         });
 
         expect(foundElements).toHaveLength(3);
@@ -767,10 +773,13 @@ describe("DOM Manipulation Functions", () => {
         let foundParent: HTMLElement | null = null;
 
         await runOn(child, function* () {
-          foundParent = yield parent();
+          // In generator context, parent returns ElementFn that must be yielded
+          const result = yield parent();
+          foundParent = result as HTMLElement | null;
         });
 
-        expect(foundParent?.classList.contains("parent")).toBe(true);
+        expect(foundParent).not.toBeNull();
+        expect(foundParent!.classList.contains("parent")).toBe(true);
       });
     });
 
@@ -797,7 +806,9 @@ describe("DOM Manipulation Functions", () => {
         let childElements: HTMLElement[] = [];
 
         await runOn(parentElement, function* () {
-          childElements = yield children();
+          // In generator context, children returns ElementFn that must be yielded
+          const result = yield children();
+          childElements = result as HTMLElement[];
         });
 
         expect(childElements).toHaveLength(2);
@@ -835,7 +846,9 @@ describe("DOM Manipulation Functions", () => {
         let siblingElements: HTMLElement[] = [];
 
         await runOn(target, function* () {
-          siblingElements = yield siblings();
+          // In generator context, siblings returns ElementFn that must be yielded
+          const result = yield siblings();
+          siblingElements = result as HTMLElement[];
         });
 
         expect(siblingElements).toHaveLength(2);
@@ -877,10 +890,14 @@ describe("DOM Manipulation Functions", () => {
 
         await runOn(container, function* () {
           const divs = yield queryAll("div");
-          yield batchAll(divs, [
-            addClass("batch-test"),
-            data("processed", "true"),
-          ]);
+          // batchAll with actual elements returns void in generator context
+          // so we need to wrap it in an ElementFn
+          yield (() => {
+            batchAll(divs as any, [
+              addClass("batch-test"),
+              data("processed", "true"),
+            ]);
+          }) as ElementFn<HTMLElement, void>;
         });
 
         const divs = container.querySelectorAll("div");
@@ -905,10 +922,11 @@ describe("DOM Manipulation Functions", () => {
           };
         }
 
-        let childApis: Map<HTMLElement, any>;
+        let childApis: Map<HTMLElement, any> = new Map();
 
         await runOn(container, function* () {
-          childApis = yield createChildWatcher(".child", childBehavior);
+          const result = yield createChildWatcher(".child", childBehavior);
+          childApis = result as Map<HTMLElement, any>;
         });
 
         // Add child elements
@@ -943,10 +961,11 @@ describe("DOM Manipulation Functions", () => {
           };
         }
 
-        let buttonApis: Map<HTMLElement, any>;
+        let buttonApis: Map<HTMLElement, any> = new Map();
 
         await runOn(container, function* () {
-          buttonApis = yield child("button", buttonBehavior);
+          const result = yield child("button", buttonBehavior);
+          buttonApis = result as Map<HTMLElement, any>;
         });
 
         const button = createTestElement("button");

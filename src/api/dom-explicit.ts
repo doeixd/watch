@@ -13,7 +13,7 @@
  * - *Set* - Setter variants (when needed for clarity)
  */
 
-import type { ElementFn, ElementFromSelector } from "../types";
+import type { ElementFn } from "../types";
 import {
   _impl_text_set,
   _impl_text_get,

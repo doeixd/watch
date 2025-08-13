@@ -161,7 +161,7 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
   if (args.length === 1 && isGeneratorBuilder(args[0])) {
     const builder = args[0];
 
-    return (async function* (): Workflow<any> {
+    return (function* (): Workflow<any> {
       const element = SVG_TAGS.has(name)
         ? document.createElementNS("http://www.w3.org/2000/svg", name)
         : document.createElement(name);
@@ -225,7 +225,7 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
                 staticClasses.push(String(cn));
               }
             });
-            if (staticClasses.length > 0) baseAddClass(el, ...staticClasses);
+            if (staticClasses.length > 0) baseAddClass(el, staticClasses);
           },
         text: (c) => (el) => {
           if (isReactive(c)) {
@@ -238,13 +238,13 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
             baseText(el, String(c));
           }
         },
-        style: (p: any, v?: any) => {
+        style: ((p: any, v?: any) => {
           if (typeof p === "object") {
             return baseStyle(p);
           } else {
             return baseStyle(p, v);
           }
-        },
+        }) as any,
         on: (e, h, o) => baseOn(e, h as any, o as any) as ElementFn<any, void>,
         child:
           (...c) =>
@@ -313,7 +313,7 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
           Object.assign((element as HTMLElement).style, value);
         } else if (key === "className") {
           // Class name
-          element.className = String(value);
+          (element as HTMLElement).className = String(value);
         } else if (key === "classList" && Array.isArray(value)) {
           // Class list array
           element.classList.add(...value);

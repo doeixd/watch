@@ -1,5 +1,5 @@
 import { watch } from "../../src/watch";
-import { text } from "../../src/generator/dom";
+import { text } from "../../src/api/dom-new";
 
 // Test 1: Simple element with sync generator
 const element = document.createElement("div");
@@ -10,20 +10,19 @@ const element = document.createElement("div");
 //   generator: (ctx: TypedGeneratorContext<El>) => Generator<ElementFn<El>, void, unknown>
 // ): WatchController<El>
 
-watch(element, function* (ctx) {
-  yield* text("Hello");
+watch(element, function* () {
+  yield* text("Hello World");
 });
 
-// Test 2: With explicit type
-const button = document.createElement("button");
-
-watch(button, function* (ctx) {
-  yield* text("Click me");
+// Test 2: CSS selector with async generator
+watch("button", async function* () {
+  yield* text("Button Text");
 });
 
-// Test 3: Cast to HTMLElement
-const div = document.createElement("div");
+// Test 3: Direct element manipulation
+text(element, "Direct text");
 
-watch(div as HTMLElement, function* (ctx) {
-  yield* text("Content");
-});
+// Test 4: CSS selector manipulation
+text("button", "Button selector text");
+
+// console.log("All overloads compiled successfully");

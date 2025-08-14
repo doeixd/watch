@@ -52,7 +52,7 @@ describe("DOM API Type Safety", () => {
 
   beforeEach(() => {
     window = new Window();
-    document = window.document;
+    document = window.document as unknown as Document;
     global.document = document as any;
     global.HTMLElement = window.HTMLElement as any;
     global.Element = window.Element as any;

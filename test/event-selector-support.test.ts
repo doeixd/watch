@@ -13,11 +13,7 @@ describe("Event Functions CSS Selector Support", () => {
   describe("on() with CSS selectors", () => {
     it("should attach event listener using CSS selector", () => {
       document.body.innerHTML = '<button id="test-btn">Click me</button>';
-      const handler = vi.fn((...args) => {
-        console.log("Handler called with args:", args);
-        console.log("Number of args:", args.length);
-        console.log("First arg type:", args[0]?.constructor?.name);
-      });
+      const handler = vi.fn();
 
       const cleanup = on("#test-btn", "click", handler);
       expect(cleanup).toBeTruthy();
@@ -58,16 +54,7 @@ describe("Event Functions CSS Selector Support", () => {
 
     it("should support custom events with CSS selector", () => {
       document.body.innerHTML = '<div id="custom-target">Target</div>';
-      const handler = vi.fn((...args) => {
-        console.log("Custom event handler called with args:", args);
-        console.log("Number of args:", args.length);
-        console.log("First arg:", args[0]);
-        console.log("First arg type:", args[0]?.constructor?.name);
-        if (args[0]) {
-          console.log("Event type:", args[0].type);
-          console.log("Event detail:", args[0].detail);
-        }
-      });
+      const handler = vi.fn();
 
       on("#custom-target", "custom-event", handler);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { watchEnhanced, runOnEnhanced, scopedWatchEnhanced } from '../src/watch-enhanced';
+import { watch as watchEnhanced, runOn as runOnEnhanced, scopedWatch as scopedWatchEnhanced } from '../src/watch-enhanced';
 import type { EnhancedTypedGeneratorContext } from '../src/watch-enhanced';
 
 // Mock DOM setup

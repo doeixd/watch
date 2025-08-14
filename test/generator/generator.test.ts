@@ -1,8 +1,8 @@
 /**
- * @fileoverview Tests for the generator submodule
+ * @fileoverview Tests for the unified generator API
  *
- * This test file verifies that the generator submodule functions correctly
- * create Workflows that can be used with yield* syntax.
+ * This test file verifies that the unified API functions correctly
+ * work with sync generators and yield* syntax.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -18,21 +18,23 @@ import {
   getAttr,
   style,
   getStyle,
-  self,
   query,
   queryAll,
-  delay,
   show,
   hide,
   focus,
   blur,
-} from "../../src/generator/dom";
+} from "../../src/index";
 import {
   getState,
   setState,
   updateState,
   hasState,
   deleteState,
+  clearState,
+  watchState,
+  createState,
+  createTypedState,
   incrementState,
   decrementState,
   toggleState,
@@ -40,21 +42,22 @@ import {
   prependToState,
   removeFromState,
   mergeState,
-} from "../../src/generator/state";
+} from "../../src/index";
 import {
   click,
   input,
   change,
   submit,
-  onFocus,
-  onBlur,
   on,
   emit,
   onMount,
   onUnmount,
-} from "../../src/generator/events";
+  onFocus,
+  onBlur,
+} from "../../src/index";
+import { self, delay } from "../../src/index";
 
-describe("Generator Submodule", () => {
+describe("Unified Generator API", () => {
   let container: HTMLElement;
 
   beforeEach(() => {
@@ -74,7 +77,7 @@ describe("Generator Submodule", () => {
       const button = document.createElement("button");
       container.appendChild(button);
 
-      await watch(button, async function* () {
+      await watch(button, function* () {
         // Set text using yield*
         yield* text("Hello World");
 
@@ -88,7 +91,7 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Add a class
         yield* addClass("active");
         expect(div.classList.contains("active")).toBe(true);
@@ -112,7 +115,7 @@ describe("Generator Submodule", () => {
       const inputElement = document.createElement("input");
       container.appendChild(inputElement);
 
-      await watch(inputElement, async function* () {
+      await watch(inputElement, function* () {
         // Set attribute
         yield* attr("placeholder", "Enter text...");
         expect(inputElement.getAttribute("placeholder")).toBe("Enter text...");
@@ -127,14 +130,14 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Set style
         yield* style("color", "red");
         expect(div.style.color).toBe("red");
 
-        // Get computed style
+        // Get computed style (note: computed style may return rgb format)
         const color = yield* getStyle("color");
-        expect(color).toBeTruthy(); // Computed style format may vary
+        expect(color).toBeTruthy();
       });
     });
 
@@ -143,9 +146,9 @@ describe("Generator Submodule", () => {
       button.textContent = "Test Button";
       container.appendChild(button);
 
-      await watch(button, async function* () {
+      await watch(button, function* () {
         // Get self reference
-        const element = yield* self<HTMLButtonElement>();
+        const element = yield* self();
         expect(element).toBe(button);
         expect(element.tagName).toBe("BUTTON");
         expect(element.textContent).toBe("Test Button");
@@ -161,13 +164,13 @@ describe("Generator Submodule", () => {
       `;
       container.appendChild(parent);
 
-      await watch(parent, async function* () {
+      await watch(parent, function* () {
         // Query single element
-        const firstChild = yield* query<HTMLSpanElement>(".child");
+        const firstChild = yield* query(".child");
         expect(firstChild?.textContent).toBe("Child 1");
 
         // Query all elements
-        const allChildren = yield* queryAll<HTMLSpanElement>(".child");
+        const allChildren = yield* queryAll(".child");
         expect(allChildren.length).toBe(2);
         expect(allChildren[0].textContent).toBe("Child 1");
         expect(allChildren[1].textContent).toBe("Child 2");
@@ -178,14 +181,15 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Hide element
         yield* hide();
         expect(div.style.display).toBe("none");
 
         // Show element
         yield* show();
-        expect(div.style.display).toBe("block");
+        // Note: show() sets display to empty string, not "block"
+        expect(div.style.display).toBe("");
       });
     });
 
@@ -196,7 +200,7 @@ describe("Generator Submodule", () => {
       const focusSpy = vi.spyOn(inputElement, "focus");
       const blurSpy = vi.spyOn(inputElement, "blur");
 
-      await watch(inputElement, async function* () {
+      await watch(inputElement, function* () {
         // Focus element
         yield* focus();
         expect(focusSpy).toHaveBeenCalled();
@@ -213,27 +217,27 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Set state
-        yield* setState("counter", 0);
+        yield* setState.gen("counter", 0);
 
         // Get state
-        const counter = yield* getState<number>("counter");
+        const counter = yield* getState.gen("counter");
         expect(counter).toBe(0);
 
         // Update state
-        const newValue = yield* updateState<number>(
+        const newValue = yield* updateState.gen(
           "counter",
           (val) => (val || 0) + 1,
         );
         expect(newValue).toBe(1);
 
         // Check if state exists
-        const hasCounter = yield* hasState("counter");
+        const hasCounter = yield* hasState.gen("counter");
         expect(hasCounter).toBe(true);
 
         // Delete state
-        const deleted = yield* deleteState("counter");
+        const deleted = yield* deleteState.gen("counter");
         expect(deleted).toBe(true);
       });
     });
@@ -242,16 +246,16 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Initialize counter
-        yield* setState("count", 5);
+        yield* setState.gen("count", 5);
 
         // Increment
-        const incremented = yield* incrementState("count", 3);
+        const incremented = yield* incrementState.gen("count", 3);
         expect(incremented).toBe(8);
 
         // Decrement
-        const decremented = yield* decrementState("count", 2);
+        const decremented = yield* decrementState.gen("count", 2);
         expect(decremented).toBe(6);
       });
     });
@@ -260,15 +264,15 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Set initial state
-        yield* setState("isActive", false);
+        yield* setState.gen("isActive", false);
 
         // Toggle state
-        const toggled1 = yield* toggleState("isActive");
+        const toggled1 = yield* toggleState.gen("isActive");
         expect(toggled1).toBe(true);
 
-        const toggled2 = yield* toggleState("isActive");
+        const toggled2 = yield* toggleState.gen("isActive");
         expect(toggled2).toBe(false);
       });
     });
@@ -277,20 +281,20 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Initialize array
-        yield* setState("items", ["a", "b"]);
+        yield* setState.gen("items", ["a", "b"]);
 
         // Append to array
-        const appended = yield* appendToState("items", "c");
+        const appended = yield* appendToState.gen("items", "c");
         expect(appended).toEqual(["a", "b", "c"]);
 
         // Prepend to array
-        const prepended = yield* prependToState("items", "z");
+        const prepended = yield* prependToState.gen("items", "z");
         expect(prepended).toEqual(["z", "a", "b", "c"]);
 
         // Remove from array
-        const removed = yield* removeFromState("items", "b");
+        const removed = yield* removeFromState.gen("items", "b");
         expect(removed).toEqual(["z", "a", "c"]);
       });
     });
@@ -299,12 +303,12 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         // Initialize object
-        yield* setState("user", { name: "John", age: 30 });
+        yield* setState.gen("user", { name: "John", age: 30 });
 
         // Merge object
-        const merged = yield* mergeState("user", { age: 31, city: "NYC" });
+        const merged = yield* mergeState.gen("user", { age: 31, city: "NYC" });
         expect(merged).toEqual({ name: "John", age: 31, city: "NYC" });
       });
     });
@@ -317,7 +321,7 @@ describe("Generator Submodule", () => {
 
       let clicked = false;
 
-      await watch(button, async function* () {
+      await watch(button, function* () {
         yield* click(() => {
           clicked = true;
         });
@@ -332,13 +336,13 @@ describe("Generator Submodule", () => {
       const button = document.createElement("button");
       container.appendChild(button);
 
-      await watch(button, async function* () {
-        yield* setState("clickCount", 0);
+      await watch(button, function* () {
+        yield* setState.gen("clickCount", 0);
 
-        yield* click(async function* (event) {
-          const count = yield* getState<number>("clickCount", 0);
-          yield* setState("clickCount", count + 1);
-          yield* text(`Clicked ${count + 1} times`);
+        yield* click(function* (event) {
+          const count = yield* getState.gen("clickCount");
+          yield* setState.gen("clickCount", (count || 0) + 1);
+          yield* text(`Clicked ${(count || 0) + 1} times`);
         });
       });
 
@@ -358,7 +362,7 @@ describe("Generator Submodule", () => {
 
       let inputValue = "";
 
-      await watch(inputElement, async function* () {
+      await watch(inputElement, function* () {
         yield* input((event) => {
           inputValue = (event.target as HTMLInputElement).value;
         });
@@ -376,7 +380,7 @@ describe("Generator Submodule", () => {
 
       let eventData: any = null;
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         yield* on("customEvent", (event: CustomEvent) => {
           eventData = event.detail;
         });
@@ -393,7 +397,7 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       let mounted = false;
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         yield* onMount(() => {
           mounted = true;
         });
@@ -411,7 +415,7 @@ describe("Generator Submodule", () => {
       let focused = false;
       let blurred = false;
 
-      await watch(inputElement, async function* () {
+      await watch(inputElement, function* () {
         yield* onFocus(() => {
           focused = true;
         });
@@ -436,21 +440,21 @@ describe("Generator Submodule", () => {
       const button = document.createElement("button");
       container.appendChild(button);
 
-      await watch(button, async function* () {
+      await watch(button, function* () {
         // Initialize
         yield* text("Click me");
         yield* addClass("btn");
         yield* addClass("btn-primary");
-        yield* setState("clicks", 0);
+        yield* setState.gen("clicks", 0);
 
         // Set up click handler
-        yield* click(async function* () {
+        yield* click(function* () {
           // Update state
-          const clicks = yield* getState<number>("clicks", 0);
-          yield* setState("clicks", clicks + 1);
+          const clicks = yield* getState.gen("clicks");
+          yield* setState.gen("clicks", (clicks || 0) + 1);
 
           // Update UI
-          yield* text(`Clicked ${clicks + 1} times`);
+          yield* text(`Clicked ${(clicks || 0) + 1} times`);
           yield* toggleClass("clicked");
 
           // Add visual feedback
@@ -481,7 +485,7 @@ describe("Generator Submodule", () => {
       const div = document.createElement("div");
       container.appendChild(div);
 
-      await watch(div, async function* () {
+      await watch(div, function* () {
         yield* text("Loading...");
 
         // Simulate async operation

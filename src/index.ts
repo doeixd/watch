@@ -154,11 +154,7 @@
 // Main module exports
 
 // Core watch function - Enhanced version as default
-export {
-  watchEnhanced as watch,
-  runOnEnhanced as runOn,
-  scopedWatchEnhanced as scopedWatch,
-} from "./watch-enhanced";
+export { watch, runOn, scopedWatch } from "./watch-enhanced";
 
 // Also export controller functions from original watch
 export { run, layer, getInstances, destroy } from "./watch";
@@ -177,7 +173,41 @@ export {
   deleteState,
   clearAllState,
   createTypedState,
+  // Utility state functions
+  incrementState,
+  decrementState,
+  toggleState,
+  appendToState,
+  prependToState,
+  removeFromState,
+  mergeState,
+  clearState,
 } from "./core/state";
+
+// State management with Workflow support (yield* compatible)
+export {
+  setState as setStateWorkflow,
+  getState as getStateWorkflow,
+  updateState as updateStateWorkflow,
+  hasState as hasStateWorkflow,
+  deleteState as deleteStateWorkflow,
+  clearState as clearStateWorkflow,
+  getStateKeys,
+  getStateEntries,
+  getStateSize,
+  mergeState as mergeStateWorkflow,
+  getStateObject,
+  watchState as watchStateWorkflow,
+  computedState,
+  persistState,
+  restoreState,
+  incrementState as incrementStateWorkflow,
+  decrementState as decrementStateWorkflow,
+  toggleState as toggleStateWorkflow,
+  appendToState as appendToStateWorkflow,
+  prependToState as prependToStateWorkflow,
+  removeFromState as removeFromStateWorkflow,
+} from "./api/state-sync";
 
 // Core types for advanced usage
 export type {
@@ -221,6 +251,7 @@ export {
 
   // Text content
   text,
+  getText,
 
   // HTML content
   html,
@@ -234,9 +265,11 @@ export {
 
   // Style manipulation
   style,
+  getStyle,
 
   // Attribute manipulation
   attr,
+  getAttr,
   removeAttr,
   hasAttr,
 
@@ -284,10 +317,6 @@ export {
   // Main event API
   on,
   emit,
-  click,
-  change,
-  input,
-  submit,
 
   // Event composition utilities
   createEventBehavior,
@@ -308,13 +337,51 @@ export {
   onUnmount,
 } from "./api/events";
 
-// Context functions for use within generators
+// Convenience event functions with Workflow support
 export {
+  click,
+  input,
+  change,
+  submit,
+  onFocus,
+  onBlur,
+} from "./api/events-sync";
+
+// Generator versions for explicit yield* usage
+import {
+  click as clickSync,
+  input as inputSync,
+  change as changeSync,
+  submit as submitSync,
+  onFocus as onFocusSync,
+  onBlur as onBlurSync,
+} from "./api/events-sync";
+import {
+  emit as emitMain,
+  onMount as onMountMain,
+  onUnmount as onUnmountMain,
+} from "./api/events";
+
+// Re-export .gen versions for consistent API
+export const clickGen = clickSync.gen;
+export const inputGen = inputSync.gen;
+export const changeGen = changeSync.gen;
+export const submitGen = submitSync.gen;
+export const onFocusGen = onFocusSync.gen;
+export const onBlurGen = onBlurSync.gen;
+export const emitGen = (emitMain as any).gen;
+export const onMountGen = (onMountMain as any).gen;
+export const onUnmountGen = (onUnmountMain as any).gen;
+
+// Context functions for use within generators (all support yield* with Workflow return types)
+export {
+  // Core generator functions with yield* support
   self,
   el as elContext,
   all as allContext,
   cleanup,
   ctx,
+  // Generator utilities
   createGenerator,
   gen,
   watchGenerator,
@@ -322,6 +389,7 @@ export {
   parent as parentContext,
   children as childrenContext,
   siblings as siblingsContext,
+  executeElementCleanup,
 } from "./core/generator";
 
 // Context factory functions
@@ -439,7 +507,7 @@ export {
   type EnhancedTypedGeneratorContext as TypedGeneratorContext,
 } from "./watch-enhanced";
 
-// Original versions still available with explicit names
+// Original enhanced versions still available with explicit names for backward compatibility
 export {
   watchEnhanced,
   runOnEnhanced,
@@ -453,31 +521,40 @@ export { $, isWorkflow } from "./core/dollar-helper";
 export { async } from "./core/async-wrapper";
 export type { AsyncInSync } from "./core/async-wrapper";
 
-// Sync/Async generator wrappers have been integrated into the main API
+// All functions now support yield* patterns with Workflow<T> return types
+// This provides type-safe composition and eliminates the need for $ wrapper in most cases
 // The generator module has been removed as all functionality is now unified
 
-// Re-export for convenience
+// Re-export enhanced generator functions (support both direct calls and yield*)
 export { el, all } from "./core/generator";
 
 // Version info
 // export const VERSION = '5.0.0-alpha.1';
 
-// Default export is the enhanced watch function
-export { watchEnhanced as default } from "./watch-enhanced";
+// Default export is the enhanced watch function with attached context methods
+export { watch as default } from "./watch-enhanced";
 
 // ============================================================================
-// EXPLICIT API - Non-overloaded versions with clear, unambiguous names
+// STANDALONE MODULES AVAILABLE
 // ============================================================================
 
-// Export explicit API as namespace for cleaner imports
+// EXPLICIT API - Available as standalone module: 'watch-selector/explicit'
+// Non-overloaded versions with clear, unambiguous names
+// import { setTextElement, addClassSelector } from 'watch-selector/explicit';
+
+// FLUENT API - Available as standalone module: 'watch-selector/fluent'
+// Chainable jQuery-like interface for method chaining
+// import { selector, element, $fluent } from 'watch-selector/fluent';
+
+// Note: For backward compatibility, explicit and fluent APIs are still available
+// as namespaces in the main module, but prefer importing the standalone modules.
+// Main module exports below maintain compatibility for existing code.
+
+// Fluent factories available directly from main module for convenience
+export { selector, element, elements, $fluent } from "./fluent";
+
+// Explicit namespace still available for backward compatibility
 export * as explicit from "./explicit";
 
-// ============================================================================
-// FLUENT API - Chainable jQuery-like interface
-// ============================================================================
-
-// Export fluent API for method chaining
+// Fluent namespace still available for backward compatibility
 export * as fluent from "./fluent";
-
-// Also export main fluent factories directly
-export { selector, element, elements, $fluent } from "./fluent";

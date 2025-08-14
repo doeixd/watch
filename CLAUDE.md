@@ -70,7 +70,7 @@ addClass('.buttons', 'ready');       // Find by selector and add class
 watch('button', function* () {
   yield text('Ready');               // Generator-friendly ElementFn
   yield addClass('interactive');     // Auto-detects generator context
-  
+
   yield click(function* () {         // Event handlers can be generators too
     yield text('Clicked!');
     yield addClass('clicked');
@@ -78,51 +78,51 @@ watch('button', function* () {
 });
 ```
 
-**Enhanced Watch with Attached DOM Functions:** The `watchEnhanced` function provides a more ergonomic API with all DOM functions attached to the context:
+**Enhanced Watch with Attached DOM Functions:** The `watch` function provides a more ergonomic API with all DOM functions attached to the context:
 
 ```typescript
-import { watchEnhanced } from 'watch-selector';
+import { watch } from 'watch-selector';
 
-watchEnhanced('.card', function* (ctx) {
-  // All DOM functions are available on context
-  yield* ctx.text('Loading...');
-  yield* ctx.addClass('interactive');
-  
+watch('.card', function* (ctx) {
+  // All DOM functions are available on context - work directly without yield*
+  ctx.text('Loading...');
+  ctx.addClass('interactive');
+
   // Query child elements with type safety
-  const button = yield* ctx.query<HTMLButtonElement>('.action-btn');
-  const content = yield* ctx.query<HTMLDivElement>('.content');
-  
-  // Event handling with generators
-  yield* ctx.click(button, function* () {
-    yield* ctx.toggleClass('expanded');
-    const isExpanded = yield* ctx.hasClass('expanded');
-    
+  const button = ctx.query<HTMLButtonElement>('.action-btn');
+  const content = ctx.query<HTMLDivElement>('.content');
+
+  // Event handling with generators (event handlers still use yield*)
+  yield* ctx.click(function* () {
+    ctx.toggleClass('expanded');
+    const isExpanded = ctx.hasClass('expanded');
+
     if (isExpanded) {
-      yield* ctx.show(content);
+      ctx.show(content);
     } else {
-      yield* ctx.hide(content);
+      ctx.hide(content);
     }
   });
-  
-  // State management with type safety
-  yield* ctx.setState('count', 0);
-  const count = yield* ctx.getState<number>('count', 0);
+
+  // State management with type safety - direct calls
+  ctx.setState('count', 0);
+  const count = ctx.getState<number>('count', 0);
 });
 ```
 
-**$ Wrapper for Advanced Patterns:** The magical `$` helper enables type-safe `yield*` patterns:
+**Direct yield* for Type Safety:** All functions now support direct `yield*` patterns with full type inference:
 ```typescript
-import { watch, $, getState, setState, addClass } from 'watch-selector';
+import { watch, getState, setState, addClass } from 'watch-selector';
 
-watch('.interactive', async function* () {
-  // Perfect type inference through yield* delegation
-  const count = yield* $(getState<number>('clicks', 0));
-  yield* $(addClass('active'));
-  yield* $(setState('clicks', count + 1));
+watch('.interactive', function* () {
+  // Perfect type inference through yield* delegation - no $ needed!
+  const count = yield* getState<number>('clicks', 0);
+  yield* addClass('active');
+  yield* setState('clicks', count + 1);
 });
 ```
 
-**Complete API Flexibility:** Functions work in five distinct patterns with automatic context detection:
+**Complete API Flexibility:** Functions work in four distinct patterns with automatic context detection:
 ```typescript
 // Pattern 1: Direct element manipulation
 text(element, 'Hello');
@@ -130,21 +130,14 @@ text(element, 'Hello');
 // Pattern 2: CSS selector manipulation
 text('#button', 'Hello');
 
-// Pattern 3: Traditional generator usage (yield)
+// Pattern 3: Generator usage with yield* (recommended)
 watch('button', function* () {
-  yield text('Hello');
+  yield* text('Hello'); // Full type safety!
 });
 
-// Pattern 4: Unified yield* pattern with $ wrapper
-import { $, text } from 'watch-selector';
-watch('button', async function* () {
-  yield* $(text('Hello')); // Perfect type inference!
-});
-
-// Pattern 5: Pure generator submodule
-import { text } from 'watch-selector/generator';
-watch('button', async function* () {
-  yield* text('Hello'); // Direct workflow, no $ needed
+// Pattern 4: Enhanced context with direct methods (NEW)
+watch('button', function* (ctx) {
+  ctx.text('Hello'); // Direct calls - no yield* needed!
 });
 ```
 
@@ -294,39 +287,45 @@ const keys = yield* getStateKeys();
 Multiple patterns for elegant composition:
 
 ```typescript
-// Traditional yield pattern
+// Direct yield* pattern (recommended)
 watch('.counter', function* () {
   let count = 0;
-  yield click(function* () {
+  yield* click(function* () {
     count++;
-    yield text(`Clicked ${count} times`);
+    yield* text(`Clicked ${count} times`);
   });
 });
 
-// Unified yield* pattern with $ wrapper
-watch('.counter', async function* () {
-  const count = yield* $(getState<number>('count', 0));
-  yield* $(click(function* () {
-    yield* $(setState('count', count + 1));
-    yield* $(text(`Clicked ${count + 1} times`));
-  }));
+// With state management
+watch('.counter', function* () {
+  const count = yield* getState<number>('count', 0);
+  yield* click(function* () {
+    yield* setState('count', count + 1);
+    yield* text(`Clicked ${count + 1} times`);
+  });
 });
 
-// Enhanced context pattern
-watchEnhanced('.counter', async function* (ctx) {
-  const count = yield* ctx.getState<number>('count', 0);
-  
+// Enhanced context pattern (NEW)
+watch('.counter', function* (ctx) {
+  const count = ctx.getState<number>('count', 0);
+
   yield* ctx.click(function* () {
     const newCount = count + 1;
-    yield* ctx.setState('count', newCount);
-    yield* ctx.text(`Clicked ${newCount} times`);
+    ctx.setState('count', newCount);
+    ctx.text(`Clicked ${newCount} times`);
   });
 });
 
-// Pure generator submodule
-import { addClass, getState } from 'watch-selector/generator';
-watch('.counter', async function* () {
-  const count = yield* getState<number>('count', 0); // No $ needed
+// Direct usage from main export
+import { addClass, getState } from 'watch-selector';
+watch('.counter', function* () {
+  const count = yield* getState<number>('count', 0); // Direct yield* with type safety
+});
+
+// Enhanced context - direct calls without yield*
+import { watch } from 'watch-selector';
+watch('.counter', function* (ctx) {
+  const count = ctx.getState<number>('count', 0); // Direct call - no yield* needed!
 });
 ```
 
@@ -341,7 +340,7 @@ scopedWatch(parentElement, '.child', function* () {
 });
 
 // Enhanced scoped watching
-scopedWatchEnhanced(parentElement, '.child', function* (ctx) {
+scopedwatch(parentElement, '.child', function* (ctx) {
   yield* ctx.addClass('observed');
   yield* ctx.on('click', function* () {
     yield* ctx.toggleClass('selected');
@@ -395,48 +394,56 @@ The library provides **three complementary API structures**:
   ```typescript
   // Direct element manipulation
   text(element, 'Hello');
-  
-  // CSS selector manipulation  
+
+  // CSS selector manipulation
   text('#button', 'Hello');
-  
-  // Generator mode (automatically detected)
+
+  // Generator mode with yield* (recommended)
   watch('button', function* () {
-    yield text('Hello');        // Returns ElementFn<El>
-    const content = yield text(); // Returns ElementFn<El, string>
+    yield* text('Hello');        // Returns void with proper type
+    const content = yield* text(); // Returns string with full type inference
   });
-  
-  // Unified yield* pattern with $ wrapper
-  yield* $(text('Hello'));
+
+  // Direct yield* - no wrapper needed
+  yield* text('Hello');
   ```
 
-**2. Enhanced Context API** (`watchEnhanced` and `src/core/enhanced-context/`):
-- **Attached Methods**: All DOM functions available as context methods
-- **Improved Ergonomics**: More discoverable API with IntelliSense
-- **Type Safety**: Full type inference and safety
+**2. Enhanced Context API** (`watch` and `src/core/enhanced-context/`):
+- **Direct Method Calls**: All DOM functions work as direct synchronous calls
+- **Improved Ergonomics**: More discoverable API with IntelliSense, no yield* needed
+- **Type Safety**: Full type inference and safety with direct return values
 - **Usage Example**:
   ```typescript
-  import { watchEnhanced } from 'watch-selector';
-  
-  watchEnhanced('button', function* (ctx) {
-    yield* ctx.text('Hello');
-    yield* ctx.addClass('active');
-    
-    const parent = yield* ctx.parent();
-    const siblings = yield* ctx.siblings();
+  import { watch } from 'watch-selector';
+
+  watch('button', function* (ctx) {
+    ctx.text('Hello');        // Direct call
+    ctx.addClass('active');   // Direct call
+
+    const parent = ctx.parent();    // Direct return value
+    const siblings = ctx.siblings(); // Direct return value
   });
   ```
 
-**3. Pure Generator Submodule** (`src/generator/` and `/generator` exports):
-- **Pure Workflow Functions**: Each function returns `Workflow<T>` directly
-- **No Overloading**: Single-purpose functions designed for `yield*`
-- **Import Path**: `'watch-selector/generator'` submodule
-- **Usage Example**:
+**3. Unified Workflow API** (Integrated into main exports):
+- **All Functions Support yield***: Every function returns `Workflow<T>` when called in generator context (main API)
+- **Enhanced Context Direct Calls**: Functions return direct values when called on enhanced context
+- **Type-Safe Returns**: Full type inference for all returned values
+- **Import Path**: `'watch-selector'` main package
+- **Usage Examples**:
   ```typescript
-  import { text, addClass } from 'watch-selector/generator';
-  
-  watch('button', async function* () {
-    yield* text('Hello');     // Direct workflow, no $ needed
+  import { text, addClass, watch } from 'watch-selector';
+
+  // Main API - uses yield*
+  watch('button', function* () {
+    yield* text('Hello');     // Workflow with type safety
     yield* addClass('active'); // Clean yield* syntax
+  });
+
+  // Enhanced context - direct calls
+  watch('button', function* (ctx) {
+    ctx.text('Hello');        // Direct synchronous call
+    ctx.addClass('active');   // Direct synchronous call
   });
   ```
 
@@ -500,7 +507,7 @@ All major exported functions now have extensive JSDoc documentation with multipl
 - ✅ **Utility Functions**: `isElement`, `isElementLike`, `resolveElement`
 
 **Enhanced Context API (`src/watch-enhanced.ts`)**:
-- ✅ **Core Functions**: `watchEnhanced`, `runOnEnhanced`, `scopedWatchEnhanced`
+- ✅ **Core Functions**: `watch`, `runOnEnhanced`, `scopedwatch`
 - ✅ **Context Methods**: All DOM and event functions attached to context
 - ✅ **Type Safety**: Full generic type support with inference
 
@@ -530,7 +537,7 @@ All major exported functions now have extensive JSDoc documentation with multipl
 
 **Usage Pattern Coverage**: Documentation covers all API patterns:
 1. Direct element manipulation
-2. CSS selector manipulation  
+2. CSS selector manipulation
 3. Traditional generator usage (yield)
 4. Unified `yield*` pattern with `$` wrapper
 5. Pure generator submodule
@@ -567,3 +574,11 @@ Uses pridepack for build management with TypeScript compilation and multiple out
 - Enhanced lifecycle hooks (onMount, onUnmount)
 - Advanced event options (debounce, throttle, queue)
 - Event delegation support
+
+
+
+everything should be type safe, flexible, with overlaods, fit together seamlessly, and have detailed, comprehensive doc comments with examples and params and throws, and explanations.
+
+
+after evrery big task, write a doc, with the date and time, sumamrizing your path, what decisions you made, and how you solved problems, and any other relevant information. and put it in docs/AGENT_DOCS/
+k

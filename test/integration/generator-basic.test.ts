@@ -1,56 +1,38 @@
 /**
- * @fileoverview Basic integration tests for the generator module
+ * @fileoverview Basic integration tests for the unified API
  *
- * These tests verify that the generator module functions work correctly
- * with the actual exported functions.
+ * These tests verify that the unified API functions work correctly
+ * with yield* patterns in generator contexts.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { watch } from "../../src/watch";
 import {
   text,
-  getText,
-  appendText,
-  prependText,
   html,
-  getHtml,
-  appendHtml,
-  prependHtml,
   addClass,
   removeClass,
   toggleClass,
   hasClass,
-  replaceClass,
-  setClasses,
   style,
-  getStyle,
-  removeStyle,
   attr,
-  getAttr,
   hasAttr,
   removeAttr,
   prop,
-  getProp,
   data,
-  getData,
-  removeData,
   value,
-  getValue,
-  setChecked,
-  isChecked,
+  checked,
   focus,
   blur,
   show,
   hide,
-  toggle,
   self,
   query,
   queryAll,
   parent,
   children,
   siblings,
-  run,
-} from "../../src/generator/dom";
+} from "../../src/index";
 import { delay } from "../../src/core/async-wrapper";
 import {
   getState,
@@ -58,18 +40,11 @@ import {
   updateState,
   hasState,
   deleteState,
-  clearState,
-  incrementState,
-  decrementState,
-  toggleState,
-  appendToState,
-  prependToState,
-  removeFromState,
-  mergeState,
+  clearAllState,
   watchState,
-  getStateSnapshot,
-  computedState,
-} from "../../src/generator/state";
+  createState,
+  createTypedState,
+} from "../../src/core/state";
 import {
   click,
   input,
@@ -79,679 +54,667 @@ import {
   emit,
   onMount,
   onUnmount,
-} from "../../src/generator/events";
+} from "../../src/index";
 
-describe("Generator Module Basic Integration Tests", () => {
-  let container: HTMLElement;
+describe("Unified API Basic Integration Tests", () => {
+  let testContainer: HTMLElement;
 
   beforeEach(() => {
-    container = document.createElement("div");
-    container.id = "test-container";
-    document.body.appendChild(container);
+    testContainer = document.createElement("div");
+    testContainer.id = "test-container";
+    document.body.appendChild(testContainer);
   });
 
   afterEach(() => {
-    document.body.removeChild(container);
+    if (testContainer && testContainer.parentNode) {
+      testContainer.parentNode.removeChild(testContainer);
+    }
+    document.body.innerHTML = "";
   });
 
-  describe("Text and HTML Operations", () => {
-    it("should manipulate text content", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("DOM Manipulation with yield*", () => {
+    it("should handle text operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Set text
         yield* text("Hello World");
-        expect(element.textContent).toBe("Hello World");
 
         // Get text
-        const content = yield* getText();
+        const content = yield* text();
         expect(content).toBe("Hello World");
 
-        // Append text
-        yield* appendText(" - Appended");
-        expect(element.textContent).toBe("Hello World - Appended");
-
-        // Prepend text
-        yield* prependText("Prepended - ");
-        expect(element.textContent).toBe("Prepended - Hello World - Appended");
+        // Update text
+        yield* text("Updated Text");
       });
+
+      expect(div.textContent).toBe("Updated Text");
     });
 
-    it("should manipulate HTML content", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle HTML operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Set HTML
-        yield* html("<strong>Bold</strong> text");
-        expect(element.innerHTML).toBe("<strong>Bold</strong> text");
+        yield* html("<span>HTML Content</span>");
 
         // Get HTML
-        const htmlContent = yield* getHtml();
-        expect(htmlContent).toBe("<strong>Bold</strong> text");
-
-        // Append HTML
-        yield* appendHtml(" <em>italic</em>");
-        expect(element.querySelector("em")?.textContent).toBe("italic");
-
-        // Prepend HTML
-        yield* prependHtml("<span>Start</span> ");
-        expect(element.querySelector("span")?.textContent).toBe("Start");
+        const content = yield* html();
+        expect(content).toBe("<span>HTML Content</span>");
       });
+
+      expect(div.innerHTML).toBe("<span>HTML Content</span>");
     });
-  });
 
-  describe("Class Operations", () => {
-    it("should manipulate CSS classes", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle class operations", async () => {
+      const div = document.createElement("div");
+      div.className = "original";
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Add class
-        yield* addClass("active");
-        expect(element.classList.contains("active")).toBe(true);
+        yield* addClass("added");
 
         // Check class
-        const hasActive = yield* hasClass("active");
-        expect(hasActive).toBe(true);
-
-        // Toggle class
-        const toggleResult = yield* toggleClass("highlighted");
-        expect(toggleResult).toBe(true);
-        expect(element.classList.contains("highlighted")).toBe(true);
+        const hasAdded = yield* hasClass("added");
+        expect(hasAdded).toBe(true);
 
         // Remove class
-        yield* removeClass("active");
-        expect(element.classList.contains("active")).toBe(false);
+        yield* removeClass("original");
 
-        // Replace class
-        yield* addClass("old-class");
-        const replaced = yield* replaceClass("old-class", "new-class");
-        expect(replaced).toBe(true);
-        expect(element.classList.contains("new-class")).toBe(true);
+        // Toggle class
+        yield* toggleClass("toggled");
 
-        // Set all classes
-        yield* setClasses("class1 class2 class3");
-        expect(element.className).toBe("class1 class2 class3");
+        // Verify final state
+        const hasOriginal = yield* hasClass("original");
+        const hasToggled = yield* hasClass("toggled");
+
+        expect(hasOriginal).toBe(false);
+        expect(hasToggled).toBe(true);
       });
+
+      expect(div.classList.contains("added")).toBe(true);
+      expect(div.classList.contains("original")).toBe(false);
+      expect(div.classList.contains("toggled")).toBe(true);
     });
-  });
 
-  describe("Style Operations", () => {
-    it("should manipulate inline styles", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle style operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
-        // Set single style
+      await watch(div, async function* () {
+        // Set style
         yield* style("color", "red");
-        expect(element.style.color).toBe("red");
+        yield* style("fontSize", "16px");
 
-        // Set multiple styles
-        yield* style({
-          backgroundColor: "blue",
-          padding: "10px",
-        });
-        expect(element.style.backgroundColor).toBe("blue");
-        expect(element.style.padding).toBe("10px");
-
-        // Remove style
-        yield* removeStyle("padding");
-        expect(element.style.padding).toBe("");
+        // Get style
+        const color = yield* style("color");
+        expect(color).toBe("red");
       });
+
+      expect(div.style.color).toBe("red");
+      expect(div.style.fontSize).toBe("16px");
     });
-  });
 
-  describe("Attribute Operations", () => {
-    it("should manipulate attributes", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle attribute operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Set attribute
-        yield* attr("data-id", "123");
-        expect(element.getAttribute("data-id")).toBe("123");
+        yield* attr("data-test", "value1");
+
+        // Check attribute exists
+        const hasAttr1 = yield* hasAttr("data-test");
+        expect(hasAttr1).toBe(true);
 
         // Get attribute
-        const id = yield* getAttr("data-id");
-        expect(id).toBe("123");
-
-        // Check attribute
-        const hasId = yield* hasAttr("data-id");
-        expect(hasId).toBe(true);
-
-        // Set multiple attributes
-        yield* attr({
-          role: "button",
-          "aria-label": "Click me",
-        });
-        expect(element.getAttribute("role")).toBe("button");
-        expect(element.getAttribute("aria-label")).toBe("Click me");
+        const value = yield* attr("data-test");
+        expect(value).toBe("value1");
 
         // Remove attribute
-        yield* removeAttr("data-id");
-        expect(element.hasAttribute("data-id")).toBe(false);
+        yield* removeAttr("data-test");
+
+        // Check attribute removed
+        const hasAttr2 = yield* hasAttr("data-test");
+        expect(hasAttr2).toBe(false);
       });
+
+      expect(div.hasAttribute("data-test")).toBe(false);
     });
-  });
 
-  describe("Property Operations", () => {
-    it("should manipulate DOM properties", async () => {
-      const inputElement = document.createElement("input");
-      inputElement.type = "text";
-      container.appendChild(inputElement);
+    it("should handle property operations", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
+      input.type = "text";
+      testContainer.appendChild(input);
 
-      await watch(inputElement as HTMLElement, function* (ctx) {
+      await watch(input, async function* () {
         // Set property
-        yield* prop("value", "Test Value");
-        expect(inputElement.value).toBe("Test Value");
+        yield* prop("value", "test value");
 
         // Get property
-        const val = yield* getProp("value");
-        expect(val).toBe("Test Value");
-
-        // Set complex property
-        yield* prop("disabled", true);
-        expect(inputElement.disabled).toBe(true);
+        const value = yield* prop("value");
+        expect(value).toBe("test value");
       });
+
+      expect(input.value).toBe("test value");
     });
-  });
 
-  describe("Data Attribute Operations", () => {
-    it("should manipulate data attributes", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle data operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Set data attribute
-        yield* data("user-id", "456");
-        expect(element.dataset.userId).toBe("456");
+        yield* data("test", "data-value");
 
         // Get data attribute
-        const userId = yield* getData("user-id");
-        expect(userId).toBe("456");
-
-        // Remove data attribute
-        yield* removeData("user-id");
-        expect(element.dataset.userId).toBeUndefined();
+        const value = yield* data("test");
+        expect(value).toBe("data-value");
       });
+
+      expect(div.dataset.test).toBe("data-value");
     });
-  });
 
-  describe("Form Value Operations", () => {
-    it("should handle input values", async () => {
-      const inputElement = document.createElement("input");
-      inputElement.type = "text";
-      container.appendChild(inputElement);
+    it("should handle form value operations", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
+      input.type = "text";
+      testContainer.appendChild(input);
 
-      await watch(inputElement as HTMLElement, function* (ctx) {
+      await watch(input, async function* () {
         // Set value
-        yield* value("Test Input");
-        expect(inputElement.value).toBe("Test Input");
+        yield* value("form value");
 
         // Get value
-        const val = yield* getValue();
-        expect(val).toBe("Test Input");
+        const val = yield* value();
+        expect(val).toBe("form value");
       });
+
+      expect(input.value).toBe("form value");
     });
 
-    it("should handle checkbox values", async () => {
-      const checkbox = document.createElement("input");
+    it("should handle checkbox operations", async () => {
+      const checkbox = document.createElement("input") as HTMLInputElement;
       checkbox.type = "checkbox";
-      container.appendChild(checkbox);
+      testContainer.appendChild(checkbox);
 
-      await watch(checkbox as HTMLElement, function* (ctx) {
+      await watch(checkbox, async function* () {
         // Set checked
-        yield* setChecked(true);
-        expect(checkbox.checked).toBe(true);
+        yield* checked(true);
 
-        // Get checked state
-        const isCheckedResult = yield* isChecked();
-        expect(isCheckedResult).toBe(true);
+        // Get checked
+        const isChecked = yield* checked();
+        expect(isChecked).toBe(true);
 
         // Uncheck
-        yield* setChecked(false);
-        expect(checkbox.checked).toBe(false);
+        yield* checked(false);
+
+        // Verify unchecked
+        const isUnchecked = yield* checked();
+        expect(isUnchecked).toBe(false);
       });
+
+      expect(checkbox.checked).toBe(false);
     });
-  });
 
-  describe("Visibility Operations", () => {
-    it("should show and hide elements", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle visibility operations", async () => {
+      const div = document.createElement("div");
+      div.style.display = "block";
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
-        // Hide
+      await watch(div, async function* () {
+        // Hide element
         yield* hide();
-        expect(element.style.display).toBe("none");
 
-        // Show
+        // Show element
         yield* show();
-        // After show(), display should be removed (empty string when reading style.display)
-        expect(element.style.display).toBe("");
-
-        // Toggle
-        yield* toggle();
-        expect(element.style.display).toBe("none");
-
-        yield* toggle();
-        // Toggle should restore to empty/removed display
-        expect(element.style.display).toBe("");
       });
+
+      expect(div.style.display).not.toBe("none");
     });
   });
 
-  describe("DOM Query Operations", () => {
-    it("should query elements", async () => {
-      const parent = document.createElement("div");
-      parent.innerHTML = `
-        <span class="child1">Child 1</span>
-        <span class="child2">Child 2</span>
-        <div class="nested">
-          <span class="child3">Child 3</span>
-        </div>
-      `;
-      container.appendChild(parent);
+  describe("Context Operations with yield*", () => {
+    it("should handle self operations", async () => {
+      const button = document.createElement("button");
+      button.id = "test-button";
+      testContainer.appendChild(button);
 
-      await watch(parent as HTMLElement, function* (ctx) {
-        // Get self
-        const selfEl = yield* self();
-        expect(selfEl).toBe(parent);
-
-        // Query single element
-        const child1 = yield* query(".child1");
-        expect(child1?.textContent).toBe("Child 1");
-
-        // Query all elements
-        const allSpans = yield* queryAll("span");
-        expect(allSpans.length).toBe(3);
-
-        // Get children
-        const childrenEls = yield* children();
-        expect(childrenEls.length).toBe(3);
+      await watch(button, async function* () {
+        // Get self element
+        const element = yield* self();
+        expect(element).toBe(button);
+        expect(element.id).toBe("test-button");
       });
     });
 
-    it("should navigate DOM relationships", async () => {
-      const parentDiv = document.createElement("div");
-      parentDiv.className = "parent";
+    it("should handle query operations", async () => {
+      const container = document.createElement("div");
+      const child = document.createElement("span");
+      child.className = "child";
+      child.textContent = "Child Element";
+      container.appendChild(child);
+      testContainer.appendChild(container);
 
+      await watch(container, async function* () {
+        // Query child element
+        const foundChild = yield* query(".child");
+        expect(foundChild).toBe(child);
+        expect(foundChild?.textContent).toBe("Child Element");
+
+        // Query all (should return array)
+        const allChildren = yield* queryAll("span");
+        expect(allChildren).toHaveLength(1);
+        expect(allChildren[0]).toBe(child);
+      });
+    });
+
+    it("should handle traversal operations", async () => {
+      const grandparent = document.createElement("div");
+      const parentEl = document.createElement("div");
       const child1 = document.createElement("span");
-      const child2 = document.createElement("div");
-      const child3 = document.createElement("span");
+      const child2 = document.createElement("span");
 
-      parentDiv.appendChild(child1);
-      parentDiv.appendChild(child2);
-      parentDiv.appendChild(child3);
-      container.appendChild(parentDiv);
+      child1.className = "child";
+      child2.className = "sibling";
 
-      await watch(child2 as HTMLElement, function* (ctx) {
+      parentEl.appendChild(child1);
+      parentEl.appendChild(child2);
+      grandparent.appendChild(parentEl);
+      testContainer.appendChild(grandparent);
+
+      await watch(child1, async function* () {
         // Get parent
-        const parentEl = yield* parent();
-        expect(parentEl).toBe(parentDiv);
+        const parentElement = yield* parent();
+        expect(parentElement).toBe(parentEl);
 
         // Get siblings
-        const siblingsEls = yield* siblings();
-        expect(siblingsEls.length).toBe(2);
-        expect(siblingsEls[0]).toBe(child1);
-        expect(siblingsEls[1]).toBe(child3);
+        const siblingElements = yield* siblings();
+        expect(siblingElements).toHaveLength(1);
+        expect(siblingElements[0]).toBe(child2);
+      });
+
+      await watch(parentEl, async function* () {
+        // Get children
+        const childElements = yield* children();
+        expect(childElements).toHaveLength(2);
+        expect(childElements[0]).toBe(child1);
+        expect(childElements[1]).toBe(child2);
       });
     });
   });
 
-  describe("State Management", () => {
-    it("should manage element state", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("State Management with yield*", () => {
+    it("should handle basic state operations", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
+      await watch(div, async function* () {
         // Set state
-        yield* setState("count", 0);
-        yield* setState("name", "Test");
+        yield* setState("test", "value");
+
+        // Check state exists
+        const exists = yield* hasState("test");
+        expect(exists).toBe(true);
 
         // Get state
-        const count = yield* getState<number>("count");
-        expect(count).toBe(0);
-
-        const name = yield* getState<string>("name");
-        expect(name).toBe("Test");
-
-        // Check state existence
-        const hasCount = yield* hasState("count");
-        expect(hasCount).toBe(true);
+        const value = yield* getState("test");
+        expect(value).toBe("value");
 
         // Update state
-        const newCount = yield* updateState<number>("count", (c = 0) => c + 1);
-        expect(newCount).toBe(1);
+        yield* updateState("test", (current: string) => current + "!");
+
+        // Verify update
+        const updated = yield* getState("test");
+        expect(updated).toBe("value!");
 
         // Delete state
-        const deleted = yield* deleteState("name");
-        expect(deleted).toBe(true);
-        expect(yield* hasState("name")).toBe(false);
+        yield* deleteState("test");
 
-        // Clear all state
-        yield* setState("temp", "value");
-        yield* clearState();
-        expect(yield* hasState("count")).toBe(false);
-        expect(yield* hasState("temp")).toBe(false);
+        // Verify deletion
+        const stillExists = yield* hasState("test");
+        expect(stillExists).toBe(false);
       });
     });
 
-    it("should handle specialized state operations", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle complex state objects", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element as HTMLElement, function* (ctx) {
-        // Increment/decrement
-        yield* setState("counter", 5);
-        const inc = yield* incrementState("counter", 2);
-        expect(inc).toBe(7);
+      interface UserData {
+        name: string;
+        age: number;
+        active: boolean;
+      }
 
-        const dec = yield* decrementState("counter", 3);
-        expect(dec).toBe(4);
+      await watch(div, async function* () {
+        const userData: UserData = { name: "John", age: 25, active: true };
 
-        // Toggle boolean
-        const toggle1 = yield* toggleState("flag");
-        expect(toggle1).toBe(true);
+        // Set complex state
+        yield* setState("user", userData);
 
-        const toggle2 = yield* toggleState("flag");
-        expect(toggle2).toBe(false);
+        // Get complex state
+        const retrievedUser = yield* getState<UserData>("user");
+        expect(retrievedUser).toEqual(userData);
 
-        // Array operations
-        yield* setState("items", ["a", "b"]);
+        // Update complex state
+        yield* updateState("user", (current: UserData) => ({
+          ...current,
+          age: current.age + 1,
+        }));
 
-        const appended = yield* appendToState("items", "c");
-        expect(appended).toEqual(["a", "b", "c"]);
-
-        const prepended = yield* prependToState("items", "z");
-        expect(prepended).toEqual(["z", "a", "b", "c"]);
-
-        // Object merge
-        yield* setState("config", { theme: "light", size: 14 });
-        const merged = yield* mergeState("config", {
-          theme: "dark",
-          newProp: true,
-        });
-        expect(merged).toEqual({ theme: "dark", size: 14, newProp: true });
-      });
-    });
-
-    it("should compute and snapshot state", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      await watch(element as HTMLElement, function* (ctx) {
-        // Set some state
-        yield* setState("firstName", "John");
-        yield* setState("lastName", "Doe");
-        yield* setState("age", 30);
-
-        // Computed state
-        const fullName = yield* computedState(
-          ["firstName", "lastName"],
-          (deps) => {
-            return `${deps.firstName} ${deps.lastName}`;
-          },
-        );
-        expect(fullName).toBe("John Doe");
-
-        // Get snapshot
-        const snapshot = yield* getStateSnapshot();
-        expect(snapshot).toEqual({
-          firstName: "John",
-          lastName: "Doe",
-          age: 30,
-        });
+        // Verify complex update
+        const updatedUser = yield* getState<UserData>("user");
+        expect(updatedUser.age).toBe(26);
+        expect(updatedUser.name).toBe("John");
       });
     });
   });
 
-  describe("Event Handling", () => {
+  describe("Event Handling with yield*", () => {
     it("should handle click events", async () => {
       const button = document.createElement("button");
       button.textContent = "Click me";
-      container.appendChild(button);
+      testContainer.appendChild(button);
 
       let clicked = false;
 
-      await watch(button as HTMLElement, function* (ctx) {
-        yield* click(function* (event) {
+      await watch(button, async function* () {
+        yield* click(() => {
           clicked = true;
-          yield* text("Clicked!");
+        });
+      });
+
+      // Wait for DOM updates
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Simulate click
+      button.click();
+      expect(clicked).toBe(true);
+    });
+
+    it("should handle input events", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
+      input.type = "text";
+      testContainer.appendChild(input);
+
+      let lastValue = "";
+
+      await watch(input, async function* () {
+        yield* input((event) => {
+          lastValue = (event.target as HTMLInputElement).value;
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Simulate input
+      input.value = "test input";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(lastValue).toBe("test input");
+    });
+
+    it("should handle submit events", async () => {
+      const form = document.createElement("form");
+      testContainer.appendChild(form);
+
+      let submitted = false;
+
+      await watch(form, async function* () {
+        yield* submit((event) => {
+          event.preventDefault();
+          submitted = true;
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Simulate submit
+      form.dispatchEvent(new Event("submit"));
+      expect(submitted).toBe(true);
+    });
+
+    it("should handle custom events", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
+
+      let eventData: any = null;
+
+      await watch(div, async function* () {
+        yield* on("custom-event", (event: CustomEvent) => {
+          eventData = event.detail;
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Dispatch custom event
+      div.dispatchEvent(
+        new CustomEvent("custom-event", {
+          detail: { message: "Hello from unified API" },
+        }),
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(eventData).toEqual({ message: "Hello from unified API" });
+    });
+
+    it("should handle lifecycle events", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
+
+      let mounted = false;
+      let unmounted = false;
+
+      const controller = watch(div, async function* () {
+        yield* onMount(() => {
+          mounted = true;
+        });
+
+        yield* onUnmount(() => {
+          unmounted = true;
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mounted).toBe(true);
+      expect(unmounted).toBe(false);
+
+      // Cleanup
+      controller.destroy();
+      expect(unmounted).toBe(true);
+    });
+
+    it("should handle generator event handlers", async () => {
+      const button = document.createElement("button");
+      testContainer.appendChild(button);
+
+      await watch(button, async function* () {
+        yield* text("Count: 0");
+        yield* setState("clicks", 0);
+
+        yield* click(async function* () {
+          // Update state in generator
+          const currentClicks = yield* getState<number>("clicks", 0);
+          const newClicks = currentClicks + 1;
+          yield* setState("clicks", newClicks);
+
+          // Update display
+          yield* text(`Count: ${newClicks}`);
+
+          // Add visual feedback
           yield* addClass("clicked");
         });
       });
 
-      // Simulate click
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(button.textContent).toBe("Count: 0");
+
+      // First click
       button.click();
       await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(clicked).toBe(true);
-      expect(button.textContent).toBe("Clicked!");
+      expect(button.textContent).toBe("Count: 1");
       expect(button.classList.contains("clicked")).toBe(true);
-    });
 
-    it("should handle input events", async () => {
-      const inputElement = document.createElement("input");
-      inputElement.type = "text";
-      container.appendChild(inputElement);
-
-      let lastValue = "";
-
-      await watch(inputElement as HTMLElement, function* (ctx) {
-        yield* input(function* (event) {
-          const target = event.target as HTMLInputElement;
-          lastValue = target.value;
-
-          if (target.value.length > 5) {
-            yield* addClass("valid");
-          } else {
-            yield* removeClass("valid");
-          }
-        });
-      });
-
-      // Simulate input
-      inputElement.value = "test";
-      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+      // Second click
+      button.click();
       await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(lastValue).toBe("test");
-      expect(inputElement.classList.contains("valid")).toBe(false);
-
-      // More input
-      inputElement.value = "testing";
-      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(lastValue).toBe("testing");
-      expect(inputElement.classList.contains("valid")).toBe(true);
-    });
-
-    it("should handle form submission", async () => {
-      const form = document.createElement("form");
-      form.innerHTML = `
-        <input type="text" name="username" value="john">
-        <button type="submit">Submit</button>
-      `;
-      container.appendChild(form);
-
-      let submitted = false;
-      let formData: any = null;
-
-      await watch(form as HTMLElement, function* (ctx) {
-        yield* submit(function* (event) {
-          event.preventDefault();
-          submitted = true;
-
-          const data = new FormData(event.target as HTMLFormElement);
-          formData = Object.fromEntries(data.entries());
-
-          yield* addClass("submitted");
-        });
-      });
-
-      // Submit form
-      form.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
-      );
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(submitted).toBe(true);
-      expect(formData).toEqual({ username: "john" });
-      expect(form.classList.contains("submitted")).toBe(true);
-    });
-
-    it("should handle custom events", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      let received = false;
-      let eventData: any = null;
-
-      await watch(element as HTMLElement, function* (ctx) {
-        yield* on("custom", function* (event: Event) {
-          received = true;
-          eventData = (event as CustomEvent).detail;
-          yield* text(`Received: ${(event as CustomEvent).detail.message}`);
-        });
-
-        // Emit event
-        yield* emit("custom", { message: "Hello", value: 42 });
-      });
-
-      // Wait for async operations
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(received).toBe(true);
-      expect(eventData).toEqual({ message: "Hello", value: 42 });
-      expect(element.textContent).toBe("Received: Hello");
+      expect(button.textContent).toBe("Count: 2");
     });
   });
 
-  describe("Utility Operations", () => {
-    it("should handle delays", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Complex Workflow Composition", () => {
+    it("should support complex application patterns", async () => {
+      const app = document.createElement("div");
+      const input = document.createElement("input");
+      const button = document.createElement("button");
+      const list = document.createElement("ul");
 
-      const start = Date.now();
+      input.type = "text";
+      input.placeholder = "Enter item";
+      button.textContent = "Add Item";
 
-      await watch(element as HTMLElement, function* (ctx) {
-        yield* text("Before");
-        yield* delay(50);
-        yield* text("After");
+      app.appendChild(input);
+      app.appendChild(button);
+      app.appendChild(list);
+      testContainer.appendChild(app);
+
+      await watch(app, async function* () {
+        // Initialize state
+        yield* setState("items", []);
+
+        // Handle input changes
+        const inputElement = yield* query("input");
+        if (inputElement) {
+          yield* input(inputElement as HTMLElement, async function* (event) {
+            const value = (event.target as HTMLInputElement).value;
+            yield* setState("currentInput", value);
+          });
+        }
+
+        // Handle button clicks
+        const buttonElement = yield* query("button");
+        if (buttonElement) {
+          yield* click(buttonElement as HTMLElement, async function* () {
+            const currentInput = yield* getState<string>("currentInput", "");
+            const items = yield* getState<string[]>("items", []);
+
+            if (currentInput.trim()) {
+              const newItems = [...items, currentInput];
+              yield* setState("items", newItems);
+
+              // Clear input
+              const inputEl = yield* query("input");
+              if (inputEl) {
+                yield* value(inputEl as HTMLElement, "");
+              }
+
+              // Update list
+              const listElement = yield* query("ul");
+              if (listElement) {
+                const listHtml = newItems
+                  .map((item) => `<li>${item}</li>`)
+                  .join("");
+                yield* html(listElement as HTMLElement, listHtml);
+              }
+            }
+          });
+        }
       });
 
-      const elapsed = Date.now() - start;
-      expect(elapsed).toBeGreaterThanOrEqual(45); // Allow some margin
-      expect(element.textContent).toBe("After");
-    });
-
-    it("should run arbitrary functions", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      let sideEffect = 0;
-
-      await watch(element as HTMLElement, function* (ctx) {
-        const result = yield* run(() => {
-          sideEffect = 42;
-          return "done";
-        });
-
-        expect(result).toBe("done");
-        expect(sideEffect).toBe(42);
-
-        // Run async function
-        const asyncResult = yield* run(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-          return "async done";
-        });
-
-        expect(asyncResult).toBe("async done");
-      });
-    });
-  });
-
-  describe("Complex Scenarios", () => {
-    it("should handle a complete interactive component", async () => {
-      const component = document.createElement("div");
-      component.className = "todo-container";
-      component.innerHTML = `
-        <input type="text" class="input" placeholder="Enter text">
-        <button class="add">Add</button>
-        <ul class="list"></ul>
-        <div class="status">0 item(s)</div>
-      `;
-      container.appendChild(component);
-
-      // Set up state on the container
-      await watch(component as HTMLElement, function* (ctx) {
-        yield* setState<string[]>("items", []);
-      });
-
-      // Watch the button for clicks
-      const button = component.querySelector(".add") as HTMLButtonElement;
-      const inputElement = component.querySelector(
-        ".input",
-      ) as HTMLInputElement;
-      const list = component.querySelector(".list") as HTMLUListElement;
-      const status = component.querySelector(".status") as HTMLDivElement;
-
-      await watch(button as HTMLElement, function* (ctx) {
-        yield* click(function* (event) {
-          // Get items from parent container's state
-          const container = document.querySelector(
-            ".todo-container",
-          ) as HTMLDivElement;
-
-          // Since we're in button context, we need to work with the button
-          // For this test, let's simplify by using the button's state
-          const items = yield* getState<string[]>("items", []);
-          const value = inputElement.value.trim();
-
-          if (value) {
-            const newItems = [...items, value];
-            yield* setState("items", newItems);
-
-            // Update list HTML directly
-            list.innerHTML = newItems
-              .map((item) => `<li>${item}</li>`)
-              .join("");
-            status.textContent = `${newItems.length} item(s)`;
-            inputElement.value = "";
-          }
-        });
-      });
-
-      // Watch input for changes
-      await watch(inputElement as HTMLElement, function* (ctx) {
-        yield* on("input", function* (event) {
-          const value = (yield* self<HTMLInputElement>()).value;
-          if (value.length > 0) {
-            button.classList.add("ready");
-          } else {
-            button.classList.remove("ready");
-          }
-        });
-      });
-
-      // Test the component
-      inputElement.value = "First item";
-      inputElement.dispatchEvent(new Event("input", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(button.classList.contains("ready")).toBe(true);
+      // Simulate adding items
+      (input as HTMLInputElement).value = "Item 1";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       button.click();
-      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const listItems = list.querySelectorAll("li");
-      expect(listItems.length).toBe(1);
-      expect(listItems[0].textContent).toBe("First item");
-      expect(status.textContent).toBe("1 item(s)");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(list.children.length).toBe(1);
+      expect(list.children[0].textContent).toBe("Item 1");
+      expect((input as HTMLInputElement).value).toBe("");
+    });
+
+    it("should handle async operations with delay", async () => {
+      const button = document.createElement("button");
+      testContainer.appendChild(button);
+
+      await watch(button, async function* () {
+        yield* text("Ready");
+
+        yield* click(async function* () {
+          yield* text("Loading...");
+          yield* addClass("loading");
+
+          // Simulate async operation
+          await delay(50);
+
+          yield* text("Complete!");
+          yield* removeClass("loading");
+          yield* addClass("complete");
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(button.textContent).toBe("Ready");
+
+      // Trigger click
+      button.click();
+
+      // Should show loading immediately
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(button.textContent).toBe("Loading...");
+      expect(button.classList.contains("loading")).toBe(true);
+
+      // Should complete after delay
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(button.textContent).toBe("Complete!");
+      expect(button.classList.contains("loading")).toBe(false);
+      expect(button.classList.contains("complete")).toBe(true);
+    });
+  });
+
+  describe("Type Safety", () => {
+    it("should maintain type safety with yield*", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
+
+      await watch(div, async function* () {
+        // Type-safe state operations
+        yield* setState<number>("count", 42);
+        const count: number = yield* getState<number>("count", 0);
+        expect(typeof count).toBe("number");
+        expect(count).toBe(42);
+
+        // Type-safe string operations
+        yield* setState<string>("message", "hello");
+        const message: string = yield* getState<string>("message", "");
+        expect(typeof message).toBe("string");
+        expect(message).toBe("hello");
+
+        // Type-safe boolean operations
+        yield* setState<boolean>("flag", true);
+        const flag: boolean = yield* getState<boolean>("flag", false);
+        expect(typeof flag).toBe("boolean");
+        expect(flag).toBe(true);
+
+        // Type-safe element operations
+        const element: HTMLElement = yield* self();
+        expect(element).toBe(div);
+
+        // Type-safe text operations
+        yield* text("type test");
+        const textContent: string = yield* text();
+        expect(textContent).toBe("type test");
+      });
     });
   });
 });

@@ -198,11 +198,10 @@ export async function executeGenerator<
   index: number,
   array: readonly El[],
   generatorFn: (
-    ctx: TypedGeneratorContext<El>,
+    ctx?: TypedGeneratorContext<El>,
   ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
   signal?: AbortSignal,
 ): Promise<T | undefined> {
-  createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
     element,
     selector,
@@ -321,17 +320,21 @@ async function handleYieldedValue<El extends HTMLElement>(
   // Handle functions - could be element functions or Workflow operations
   if (typeof yielded === "function") {
     // Check if function looks like it expects a WatchContext (from generator submodule)
-    // These functions typically have "context" in their parameter name
+    // These functions typically have "context" as the first parameter name
     const fnStr = yielded.toString();
-    const isWatchContextFn = fnStr.includes("context");
+    
+    // More precise check - look for context as a parameter name, not just anywhere in the function
+    const paramMatch = fnStr.match(/^\s*(?:async\s+)?(?:function\s*)?[^(]*\(\s*([^)]*)\)/);
+    const firstParam = paramMatch?.[1]?.trim().split(',')[0]?.trim() || '';
+    const isWatchContextFn = firstParam.includes('context') || firstParam.includes('ctx');
 
     // Check if function looks like it expects an element (ElementFn pattern)
-    // But exclude functions that look like WatchContext functions
+    // Look for element-related parameter names or single parameter functions
     const isElementFn =
       !isWatchContextFn &&
-      (fnStr.includes("element") ||
-        fnStr.includes("el") ||
-        fnStr.includes("HTMLElement") ||
+      (firstParam.includes("element") ||
+        firstParam.includes("el") ||
+        firstParam.includes("HTMLElement") ||
         yielded.length === 1); // Most ElementFns expect 1 argument
 
     // First try WatchContext functions (from generator submodule)

@@ -44,12 +44,7 @@
  * @module core/async-wrapper
  */
 
-import type {
-  SyncWorkflow,
-  AsyncWorkflow,
-  Operation,
-  WatchContext,
-} from "../types";
+import type { SyncWorkflow, Operation, WatchContext } from "../types";
 
 /**
  * Wraps an async operation or async generator so it can be yielded in a sync generator.
@@ -91,7 +86,7 @@ export function async<T = void>(
     | Promise<T>
     | (() => Promise<T>)
     | (() => AsyncGenerator<any, T, any>)
-    | AsyncGenerator<any, T, any>
+    | AsyncGenerator<any, T, any>,
 ): SyncWorkflow<T> {
   return (function* (): SyncWorkflow<T> {
     // Create an operation that handles the async work
@@ -100,18 +95,21 @@ export function async<T = void>(
       if (asyncOperation instanceof Promise) {
         // Direct promise
         return await asyncOperation;
-      } else if (typeof asyncOperation === 'function') {
+      } else if (typeof asyncOperation === "function") {
         // Async function or async generator function
         const result = asyncOperation();
 
-        if (result && typeof result[Symbol.asyncIterator] === 'function') {
+        if (
+          result &&
+          typeof (result as any)[Symbol.asyncIterator] === "function"
+        ) {
           // It's an async generator, execute it
           const asyncGen = result as AsyncGenerator<any, T, any>;
           let genResult = await asyncGen.next();
 
           while (!genResult.done) {
             // If the yielded value is an operation, execute it
-            if (typeof genResult.value === 'function') {
+            if (typeof genResult.value === "function") {
               await genResult.value(context);
             }
             genResult = await asyncGen.next();
@@ -122,13 +120,16 @@ export function async<T = void>(
           // It's a promise-returning function
           return await result;
         }
-      } else if (asyncOperation && typeof asyncOperation[Symbol.asyncIterator] === 'function') {
+      } else if (
+        asyncOperation &&
+        typeof asyncOperation[Symbol.asyncIterator] === "function"
+      ) {
         // Direct async generator
         const asyncGen = asyncOperation as AsyncGenerator<any, T, any>;
         let genResult = await asyncGen.next();
 
         while (!genResult.done) {
-          if (typeof genResult.value === 'function') {
+          if (typeof genResult.value === "function") {
             await genResult.value(context);
           }
           genResult = await asyncGen.next();
@@ -172,7 +173,7 @@ export function async<T = void>(
  * ```
  */
 export function delay(ms: number): SyncWorkflow<void> {
-  return async(() => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  return async(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 }
 
 /**
@@ -201,7 +202,7 @@ export function delay(ms: number): SyncWorkflow<void> {
  */
 export function fetchData(
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): SyncWorkflow<Response> {
   return async(() => fetch(input, init));
 }
@@ -233,7 +234,7 @@ export function fetchData(
  * ```
  */
 export function parallel<T extends readonly unknown[]>(
-  operations: T
+  operations: T,
 ): SyncWorkflow<{ [K in keyof T]: Awaited<T[K]> }> {
   return async(() => Promise.all(operations)) as any;
 }
@@ -267,7 +268,7 @@ export function parallel<T extends readonly unknown[]>(
  * ```
  */
 export function race<T extends readonly unknown[]>(
-  operations: T
+  operations: T,
 ): SyncWorkflow<Awaited<T[number]>> {
   return async(() => Promise.race(operations)) as any;
 }
@@ -306,7 +307,7 @@ export function retry<T>(
     maxAttempts?: number;
     delay?: number;
     backoff?: number;
-  } = {}
+  } = {},
 ): SyncWorkflow<T> {
   const { maxAttempts = 3, delay: initialDelay = 1000, backoff = 2 } = options;
 
@@ -321,7 +322,7 @@ export function retry<T>(
         lastError = error;
 
         if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= backoff;
         }
       }
@@ -340,7 +341,7 @@ export function retry<T>(
  */
 export function debounce<T>(
   operation: () => Promise<T>,
-  wait: number
+  wait: number,
 ): SyncWorkflow<T> {
   let timeout: NodeJS.Timeout | null = null;
 

@@ -6,6 +6,7 @@
  */
 
 import type { ElementFn } from "../types";
+import type { Workflow } from "./generator-support";
 
 /**
  * Adds CSS classes to an element.
@@ -152,8 +153,8 @@ export function addClassFirst(selector: string, ...classes: string[]): void {
  * });
  * ```
  */
-export function addClassGen(...classes: string[]): ElementFn<Element, void> {
-  return (element: Element) => {
+export async function* addClassGen(...classes: string[]): Workflow<void> {
+  yield (element: Element) => {
     addClassElement(element, ...classes);
   };
 }

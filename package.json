@@ -73,9 +73,34 @@
       },
       "require": "./dist/cjs/production/index.js",
       "import": "./dist/esm/production/index.js"
+    },
+    "./explicit": {
+      "types": "./dist/types/explicit.d.ts",
+      "development": {
+        "require": "./dist/cjs/development/explicit.js",
+        "import": "./dist/esm/development/explicit.js"
+      },
+      "require": "./dist/cjs/production/explicit.js",
+      "import": "./dist/esm/production/explicit.js"
+    },
+    "./fluent": {
+      "types": "./dist/types/fluent.d.ts",
+      "development": {
+        "require": "./dist/cjs/development/fluent.js",
+        "import": "./dist/esm/development/fluent.js"
+      },
+      "require": "./dist/cjs/production/fluent.js",
+      "import": "./dist/esm/production/fluent.js"
     }
   },
   "typesVersions": {
-    "*": {}
+    "*": {
+      "explicit": [
+        "./dist/types/explicit.d.ts"
+      ],
+      "fluent": [
+        "./dist/types/fluent.d.ts"
+      ]
+    }
   }
 }

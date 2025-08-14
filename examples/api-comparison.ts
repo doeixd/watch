@@ -33,7 +33,8 @@ function enhanceButtonOverloaded() {
   const button = document.querySelector("button");
   if (button) {
     text(button, "Click me!");
-    addClass(button, ["primary", "large"]);
+    addClass(button, "primary");
+    addClass(button, "large");
     style(button as HTMLElement, "backgroundColor", "blue");
     click(button as HTMLElement, () => console.log("Clicked!"));
   }
@@ -43,12 +44,12 @@ function enhanceButtonOverloaded() {
   addClass("#submit", "btn-submit");
   attr("#submit", "aria-label", "Submit the form");
 
-  // Generator pattern within watch
+  // Generator pattern within watch - using yield* for type safety
   watch("button.dynamic", function* () {
-    yield text("Dynamic Button");
-    yield addClass("interactive");
-    yield style({ cursor: "pointer", padding: "10px" });
-    yield click(() => {
+    yield* text("Dynamic Button");
+    yield* addClass("interactive");
+    yield* style({ cursor: "pointer", padding: "10px" });
+    yield* click(() => {
       console.log("Dynamic button clicked");
     });
   });
@@ -77,11 +78,11 @@ function enhanceButtonExplicit() {
   // const buttonText = explicit.getTextElement(button!); // Returns string
   // const firstText = explicit.getTextFirst(".message"); // Returns string | null
   // const allTexts = explicit.getTextAll(".item"); // Returns string[]
-  // // Generator operations - explicit generator functions
+  // // Generator operations - explicit generator functions with yield*
   // watch("button.dynamic", function* () {
-  //   yield explicit.textGen("Dynamic Button");
-  //   yield explicit.addClassGen("interactive");
-  //   yield explicit.setStyleGen("cursor", "pointer");
+  //   yield* explicit.textGen("Dynamic Button");
+  //   yield* explicit.addClassGen("interactive");
+  //   yield* explicit.setStyleGen("cursor", "pointer");
   // });
 }
 
@@ -171,10 +172,11 @@ function manipulateAttributes() {
   // Overloaded API
   const link1 = document.querySelector("a");
   if (link1) {
-    const href = attr(link1, "href");
-    attr(link1, { href: href + "?ref=app" });
-    attr(link1, { target: "_blank" });
-    attr(link1, { rel: "noopener" });
+    // Simply set the attributes without reading first
+    attr(link1 as HTMLElement, {
+      target: "_blank",
+      rel: "noopener",
+    });
   }
 
   // Explicit API - commented out

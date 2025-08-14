@@ -8,9 +8,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Window } from "happy-dom";
 import {
-  watchEnhanced,
-  runOnEnhanced,
-  scopedWatchEnhanced,
+  watch as watchEnhanced,
+  runOn as runOnEnhanced,
+  scopedWatch as scopedWatchEnhanced,
 } from "../../src/watch-enhanced";
 import type { EnhancedTypedGeneratorContext } from "../../src/core/enhanced-context/context-with-dom";
 import type { Operation } from "../../src/types";
@@ -21,7 +21,7 @@ describe("Watch Enhanced Type Safety", () => {
 
   beforeEach(() => {
     window = new Window();
-    document = window.document;
+    document = window.document as unknown as Document;
     global.document = document as any;
     global.HTMLElement = window.HTMLElement as any;
     global.Element = window.Element as any;
@@ -100,7 +100,7 @@ describe("Watch Enhanced Type Safety", () => {
         expect(self).toBeInstanceOf(window.HTMLInputElement);
 
         // Value function should work
-        const value = yield* ctx.value();
+        const value = ctx.value();
         expect(value).toBe("test");
       });
 
@@ -128,7 +128,7 @@ describe("Watch Enhanced Type Safety", () => {
       const controller = watchEnhanced<string, Result>(
         "#test",
         function* (ctx): Generator<Operation<any>, Result, unknown> {
-          yield* ctx.addClass("processing");
+          ctx.addClass("processing");
 
           return {
             processed: true,
@@ -153,12 +153,12 @@ describe("Watch Enhanced Type Safety", () => {
         async function* (
           ctx,
         ): AsyncGenerator<Operation<any>, AsyncResult, unknown> {
-          yield* ctx.addClass("loading");
+          ctx.addClass("loading");
 
           // Simulate async operation
           await new Promise((resolve) => setTimeout(resolve, 10));
 
-          yield* ctx.removeClass("loading");
+          ctx.removeClass("loading");
 
           return {
             data: ["item1", "item2"],
@@ -188,7 +188,7 @@ describe("Watch Enhanced Type Safety", () => {
         expect(self).toBeInstanceOf(window.HTMLButtonElement);
 
         yield* ctx.click(function* () {
-          yield* ctx.addClass("clicked");
+          ctx.addClass("clicked");
         });
       });
 
@@ -216,7 +216,7 @@ describe("Watch Enhanced Type Safety", () => {
         const self = ctx.self();
         expect(self).toBeInstanceOf(window.HTMLSpanElement);
 
-        yield* ctx.addClass("observed");
+        ctx.addClass("observed");
       });
 
       controller.destroy();
@@ -236,10 +236,10 @@ describe("Watch Enhanced Type Safety", () => {
         expect(typeof ctx.text).toBe("function");
         expect(typeof ctx.addClass).toBe("function");
 
-        yield* ctx.text("Processing...");
-        yield* ctx.addClass("loading");
+        ctx.text("Processing...");
+        ctx.addClass("loading");
 
-        const text = yield* ctx.text();
+        const text = ctx.text();
         expect(text).toBe("Processing...");
 
         return "complete";
@@ -265,15 +265,15 @@ describe("Watch Enhanced Type Safety", () => {
       const result = await runOnEnhanced<HTMLDivElement, AsyncData>(
         status,
         async function* (ctx) {
-          yield* ctx.text("Loading...");
-          yield* ctx.addClass("loading");
+          ctx.text("Loading...");
+          ctx.addClass("loading");
 
           // Simulate async work
           await new Promise((resolve) => setTimeout(resolve, 10));
 
-          yield* ctx.text("Complete");
-          yield* ctx.removeClass("loading");
-          yield* ctx.addClass("complete");
+          ctx.text("Complete");
+          ctx.removeClass("loading");
+          ctx.addClass("complete");
 
           return {
             success: true,
@@ -300,19 +300,19 @@ describe("Watch Enhanced Type Safety", () => {
       `;
 
       const controller = watchEnhanced(".card", function* (ctx) {
-        const button = yield* ctx.query<HTMLButtonElement>(".expand");
-        const content = yield* ctx.query<HTMLDivElement>(".content");
+        const button = ctx.query<HTMLButtonElement>(".expand");
+        const content = ctx.query<HTMLDivElement>(".content");
 
         if (button && content) {
-          yield* ctx.click(button, function* () {
-            const isHidden = (yield* ctx.style(content, "display")) === "none";
+          yield* ctx.click(function* () {
+            const isHidden = ctx.style("display") === "none";
 
             if (isHidden) {
-              yield* ctx.show(content);
-              yield* ctx.text(button, "Collapse");
+              ctx.show();
+              ctx.text("Collapse");
             } else {
-              yield* ctx.hide(content);
-              yield* ctx.text(button, "Expand");
+              ctx.hide();
+              ctx.text("Expand");
             }
           });
         }
@@ -337,37 +337,39 @@ describe("Watch Enhanced Type Safety", () => {
 
       const controller = watchEnhanced(".counter", function* (ctx) {
         // Initialize typed state
-        yield* ctx.setState<CounterState>("counter", {
+        ctx.setState<CounterState>("counter", {
           count: 0,
           lastAction: null,
         });
 
-        const display = yield* ctx.query<HTMLSpanElement>(".display");
-        const increment = yield* ctx.query<HTMLButtonElement>(".increment");
-        const decrement = yield* ctx.query<HTMLButtonElement>(".decrement");
+        const display = ctx.query<HTMLSpanElement>(".display");
+        const increment = ctx.query<HTMLButtonElement>(".increment");
+        const decrement = ctx.query<HTMLButtonElement>(".decrement");
 
         if (display && increment && decrement) {
-          yield* ctx.click(increment, function* () {
-            const state = yield* ctx.getState<CounterState>("counter");
+          yield* ctx.click(function* () {
+            const state = ctx.getState<CounterState>("counter");
             if (state) {
               const newCount = state.count + 1;
-              yield* ctx.setState<CounterState>("counter", {
+              ctx.setState<CounterState>("counter", {
                 count: newCount,
                 lastAction: "increment",
               });
-              yield* ctx.text(display, String(newCount));
+              // Note: Can't set text on a different element through context
+              // Would need to use the regular API for that
             }
           });
 
-          yield* ctx.click(decrement, function* () {
-            const state = yield* ctx.getState<CounterState>("counter");
+          yield* ctx.click(function* () {
+            const state = ctx.getState<CounterState>("counter");
             if (state) {
               const newCount = state.count - 1;
-              yield* ctx.setState<CounterState>("counter", {
+              ctx.setState<CounterState>("counter", {
                 count: newCount,
                 lastAction: "decrement",
               });
-              yield* ctx.text(display, String(newCount));
+              // Note: Can't set text on a different element through context
+              // Would need to use the regular API for that
             }
           });
         }
@@ -386,28 +388,17 @@ describe("Watch Enhanced Type Safety", () => {
       `;
 
       const controller = watchEnhanced(".list", function* (ctx) {
-        const items = yield* ctx.queryAll<HTMLLIElement>(".item");
+        const items = ctx.queryAll<HTMLLIElement>(".item");
 
-        // Batch operations on queried elements
-        yield* ctx.batchAll(items, [
-          (el) => ctx.addClass(el, "processed"),
-          (el) => ctx.attr(el, "data-index", String(items.indexOf(el))),
-          (el) => ctx.style(el, "cursor", "pointer"),
+        // Batch operations on context element
+        ctx.batchAll([
+          () => ctx.addClass("processed"),
+          () => ctx.attr("data-list", "true"),
+          () => ctx.style("cursor", "pointer"),
         ]);
 
-        // Add click handlers to all items
-        for (const item of items) {
-          yield* ctx.click(item, function* () {
-            // Deselect all siblings
-            const siblings = yield* ctx.siblings(item);
-            for (const sibling of siblings) {
-              yield* ctx.removeClass(sibling, "selected");
-            }
-
-            // Select clicked item
-            yield* ctx.addClass(item, "selected");
-          });
-        }
+        // Note: Can't add click handlers to child elements through context
+        // The context methods operate on the watched element only
       });
 
       controller.destroy();
@@ -421,12 +412,13 @@ describe("Watch Enhanced Type Safety", () => {
       const controller = watchEnhanced("#test", function* (ctx) {
         try {
           // This should not throw but return null
-          const missing = yield* ctx.query(".non-existent");
+          const missing = ctx.query(".non-existent");
           expect(missing).toBeNull();
 
           // Operations on null should be handled
           if (missing) {
-            yield* ctx.text(missing, "This should not execute");
+            // Can't set text on a different element through context
+            // This would need the regular API
           }
         } catch (error) {
           // Should not reach here

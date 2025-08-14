@@ -3731,6 +3731,208 @@ export function safeHtml(...args: any[]): any {
 }
 
 // ============================================================================
+// Standalone Getter Functions
+// ============================================================================
+
+/**
+ * Gets text content from an element or within generator context.
+ *
+ * This is a standalone getter function that provides a simpler API for reading
+ * text content. It complements the overloaded `text()` function by providing
+ * a dedicated getter with clear naming.
+ *
+ * @example Direct element usage
+ * ```typescript
+ * const button = document.querySelector('button');
+ * const content = getText(button); // Returns string
+ * ```
+ *
+ * @example CSS selector usage
+ * ```typescript
+ * const content = getText('.button'); // Returns string | null
+ * ```
+ *
+ * @example Generator usage with yield*
+ * ```typescript
+ * watch('.component', function* () {
+ *   const content = yield* getText(); // Gets text from current element
+ * });
+ * ```
+ */
+export function getText<T extends Element = HTMLElement>(element: T): string;
+export function getText(selector: string | CSSSelector): string | null;
+export function getText(): Workflow<string>;
+
+export function getText(...args: any[]): any {
+  if (args.length === 0) {
+    // Generator context - return workflow
+    return (function* (): Generator<Operation<string>, string, any> {
+      const op: Operation<string> = (ctx: WatchContext) => {
+        return ctx.element.textContent || "";
+      };
+      const result = yield op;
+      return result;
+    })();
+  }
+
+  if (args.length === 1) {
+    const [target] = args;
+
+    if (typeof target === "string") {
+      // CSS selector
+      const element = document.querySelector(target);
+      return element ? element.textContent || "" : null;
+    } else if (isElement(target)) {
+      // Direct element
+      return target.textContent || "";
+    }
+  }
+
+  throw new Error("Invalid arguments for getText");
+}
+
+/**
+ * Gets an attribute value from an element or within generator context.
+ *
+ * This is a standalone getter function that provides a simpler API for reading
+ * attribute values. It complements the overloaded `attr()` function by providing
+ * a dedicated getter with clear naming.
+ *
+ * @example Direct element usage
+ * ```typescript
+ * const input = document.querySelector('input');
+ * const placeholder = getAttr(input, 'placeholder'); // Returns string | null
+ * ```
+ *
+ * @example CSS selector usage
+ * ```typescript
+ * const href = getAttr('.link', 'href'); // Returns string | null
+ * ```
+ *
+ * @example Generator usage with yield*
+ * ```typescript
+ * watch('.form', function* () {
+ *   const action = yield* getAttr('action'); // Gets attribute from current element
+ * });
+ * ```
+ */
+export function getAttr<T extends Element = HTMLElement>(
+  element: T,
+  name: string,
+): string | null;
+export function getAttr(
+  selector: string | CSSSelector,
+  name: string,
+): string | null;
+export function getAttr(name: string): Workflow<string | null>;
+
+export function getAttr(...args: any[]): any {
+  if (args.length === 1) {
+    // Generator context - return workflow
+    const [name] = args;
+    return (function* (): Generator<
+      Operation<string | null>,
+      string | null,
+      any
+    > {
+      const op: Operation<string | null> = (ctx: WatchContext) => {
+        return ctx.element.getAttribute(name);
+      };
+      const result = yield op;
+      return result;
+    })();
+  }
+
+  if (args.length === 2) {
+    const [target, name] = args;
+
+    if (typeof target === "string") {
+      // CSS selector
+      const element = document.querySelector(target);
+      return element ? element.getAttribute(name) : null;
+    } else if (isElement(target)) {
+      // Direct element
+      return target.getAttribute(name);
+    }
+  }
+
+  throw new Error("Invalid arguments for getAttr");
+}
+
+/**
+ * Gets a computed style property value from an element or within generator context.
+ *
+ * This is a standalone getter function that provides a simpler API for reading
+ * computed style values. It complements the overloaded `style()` function by
+ * providing a dedicated getter with clear naming.
+ *
+ * @example Direct element usage
+ * ```typescript
+ * const div = document.querySelector('div');
+ * const color = getStyle(div, 'color'); // Returns string
+ * ```
+ *
+ * @example CSS selector usage
+ * ```typescript
+ * const fontSize = getStyle('.text', 'font-size'); // Returns string | null
+ * ```
+ *
+ * @example Generator usage with yield*
+ * ```typescript
+ * watch('.component', function* () {
+ *   const display = yield* getStyle('display'); // Gets style from current element
+ * });
+ * ```
+ */
+export function getStyle<T extends HTMLElement = HTMLElement>(
+  element: T,
+  property: string,
+): string;
+export function getStyle(
+  selector: string | CSSSelector,
+  property: string,
+): string | null;
+export function getStyle(property: string): Workflow<string>;
+
+export function getStyle(...args: any[]): any {
+  if (args.length === 1) {
+    // Generator context - return workflow
+    const [property] = args;
+    return (function* (): Generator<Operation<string>, string, any> {
+      const op: Operation<string> = (ctx: WatchContext) => {
+        if (!(ctx.element instanceof HTMLElement)) {
+          return "";
+        }
+        const computed = window.getComputedStyle(ctx.element);
+        return computed.getPropertyValue(property) || "";
+      };
+      const result = yield op;
+      return result;
+    })();
+  }
+
+  if (args.length === 2) {
+    const [target, property] = args;
+
+    if (typeof target === "string") {
+      // CSS selector
+      const element = document.querySelector(target);
+      if (!element || !(element instanceof HTMLElement)) {
+        return null;
+      }
+      const computed = window.getComputedStyle(element);
+      return computed.getPropertyValue(property) || "";
+    } else if (isElement(target) && target instanceof HTMLElement) {
+      // Direct element
+      const computed = window.getComputedStyle(target);
+      return computed.getPropertyValue(property) || "";
+    }
+  }
+
+  throw new Error("Invalid arguments for getStyle");
+}
+
+// ============================================================================
 // Batch Operations
 // ============================================================================
 
@@ -3795,7 +3997,7 @@ export function batchAll<T extends Element = HTMLElement>(...args: any[]): any {
     if (isInGeneratorContext()) {
       // Return a workflow for generator context
       return (function* (): Generator<Operation<void>, void, any> {
-        yield ((context: WatchContext) => {
+        yield ((_context: WatchContext) => {
           executeBatch<T>(elements, operations);
         }) as Operation<void>;
       })();
@@ -4019,47 +4221,47 @@ export function createChildWatcher<El extends HTMLElement = HTMLElement>(
 ): Map<El, any>;
 export function createChildWatcher<El extends HTMLElement = HTMLElement>(
   selector: string,
-  generatorFn: (element: HTMLElement) => Generator<any, void, any>,
+  generatorFn: (element: El) => Generator<any, void, any>,
 ): Workflow<Map<El, any>>;
 
-export function createChildWatcher<El extends Element = HTMLElement>(
+export function createChildWatcher<El extends HTMLElement = HTMLElement>(
   ...args: any[]
 ): any {
   // Direct element version
   // Direct element child watcher
   if (args.length === 3 && isElement(args[0])) {
     const [element, selector, generator] = args as [
-      Element,
+      HTMLElement,
       string,
-      (element: Element) => Generator<any, void, any>,
+      (element: El) => Generator<any, void, any>,
     ];
     let manager = childWatcherManagers.get(element);
     if (!manager) {
-      manager = new ChildWatcherManager<Element>(element);
-      childWatcherManagers.set(element, manager);
+      manager = new ChildWatcherManager<El>(element as any);
+      childWatcherManagers.set(element, manager as any);
     }
     return manager.register(
       selector,
       generator as (element: Element) => Generator<any, void, any>,
-    );
+    ) as Map<El, any>;
   }
 
   // Generator pattern
   if (args.length === 2) {
     const [selector, generator] = args as [
       string,
-      (element: Element) => Generator<any, void, any>,
+      (element: El) => Generator<any, void, any>,
     ];
     return (function* (): Generator<
-      Operation<Map<HTMLElement, any>>,
-      Map<HTMLElement, any>,
+      Operation<Map<El, any>>,
+      Map<El, any>,
       any
     > {
       const result = yield ((context: WatchContext) => {
         let manager = childWatcherManagers.get(context.element);
         if (!manager) {
-          manager = new ChildWatcherManager<Element>(context.element);
-          childWatcherManagers.set(context.element, manager);
+          manager = new ChildWatcherManager<El>(context.element as any);
+          childWatcherManagers.set(context.element, manager as any);
 
           // Register cleanup
           if (context.signal) {
@@ -4073,8 +4275,8 @@ export function createChildWatcher<El extends Element = HTMLElement>(
         return manager.register(
           selector,
           generator as (element: Element) => Generator<any, void, any>,
-        );
-      }) as Operation<Map<HTMLElement, any>>;
+        ) as Map<El, any>;
+      }) as Operation<Map<El, any>>;
       return result;
     })();
   }

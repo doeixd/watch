@@ -6,6 +6,7 @@
  */
 
 import type { ElementFn } from "../types";
+import type { Workflow } from "./generator-support";
 
 /**
  * Sets the text content of an element.
@@ -266,8 +267,8 @@ export function getTextAll(selector: string): string[] {
  * });
  * ```
  */
-export function textGen(content: string | number): ElementFn<Element, void> {
-  return (element: Element) => {
+export async function* textGen(content: string | number): Workflow<void> {
+  yield (element: Element) => {
     setTextElement(element, content);
   };
 }
@@ -298,9 +299,50 @@ export function textGen(content: string | number): ElementFn<Element, void> {
  * });
  * ```
  */
-export function textGetGen(): ElementFn<Element, string> {
-  return (element: Element) => {
+export async function* textGetGen(): Workflow<string | null> {
+  const result = yield (element: Element) => {
     return getTextElement(element);
+  };
+  return result as string | null;
+}
+
+/**
+ * Appends text to element's content using yield* pattern.
+ *
+ * @param content - Text to append
+ * @returns Async generator that appends text when yielded with yield*
+ *
+ * @example
+ * ```typescript
+ * watch('.log', function* () {
+ *   yield* appendTextGen('\nNew entry');
+ * });
+ * ```
+ */
+export async function* appendTextGen(content: string | number): Workflow<void> {
+  yield (element: Element) => {
+    appendTextElement(element, content);
+  };
+}
+
+/**
+ * Prepends text to element's content using yield* pattern.
+ *
+ * @param content - Text to prepend
+ * @returns Async generator that prepends text when yielded with yield*
+ *
+ * @example
+ * ```typescript
+ * watch('.message', function* () {
+ *   yield* prependTextGen('Alert: ');
+ * });
+ * ```
+ */
+export async function* prependTextGen(
+  content: string | number,
+): Workflow<void> {
+  yield (element: Element) => {
+    prependTextElement(element, content);
   };
 }
 

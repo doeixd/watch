@@ -66,6 +66,16 @@ export function getState<T = any>(
 }
 
 /**
+ * Generator version of getState for explicit yield* usage.
+ */
+getState.gen = function <T = any>(
+  key: string,
+  defaultValue?: T,
+): SyncWorkflow<T> {
+  return getState<T>(key, defaultValue);
+};
+
+/**
  * Sets a state value for the current element using the sync generator API.
  *
  * @param key - The state key to set
@@ -96,6 +106,13 @@ export function setState<T = any>(key: string, value: T): SyncWorkflow<void> {
     }) as Operation<void>;
   })();
 }
+
+/**
+ * Generator version of setState for explicit yield* usage.
+ */
+setState.gen = function <T = any>(key: string, value: T): SyncWorkflow<void> {
+  return setState<T>(key, value);
+};
 
 /**
  * Updates a state value using a function in the sync generator API.
@@ -136,6 +153,16 @@ export function updateState<T = any>(
 }
 
 /**
+ * Generator version of updateState for explicit yield* usage.
+ */
+updateState.gen = function <T = any>(
+  key: string,
+  updater: (current: T | undefined) => T,
+): SyncWorkflow<T> {
+  return updateState<T>(key, updater);
+};
+
+/**
  * Checks if a state key exists using the sync generator API.
  *
  * @param key - The state key to check
@@ -149,6 +176,13 @@ export function hasState(key: string): SyncWorkflow<boolean> {
     return result as boolean;
   })();
 }
+
+/**
+ * Generator version of hasState for explicit yield* usage.
+ */
+hasState.gen = function (key: string): SyncWorkflow<boolean> {
+  return hasState(key);
+};
 
 /**
  * Deletes a state key using the sync generator API.
@@ -165,6 +199,13 @@ export function deleteState(key: string): SyncWorkflow<boolean> {
     return result as boolean;
   })();
 }
+
+/**
+ * Generator version of deleteState for explicit yield* usage.
+ */
+deleteState.gen = function (key: string): SyncWorkflow<boolean> {
+  return deleteState(key);
+};
 
 // ============================================================================
 // ADVANCED STATE OPERATIONS
@@ -467,7 +508,9 @@ export function logState(label?: string): SyncWorkflow<void> {
       const stateObj = context.state
         ? Object.fromEntries(context.state.entries())
         : {};
-      console.log(label || "State:", stateObj);
+      // console.log(label || "State:", stateObj);
+      void stateObj; // Prevent unused variable warning
+      void label; // Prevent unused variable warning
     }) as Operation<void>;
   })();
 }
@@ -483,7 +526,9 @@ export function logStateKey(key: string, label?: string): SyncWorkflow<void> {
   return (function* () {
     yield ((context: WatchContext) => {
       const value = context.state?.get(key);
-      console.log(label || `State[${key}]:`, value);
+      // console.log(label || `State[${key}]:`, value);
+      void value; // Prevent unused variable warning
+      void label; // Prevent unused variable warning
     }) as Operation<void>;
   })();
 }
@@ -518,6 +563,13 @@ export function clearState(): SyncWorkflow<void> {
 }
 
 /**
+ * Generator version of clearState for explicit yield* usage.
+ */
+clearState.gen = function (): SyncWorkflow<void> {
+  return clearState();
+};
+
+/**
  * Gets all state keys for the current element.
  *
  * @returns A SyncWorkflow<string[]> that returns an array of state keys
@@ -533,3 +585,10 @@ export function getStateKeys(): SyncWorkflow<string[]> {
     return result as string[];
   })();
 }
+
+/**
+ * Generator version of getStateKeys for explicit yield* usage.
+ */
+getStateKeys.gen = function (): SyncWorkflow<string[]> {
+  return getStateKeys();
+};

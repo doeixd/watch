@@ -24,7 +24,7 @@ import type {
   ManagedInstance,
   TypedGeneratorContext,
 } from "./types";
-import { getOrCreateController } from "./core/observer";
+import { getOrCreateController, initializeObserver } from "./core/observer";
 import { executeGenerator } from "./core/context";
 import { isPreDefinedWatchContext } from "./core/context-factory";
 import {
@@ -540,7 +540,8 @@ export function run<S extends string>(
         selector,
         index,
         elements as ElementFromSelector<S>[],
-        generator,
+        (ctx?: TypedGeneratorContext<ElementFromSelector<S>>) =>
+          generator(ctx!),
       )
         .then((returnValue) => {
           // Store the API if it exists
@@ -624,6 +625,9 @@ export function runOn<El extends HTMLElement, T = any>(
     | Generator<ElementFn<El>, T, unknown>
     | AsyncGenerator<ElementFn<El>, T, unknown>,
 ): Promise<T | undefined> {
+  // Initialize the global observer to ensure cleanup works
+  initializeObserver();
+
   const arr = [element];
 
   return executeGenerator(
@@ -631,7 +635,7 @@ export function runOn<El extends HTMLElement, T = any>(
     `element-${element.tagName.toLowerCase()}`,
     0,
     arr,
-    generator,
+    (ctx?: TypedGeneratorContext<El>) => generator(ctx!),
   ).then((returnValue) => {
     // Store the API if it exists
     if (returnValue !== undefined) {

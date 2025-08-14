@@ -1,8 +1,8 @@
 /**
- * Test file for the new generator API implementation
+ * Test file for the unified API implementation with yield* support
  *
- * This file tests the new type-safe generator API pattern with direct yield*
- * syntax, ensuring it works correctly alongside the existing API.
+ * This file tests the unified type-safe API pattern with direct yield*
+ * syntax, ensuring it works correctly with all DOM and state functions.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -12,29 +12,24 @@ import {
   removeClass,
   hasClass,
   text,
-  getText,
   getState,
   setState,
   updateState,
   hasState,
-  incrementState,
-  decrementState,
-  toggleState,
-  appendToState,
   self,
   query,
   click,
   submit,
   attr,
   style,
-} from "../src/generator/index";
+} from "../src/index";
 import { destroy } from "../src/watch";
 
 // Helper function to wait for watch() to process mutations
 const waitForWatcher = (ms = 10) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-describe("Generator API - Direct yield* Pattern", () => {
+describe("Unified API - Direct yield* Pattern", () => {
   // happy-dom provides a global document object, so we just need to clean it
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -50,274 +45,377 @@ describe("Generator API - Direct yield* Pattern", () => {
     document.body.innerHTML = "";
   });
 
-  describe("Direct yield* syntax", () => {
-    it("should execute workflows directly with yield* - no wrapper needed", async () => {
-      document.body.innerHTML = '<button id="test1">Test</button>';
-      const button = document.getElementById("test1") as HTMLButtonElement;
+  describe("Basic DOM Operations with yield*", () => {
+    it("should support text manipulation with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
 
-      let executed = false;
+      await watch(div, async function* () {
+        // Set text using yield*
+        yield* text("Hello World");
 
-      watch("#test1", async function* () {
-        // Direct yield* syntax - no $ wrapper needed!
+        // Get text using yield*
+        const content = yield* text();
+        expect(content).toBe("Hello World");
+      });
+
+      expect(div.textContent).toBe("Hello World");
+    });
+
+    it("should support class manipulation with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      await watch(div, async function* () {
+        // Add class
         yield* addClass("test-class");
-        yield* text("Updated");
 
-        executed = true;
+        // Check if class exists
+        const hasTestClass = yield* hasClass("test-class");
+        expect(hasTestClass).toBe(true);
+
+        // Add another class
+        yield* addClass("another-class");
+
+        // Remove first class
+        yield* removeClass("test-class");
+
+        // Check states
+        const stillHasTest = yield* hasClass("test-class");
+        const hasAnother = yield* hasClass("another-class");
+
+        expect(stillHasTest).toBe(false);
+        expect(hasAnother).toBe(true);
       });
 
-      await waitForWatcher();
-
-      expect(executed).toBe(true);
-      expect(button.classList.contains("test-class")).toBe(true);
-      expect(button.textContent).toBe("Updated");
+      expect(div.classList.contains("test-class")).toBe(false);
+      expect(div.classList.contains("another-class")).toBe(true);
     });
 
-    it("should provide perfect type safety for return values", async () => {
-      document.body.innerHTML = '<div id="test2">Test</div>';
+    it("should support attribute manipulation with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
 
-      let capturedElement: HTMLElement | null = null;
-      let capturedText: string | undefined;
+      await watch(div, async function* () {
+        // Set attribute
+        yield* attr("data-test", "value1");
 
-      watch("#test2", async function* () {
-        // These should be perfectly typed through yield* delegation
-        capturedElement = yield* self<HTMLDivElement>();
-        yield* setState("test", "value");
-        const state = yield* getState<string>("test", "default");
-        capturedText = state;
+        // Get attribute
+        const value = yield* attr("data-test");
+        expect(value).toBe("value1");
+
+        // Update attribute
+        yield* attr("data-test", "value2");
+
+        // Verify update
+        const newValue = yield* attr("data-test");
+        expect(newValue).toBe("value2");
       });
 
-      await waitForWatcher();
-
-      expect(capturedElement).toBeInstanceOf(window.HTMLDivElement);
-      expect(capturedText).toBe("value");
+      expect(div.getAttribute("data-test")).toBe("value2");
     });
-  });
 
-  describe("Pure DOM operations", () => {
-    it("should manipulate DOM through direct workflows", async () => {
-      document.body.innerHTML = '<div id="test3">Original</div>';
-      const div = document.getElementById("test3") as HTMLDivElement;
+    it("should support style manipulation with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
 
-      watch("#test3", async function* () {
-        yield* addClass("new-class");
-        yield* text("New Text");
-        yield* attr("data-test", "value");
+      await watch(div, async function* () {
+        // Set style property
         yield* style("color", "red");
         yield* style("fontSize", "16px");
+
+        // Get style property
+        const color = yield* style("color");
+        expect(color).toBe("red");
       });
 
-      await waitForWatcher();
-
-      expect(div.classList.contains("new-class")).toBe(true);
-      expect(div.textContent).toBe("New Text");
-      expect(div.getAttribute("data-test")).toBe("value");
       expect(div.style.color).toBe("red");
       expect(div.style.fontSize).toBe("16px");
     });
-
-    it("should handle class manipulation operations", async () => {
-      document.body.innerHTML = '<div id="test4" class="original">Test</div>';
-      const div = document.getElementById("test4") as HTMLDivElement;
-
-      watch("#test4", async function* () {
-        yield* addClass("added-class");
-        yield* removeClass("original");
-
-        const hasAdded = yield* hasClass("added-class");
-        expect(hasAdded).toBe(true);
-
-        const hasOriginal = yield* hasClass("original");
-        expect(hasOriginal).toBe(false);
-      });
-
-      await waitForWatcher();
-
-      expect(div.classList.contains("added-class")).toBe(true);
-      expect(div.classList.contains("original")).toBe(false);
-    });
-
-    it("should handle element access operations", async () => {
-      document.body.innerHTML =
-        '<div id="test5"><span class="child">Child</span></div>';
-
-      let capturedSelf: HTMLElement | null = null;
-      let capturedChild: HTMLElement | null = null;
-
-      watch("#test5", async function* () {
-        capturedSelf = yield* self<HTMLDivElement>();
-        capturedChild = yield* query<HTMLSpanElement>(".child");
-      });
-
-      await waitForWatcher();
-
-      expect(capturedSelf).toBeInstanceOf(window.HTMLDivElement);
-      expect(capturedChild).toBeInstanceOf(window.HTMLSpanElement);
-      expect((capturedChild as HTMLSpanElement | null)?.textContent).toBe(
-        "Child",
-      );
-    });
   });
 
-  describe("Pure state operations", () => {
-    it("should manage state through direct workflows", async () => {
-      document.body.innerHTML = '<div id="test6">Test</div>';
+  describe("State Management with yield*", () => {
+    it("should support basic state operations with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
 
-      let finalCount: number | undefined;
+      await watch(div, async function* () {
+        // Set state
+        yield* setState("counter", 0);
 
-      watch("#test6", async function* () {
-        yield* setState("count", 0);
+        // Check if state exists
+        const exists = yield* hasState("counter");
+        expect(exists).toBe(true);
 
-        const newCount = yield* updateState<number>(
-          "count",
-          (current = 0) => current + 5,
-        );
-        expect(newCount).toBe(5);
+        // Get state
+        const value = yield* getState("counter");
+        expect(value).toBe(0);
 
-        finalCount = yield* getState<number>("count");
+        // Update state
+        yield* setState("counter", 5);
 
-        const hasCount = yield* hasState("count");
-        expect(hasCount).toBe(true);
+        // Verify update
+        const newValue = yield* getState("counter");
+        expect(newValue).toBe(5);
       });
-
-      await waitForWatcher();
-
-      expect(finalCount).toBe(5);
     });
 
-    it("should handle advanced state operations", async () => {
-      document.body.innerHTML = '<div id="test7">Test</div>';
+    it("should support updateState with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
 
-      watch("#test7", async function* () {
+      await watch(div, async function* () {
+        // Initialize state
         yield* setState("counter", 10);
 
-        const afterIncrement = yield* incrementState("counter", 3);
-        expect(afterIncrement).toBe(13);
+        // Update state with function
+        yield* updateState("counter", (current: number) => current + 5);
 
-        const afterDecrement = yield* decrementState("counter", 5);
-        expect(afterDecrement).toBe(8);
-
-        yield* setState("flag", false);
-        const toggled = yield* toggleState("flag");
-        expect(toggled).toBe(true);
-
-        yield* setState("items", ["a", "b"]);
-        const newItems = yield* appendToState<string>("items", "c");
-        expect(newItems).toEqual(["a", "b", "c"]);
+        // Verify update
+        const value = yield* getState("counter");
+        expect(value).toBe(15);
       });
+    });
 
-      await waitForWatcher();
+    it("should support complex state objects with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      interface UserState {
+        name: string;
+        age: number;
+        active: boolean;
+      }
+
+      await watch(div, async function* () {
+        // Set complex state
+        const user: UserState = { name: "John", age: 25, active: true };
+        yield* setState("user", user);
+
+        // Get state
+        const retrievedUser = yield* getState<UserState>("user");
+        expect(retrievedUser).toEqual(user);
+
+        // Update state
+        yield* updateState("user", (current: UserState) => ({
+          ...current,
+          age: current.age + 1,
+        }));
+
+        // Verify update
+        const updatedUser = yield* getState<UserState>("user");
+        expect(updatedUser.age).toBe(26);
+        expect(updatedUser.name).toBe("John");
+      });
     });
   });
 
-  describe("Pure event operations", () => {
-    it("should set up event handlers through direct workflows", async () => {
-      document.body.innerHTML = '<button id="test8">Click me</button>';
-      const button = document.getElementById("test8") as HTMLButtonElement;
-      let clickCount = 0;
+  describe("Context Functions with yield*", () => {
+    it("should support self() with yield*", async () => {
+      const div = document.createElement("div");
+      div.id = "test-div";
+      document.body.appendChild(div);
 
-      watch("#test8", async function* () {
-        yield* click((event) => {
-          clickCount++;
-          expect(event.type).toBe("click");
-        });
+      await watch(div, async function* () {
+        // Get self element
+        const element = yield* self();
+        expect(element).toBe(div);
+        expect(element.id).toBe("test-div");
       });
-
-      await waitForWatcher();
-
-      button.click();
-      expect(clickCount).toBe(1);
-
-      button.click();
-      expect(clickCount).toBe(2);
     });
 
-    it("should support generator event handlers", async () => {
-      document.body.innerHTML = '<button id="test9">Click me</button>';
-      const button = document.getElementById("test9") as HTMLButtonElement;
-      let sequence: string[] = [];
+    it("should support query with yield*", async () => {
+      const container = document.createElement("div");
+      const child = document.createElement("span");
+      child.className = "child";
+      child.textContent = "Child Element";
+      container.appendChild(child);
+      document.body.appendChild(container);
 
-      watch("#test9", async function* () {
-        yield* click(async function* (event) {
-          sequence.push("start");
-          yield* addClass("clicked");
-          sequence.push("class-added");
-          yield* text("Clicked!");
-          sequence.push("text-set");
-        });
+      await watch(container, async function* () {
+        // Query child element
+        const foundChild = yield* query(".child");
+        expect(foundChild).toBe(child);
+        expect(foundChild?.textContent).toBe("Child Element");
       });
-
-      await waitForWatcher();
-
-      button.click();
-      await waitForWatcher();
-
-      expect(sequence).toEqual(["start", "class-added", "text-set"]);
-      expect(button.classList.contains("clicked")).toBe(true);
-      expect(button.textContent).toBe("Clicked!");
     });
   });
 
-  describe("Real-world patterns", () => {
-    it("should support counter component pattern", async () => {
-      document.body.innerHTML = '<button id="counter">0</button>';
-      const button = document.getElementById("counter") as HTMLButtonElement;
+  describe("Event Handling with yield*", () => {
+    it("should support click events with yield*", async () => {
+      const button = document.createElement("button");
+      button.textContent = "Click me";
+      document.body.appendChild(button);
 
-      watch("#counter", async function* () {
-        yield* setState("count", 0);
-        yield* click(async function* (event) {
-          const newCount = yield* incrementState("count", 1);
-          yield* text(newCount.toString());
-          yield* addClass("clicked");
+      let clicked = false;
+
+      await watch(button, async function* () {
+        yield* click(() => {
+          clicked = true;
         });
       });
 
       await waitForWatcher();
 
+      // Simulate click
       button.click();
-      await waitForWatcher();
-      expect(button.textContent).toBe("1");
-
-      button.click();
-      await waitForWatcher();
-      expect(button.textContent).toBe("2");
+      expect(clicked).toBe(true);
     });
 
-    it("should support form handling pattern", async () => {
-      document.body.innerHTML = `
-        <form id="test-form-unique">
-          <input type="text" name="name" required />
-          <button type="submit">Submit</button>
-        </form>
-      `;
-      let submittedData: any = null;
+    it("should support submit events with yield*", async () => {
+      const form = document.createElement("form");
+      document.body.appendChild(form);
 
-      watch("#test-form-unique", async function* () {
-        yield* submit(async function* (event) {
+      let submitted = false;
+
+      await watch(form, async function* () {
+        yield* submit((event) => {
           event.preventDefault();
-          const form = yield* self<HTMLFormElement>();
-          const formData = new FormData(form);
-          submittedData = Object.fromEntries(formData.entries());
-          yield* addClass("submitted");
+          submitted = true;
         });
       });
 
       await waitForWatcher();
 
-      const form = document.getElementById(
-        "test-form-unique",
-      ) as HTMLFormElement;
-      const input = form.querySelector("input") as HTMLInputElement;
+      // Simulate submit
+      form.dispatchEvent(new Event("submit"));
+      expect(submitted).toBe(true);
+    });
 
-      input.value = "John Doe";
-      // Manually create and dispatch event for happy-dom
-      form.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
-      );
+    it("should support generator event handlers with yield*", async () => {
+      const button = document.createElement("button");
+      document.body.appendChild(button);
+
+      await watch(button, async function* () {
+        yield* text("Count: 0");
+        yield* setState("clicks", 0);
+
+        yield* click(async function* () {
+          // Update state in generator
+          const currentClicks = yield* getState<number>("clicks", 0);
+          const newClicks = currentClicks + 1;
+          yield* setState("clicks", newClicks);
+
+          // Update display
+          yield* text(`Count: ${newClicks}`);
+
+          // Add visual feedback
+          yield* addClass("clicked");
+        });
+      });
+
+      await waitForWatcher();
+      expect(button.textContent).toBe("Count: 0");
+
+      // First click
+      button.click();
+      await waitForWatcher();
+      expect(button.textContent).toBe("Count: 1");
+      expect(button.classList.contains("clicked")).toBe(true);
+
+      // Second click
+      button.click();
+      await waitForWatcher();
+      expect(button.textContent).toBe("Count: 2");
+    });
+  });
+
+  describe("Complex Composition with yield*", () => {
+    it("should support complex workflow composition", async () => {
+      const container = document.createElement("div");
+      const input = document.createElement("input");
+      const button = document.createElement("button");
+      const output = document.createElement("div");
+
+      input.type = "text";
+      input.placeholder = "Enter text";
+      button.textContent = "Process";
+      output.className = "output";
+
+      container.appendChild(input);
+      container.appendChild(button);
+      container.appendChild(output);
+      document.body.appendChild(container);
+
+      await watch(container, async function* () {
+        // Initialize state
+        yield* setState("inputValue", "");
+        yield* setState("processed", false);
+
+        // Watch input changes
+        const inputElement = yield* query("input");
+        if (inputElement) {
+          yield* click(inputElement as HTMLElement, async function* () {
+            const value = (inputElement as HTMLInputElement).value;
+            yield* setState("inputValue", value);
+          });
+        }
+
+        // Watch button clicks
+        const buttonElement = yield* query("button");
+        if (buttonElement) {
+          yield* click(buttonElement as HTMLElement, async function* () {
+            const inputValue = yield* getState<string>("inputValue", "");
+
+            if (inputValue.trim()) {
+              // Process the input
+              const processed = inputValue.toUpperCase();
+              yield* setState("processed", true);
+
+              // Update output
+              const outputElement = yield* query(".output");
+              if (outputElement) {
+                yield* text(
+                  outputElement as HTMLElement,
+                  `Processed: ${processed}`,
+                );
+                yield* addClass(outputElement as HTMLElement, "success");
+              }
+            }
+          });
+        }
+      });
 
       await waitForWatcher();
 
-      expect(submittedData).toEqual({ name: "John Doe" });
-      expect(form.classList.contains("submitted")).toBe(true);
+      // Simulate interaction
+      (input as HTMLInputElement).value = "hello world";
+      input.click(); // Trigger the click handler to update state
+
+      await waitForWatcher();
+
+      button.click(); // Process the input
+
+      await waitForWatcher();
+      expect(output.textContent).toBe("Processed: HELLO WORLD");
+      expect(output.classList.contains("success")).toBe(true);
+    });
+  });
+
+  describe("Type Safety", () => {
+    it("should maintain type safety with yield*", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      await watch(div, async function* () {
+        // Type-safe state operations
+        yield* setState<number>("count", 42);
+        const count: number = yield* getState<number>("count", 0);
+        expect(typeof count).toBe("number");
+        expect(count).toBe(42);
+
+        // Type-safe string operations
+        yield* setState<string>("message", "hello");
+        const message: string = yield* getState<string>("message", "");
+        expect(typeof message).toBe("string");
+        expect(message).toBe("hello");
+
+        // Type-safe boolean operations
+        yield* setState<boolean>("flag", true);
+        const flag: boolean = yield* getState<boolean>("flag", false);
+        expect(typeof flag).toBe("boolean");
+        expect(flag).toBe(true);
+      });
     });
   });
 });

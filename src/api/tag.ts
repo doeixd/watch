@@ -225,7 +225,7 @@ export function tag<K extends keyof HTMLElementTagNameMap>(
                 staticClasses.push(String(cn));
               }
             });
-            if (staticClasses.length > 0) baseAddClass(el, staticClasses);
+            staticClasses.forEach((cls) => baseAddClass(el, cls));
           },
         text: (c) => (el) => {
           if (isReactive(c)) {

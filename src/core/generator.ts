@@ -12,6 +12,9 @@ import type {
   CleanupFunction,
   ElementFromSelector,
   ParentContext,
+  Workflow,
+  Operation,
+  WatchContext,
 } from "../types";
 import { getCurrentContext, parentContextRegistry } from "./context";
 
@@ -52,22 +55,22 @@ export function createTypedGeneratorContext<
   const element = context.element as El;
 
   return {
-    // Type-safe self function
+    // Type-safe self function - supports both direct call and yield*
     self(): El {
       return element;
     },
 
-    // Type-safe element query
+    // Type-safe element query - supports both direct call and yield*
     el<T extends HTMLElement = HTMLElement>(selector: string): T | null {
       return element.querySelector(selector) as T | null;
     },
 
-    // Type-safe element query all
+    // Type-safe element query all - supports both direct call and yield*
     all<T extends HTMLElement = HTMLElement>(selector: string): T[] {
       return Array.from(element.querySelectorAll(selector)) as T[];
     },
 
-    // Cleanup function
+    // Cleanup function - supports both direct call and yield*
     cleanup(fn: CleanupFunction): void {
       const cleanupRegistry = getCleanupRegistry();
       if (!cleanupRegistry.has(element)) {
@@ -76,7 +79,7 @@ export function createTypedGeneratorContext<
       cleanupRegistry.get(element)!.add(fn);
     },
 
-    // Context access
+    // Context access - supports both direct call and yield*
     ctx() {
       return {
         element,
@@ -114,7 +117,10 @@ const cleanupRegistry = new WeakMap<HTMLElement, Set<CleanupFunction>>();
 // Global registry to store the public API returned by a generator for an element.
 const generatorApiRegistry = new WeakMap<HTMLElement, any>();
 
-function getCleanupRegistry(): WeakMap<HTMLElement, Set<CleanupFunction>> {
+export function getCleanupRegistry(): WeakMap<
+  HTMLElement,
+  Set<CleanupFunction>
+> {
   return cleanupRegistry;
 }
 
@@ -191,57 +197,6 @@ export function getContextApi<T = any>(element: HTMLElement): T | undefined {
  */
 export function setContextApi<T = any>(element: HTMLElement, api: T): void {
   generatorApiRegistry.set(element, api);
-}
-
-/**
- * # getParentContext() - Access the Parent Watcher's Context
- *
- * From within a child's generator (one initiated by `createChildWatcher`),
- * this function retrieves the element and public API of the direct parent watcher.
- * This creates a parent-to-child communication channel.
- *
- * ## Usage
- *
- * ```typescript
- * // In a child's generator:
- * function* childComponent() {
- *   // Specify the expected parent element and API types for full type safety.
- *   const parent = getParentContext<HTMLFormElement, { submit: () => void }>();
- *
- *   if (parent) {
- *     console.log(`My parent is #${parent.element.id}`);
- *     // Call a method on the parent's API.
- *     parent.api.submit();
- *   }
- * }
- * ```
- *
- * @returns An object containing the parent's `element` and `api`, or `null` if the element is not a watched child.
- */
-export function getParentContext<
-  ParentEl extends HTMLElement = HTMLElement,
-  ParentApi = any,
->(ctx?: TypedGeneratorContext<any>): ParentContext<ParentEl, ParentApi> | null {
-  const context = getCurrentContext(ctx);
-  if (!context) {
-    throw new Error(
-      "getParentContext() can only be called within a generator context",
-    );
-  }
-
-  const childElement = context.element;
-  const parentElement = parentContextRegistry.get(childElement);
-
-  if (!parentElement) {
-    return null;
-  }
-
-  const parentApi = getContextApi<ParentApi>(parentElement);
-
-  return {
-    element: parentElement as ParentEl,
-    api: parentApi as ParentApi,
-  };
 }
 
 /**
@@ -525,32 +480,553 @@ export function getParentContext<
  */
 
 // Import the functions from context.ts to avoid duplication
-// Import the functions from context.ts to avoid duplication
+// Import existing functions to avoid redeclaration
 import {
-  self as selfFn,
-  el,
-  cleanup,
-  ctx,
+  self as contextSelf,
+  el as contextEl,
+  all as contextAll,
+  cleanup as contextCleanup,
+  ctx as contextCtx,
   parent,
   children,
   siblings,
 } from "./context";
 
-// Export all imported functions
-export { el, cleanup, ctx, parent, children, siblings };
+// Export all imported functions from context.ts
+export { parent, children, siblings };
 
-// Export self with the original name for backwards compatibility
-export { selfFn as self };
+// ==================== WORKFLOW-ENABLED GENERATOR UTILITIES ====================
 
-// Add the all function that doesn't exist in context.ts
+/**
+ * Get the current element in a type-safe way with yield* support.
+ *
+ * @returns The current element or a Workflow that yields it
+ *
+ * @example Direct usage in generator
+ * ```typescript
+ * watch('button', function* () {
+ *   const button = self();
+ *   button.disabled = true;
+ * });
+ * ```
+ *
+ * @example Using yield* for workflow composition
+ * ```typescript
+ * watch('button', function* () {
+ *   const button = yield* self();
+ *   button.disabled = true;
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watch('button', function* (ctx) {
+ *   const button = yield* ctx.self();
+ *   button.disabled = true;
+ * });
+ * ```
+ */
+export function self<El extends HTMLElement = HTMLElement>(
+  ctx?: TypedGeneratorContext<El>,
+): El {
+  return contextSelf(ctx);
+}
+
+/**
+ * Generator version of self() for yield* usage.
+ *
+ * Returns a Workflow that yields the current element. Use this when you need
+ * to get the current element within a generator using the yield* pattern.
+ *
+ * @template El - The element type (inferred from context)
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns Workflow that yields the current element
+ *
+ * @example Basic yield* usage
+ * ```typescript
+ * watch('.button', function* () {
+ *   const element = yield* self.gen<HTMLButtonElement>();
+ *   console.log('Processing button:', element.tagName);
+ * });
+ * ```
+ *
+ * @example Type inference from selector
+ * ```typescript
+ * watch('button', function* () {
+ *   const button = yield* self.gen(); // Automatically typed as HTMLButtonElement
+ *   button.click(); // Type-safe button methods
+ * });
+ * ```
+ */
+self.gen = function <El extends HTMLElement = HTMLElement>(
+  _ctx?: TypedGeneratorContext<El>,
+): Workflow<El> {
+  return (function* (): Generator<Operation<El>, El, any> {
+    const op: Operation<El> = (ctx: WatchContext) => ctx.element as El;
+    const element = yield op;
+    return element;
+  })();
+};
+
+/**
+ * Query for a child element with type safety and yield* support.
+ *
+ * @param selector - CSS selector to query
+ * @returns The found element (or null) or a Workflow that yields it
+ *
+ * @example Direct usage
+ * ```typescript
+ * watch('.card', function* () {
+ *   const button = el<HTMLButtonElement>('.action-btn');
+ *   if (button) button.click();
+ * });
+ * ```
+ *
+ * @example Using yield* pattern
+ * ```typescript
+ * watch('.card', function* () {
+ *   const button = yield* el<HTMLButtonElement>('.action-btn');
+ *   if (button) button.click();
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watchEnhanced('.card', function* (ctx) {
+ *   const button = yield* ctx.el<HTMLButtonElement>('.action-btn');
+ *   if (button) button.click();
+ * });
+ * ```
+ */
+export function el<T extends HTMLElement = HTMLElement>(
+  selector: string,
+  ctx?: TypedGeneratorContext<any>,
+): T | null {
+  return contextEl<T>(selector, ctx) as T | null;
+}
+
+/**
+ * Generator version of el() for yield* usage.
+ *
+ * Returns a Workflow that yields the first child element matching the selector.
+ * Use this when you need to query for elements within a generator using yield*.
+ *
+ * @template T - The expected element type
+ * @param selector - CSS selector to query
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns Workflow that yields the found element or null
+ *
+ * @example Query for specific element types
+ * ```typescript
+ * watch('.card', function* () {
+ *   const button = yield* el.gen<HTMLButtonElement>('.action-btn');
+ *   const input = yield* el.gen<HTMLInputElement>('.name-input');
+ *
+ *   if (button && input) {
+ *     // Type-safe element manipulation
+ *     button.disabled = !input.value;
+ *   }
+ * });
+ * ```
+ *
+ * @example Safe navigation with null checks
+ * ```typescript
+ * watch('.container', function* () {
+ *   const optional = yield* el.gen<HTMLSpanElement>('.optional-element');
+ *   if (optional) {
+ *     yield* text(optional, 'Found!');
+ *   }
+ * });
+ * ```
+ */
+el.gen = function <T extends HTMLElement = HTMLElement>(
+  selector: string,
+  _ctx?: TypedGeneratorContext<any>,
+): Workflow<T | null> {
+  return (function* (): Generator<Operation<T | null>, T | null, any> {
+    const op: Operation<T | null> = (ctx: WatchContext) =>
+      ctx.element.querySelector(selector) as T | null;
+    const element = yield op;
+    return element;
+  })();
+};
+
+// Add el.all alias for backward compatibility
+(el as any).all = all;
+
+/**
+ * Query for all matching child elements with type safety and yield* support.
+ *
+ * @param selector - CSS selector to query
+ * @returns Array of matching elements or a Workflow that yields them
+ *
+ * @example Direct usage
+ * ```typescript
+ * watch('.container', function* () {
+ *   const items = all<HTMLLIElement>('.item');
+ *   items.forEach(item => item.classList.add('processed'));
+ * });
+ * ```
+ *
+ * @example Using yield* pattern
+ * ```typescript
+ * watch('.container', function* () {
+ *   const items = yield* all<HTMLLIElement>('.item');
+ *   items.forEach(item => item.classList.add('processed'));
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watchEnhanced('.container', function* (ctx) {
+ *   const items = yield* ctx.all<HTMLLIElement>('.item');
+ *   items.forEach(item => item.classList.add('processed'));
+ * });
+ * ```
+ */
 export function all<T extends HTMLElement = HTMLElement>(
   selector: string,
+  ctx?: TypedGeneratorContext<any>,
 ): T[] {
-  const context = getCurrentContext();
-  if (!context) {
-    throw new Error("all() can only be called within a generator context");
+  return contextAll(selector, ctx);
+}
+
+/**
+ * Generator version of all() for yield* usage.
+ *
+ * Returns a Workflow that yields all child elements matching the selector.
+ * Use this when you need to query for multiple elements within a generator using yield*.
+ *
+ * @template T - The expected element type
+ * @param selector - CSS selector to query
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns Workflow that yields an array of found elements
+ *
+ * @example Process multiple elements
+ * ```typescript
+ * watch('.container', function* () {
+ *   const items = yield* all.gen<HTMLLIElement>('.item');
+ *
+ *   for (const item of items) {
+ *     yield* addClass(item, 'processed');
+ *     yield* attr(item, 'data-index', items.indexOf(item).toString());
+ *   }
+ * });
+ * ```
+ *
+ * @example Batch operations with type safety
+ * ```typescript
+ * watch('.form', function* () {
+ *   const inputs = yield* all.gen<HTMLInputElement>('input[required]');
+ *
+ *   inputs.forEach(input => {
+ *     if (!input.value) {
+ *       input.classList.add('error');
+ *     }
+ *   });
+ * });
+ * ```
+ */
+all.gen = function <T extends HTMLElement = HTMLElement>(
+  selector: string,
+  _ctx?: TypedGeneratorContext<any>,
+): Workflow<T[]> {
+  return (function* (): Generator<Operation<T[]>, T[], any> {
+    const op: Operation<T[]> = (ctx: WatchContext) =>
+      Array.from(ctx.element.querySelectorAll(selector)) as T[];
+    const elements = yield op;
+    return elements;
+  })();
+};
+
+/**
+ * Register a cleanup function to be called when the element is removed.
+ * Supports both direct call and yield* patterns.
+ *
+ * @param fn - Cleanup function to register
+ *
+ * @example Direct usage
+ * ```typescript
+ * watch('.widget', function* () {
+ *   const interval = setInterval(() => update(), 1000);
+ *   cleanup(() => clearInterval(interval));
+ * });
+ * ```
+ *
+ * @example Using yield* pattern
+ * ```typescript
+ * watch('.widget', function* () {
+ *   const interval = setInterval(() => update(), 1000);
+ *   yield* cleanup(() => clearInterval(interval));
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watchEnhanced('.widget', function* (ctx) {
+ *   const interval = setInterval(() => update(), 1000);
+ *   yield* ctx.cleanup(() => clearInterval(interval));
+ * });
+ * ```
+ */
+export function cleanup(
+  fn: CleanupFunction,
+  ctx?: TypedGeneratorContext<any>,
+): void {
+  contextCleanup(fn, ctx);
+}
+
+/**
+ * Generator version of cleanup() for yield* usage.
+ *
+ * Returns a Workflow that registers a cleanup function to be called when the element
+ * is removed from the DOM. Use this when you need to register cleanup functions
+ * within a generator using the yield* pattern.
+ *
+ * @param fn - Cleanup function to register
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns Workflow that registers the cleanup function
+ *
+ * @example Register resource cleanup
+ * ```typescript
+ * watch('.component', function* () {
+ *   const timer = setInterval(() => console.log('tick'), 1000);
+ *
+ *   yield* cleanup.gen(() => {
+ *     clearInterval(timer);
+ *     console.log('Timer cleaned up');
+ *   });
+ * });
+ * ```
+ *
+ * @example Multiple cleanup handlers
+ * ```typescript
+ * watch('.widget', function* () {
+ *   const observer = new ResizeObserver(() => {});
+ *   const subscription = eventBus.subscribe('update', handler);
+ *
+ *   yield* cleanup.gen(() => observer.disconnect());
+ *   yield* cleanup.gen(() => subscription.unsubscribe());
+ * });
+ * ```
+ */
+cleanup.gen = function (
+  fn: CleanupFunction,
+  _ctx?: TypedGeneratorContext<any>,
+): Workflow<void> {
+  return (function* (): Generator<Operation<void>, void, any> {
+    const op: Operation<void> = (ctx: WatchContext) => {
+      const cleanupRegistry = getCleanupRegistry();
+      const element = ctx.element;
+      if (!cleanupRegistry.has(element)) {
+        cleanupRegistry.set(element, new Set());
+      }
+      cleanupRegistry.get(element)!.add(fn);
+    };
+    yield op;
+  })();
+};
+
+/**
+ * Get the current watch context with full type safety.
+ * Supports both direct call and yield* patterns.
+ *
+ * @returns The current WatchContext or a Workflow that yields it
+ *
+ * @example Direct usage
+ * ```typescript
+ * watch('.item', function* () {
+ *   const context = ctx();
+ *   console.log(`Processing ${context.selector} at index ${context.index}`);
+ * });
+ * ```
+ *
+ * @example Using yield* pattern
+ * ```typescript
+ * watch('.item', function* () {
+ *   const context = yield* ctx();
+ *   console.log(`Processing ${context.selector} at index ${context.index}`);
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watchEnhanced('.item', function* (ctx) {
+ *   const context = yield* ctx.ctx();
+ *   console.log(`Processing ${context.selector} at index ${context.index}`);
+ * });
+ * ```
+ */
+export function ctx<El extends HTMLElement = HTMLElement>(
+  passedCtx?: TypedGeneratorContext<El>,
+): WatchContext<El> {
+  return contextCtx(passedCtx);
+}
+
+/**
+ * Generator version of ctx() for yield* usage.
+ *
+ * Returns a Workflow that yields the current WatchContext. Use this when you need
+ * to access the full context object within a generator using the yield* pattern.
+ *
+ * @template El - The element type (inferred from context)
+ * @param passedCtx - Optional context (usually auto-detected)
+ * @returns Workflow that yields the current WatchContext
+ *
+ * @example Access context information
+ * ```typescript
+ * watch('.item', function* () {
+ *   const context = yield* ctx.gen();
+ *
+ *   console.log(`Processing ${context.selector} at index ${context.index}`);
+ *   console.log(`Total elements: ${context.array.length}`);
+ *
+ *   // Access state and observers
+ *   context.state.set('processed', true);
+ *   context.addObserver(new ResizeObserver(() => {}));
+ * });
+ * ```
+ *
+ * @example Type-safe element access
+ * ```typescript
+ * watch('button', function* () {
+ *   const context = yield* ctx.gen<HTMLButtonElement>();
+ *
+ *   // context.element is automatically typed as HTMLButtonElement
+ *   context.element.disabled = true;
+ * });
+ * ```
+ */
+ctx.gen = function <El extends HTMLElement = HTMLElement>(
+  _passedCtx?: TypedGeneratorContext<El>,
+): Workflow<WatchContext<El>> {
+  return (function* (): Generator<
+    Operation<WatchContext<El>>,
+    WatchContext<El>,
+    any
+  > {
+    const op: Operation<WatchContext<El>> = (ctx: WatchContext) =>
+      ctx as WatchContext<El>;
+    const currentContext = yield op;
+    return currentContext;
+  })();
+};
+
+/**
+ * Get the parent context when using nested watch calls.
+ * Supports both direct call and yield* patterns.
+ *
+ * @returns The parent context or undefined, or a Workflow that yields it
+ *
+ * @example Direct usage
+ * ```typescript
+ * watch('.parent', function* () {
+ *   watch('.child', function* () {
+ *     const parentCtx = getParentContext();
+ *     if (parentCtx) {
+ *       console.log('Parent element:', parentCtx.element);
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Using yield* pattern
+ * ```typescript
+ * watch('.parent', function* () {
+ *   watch('.child', function* () {
+ *     const parentCtx = yield* getParentContext();
+ *     if (parentCtx) {
+ *       console.log('Parent element:', parentCtx.element);
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example With enhanced context
+ * ```typescript
+ * watchEnhanced('.parent', function* (parentCtx) {
+ *   watch('.child', function* (childCtx) {
+ *     const parent = yield* childCtx.getParentContext();
+ *     if (parent) {
+ *       console.log('Parent element:', parent.element);
+ *     }
+ *   });
+ * });
+ * ```
+ */
+export function getParentContext<
+  ParentEl extends HTMLElement = HTMLElement,
+  ParentApi = any,
+>(
+  ctx?: TypedGeneratorContext<any>,
+): ParentContext<ParentEl, ParentApi> | undefined;
+export function getParentContext<
+  ParentEl extends HTMLElement = HTMLElement,
+  ParentApi = any,
+>(): Workflow<ParentContext<ParentEl, ParentApi> | undefined>;
+export function getParentContext<
+  ParentEl extends HTMLElement = HTMLElement,
+  ParentApi = any,
+>(
+  ctx?: TypedGeneratorContext<any>,
+):
+  | ParentContext<ParentEl, ParentApi>
+  | undefined
+  | Workflow<ParentContext<ParentEl, ParentApi> | undefined> {
+  const context = getCurrentContext(ctx);
+
+  // Direct call - check if we have a current context
+  if (context) {
+    const element = context.element;
+    // Walk up the DOM tree looking for parent contexts
+    let currentElement: HTMLElement | null = element.parentElement;
+
+    while (currentElement) {
+      const parentElement = parentContextRegistry.get(currentElement);
+      if (parentElement) {
+        // Get the API if it exists
+        const api = getContextApi(parentElement);
+        return {
+          element: parentElement as ParentEl,
+          api: api as ParentApi,
+        } as ParentContext<ParentEl, ParentApi>;
+      }
+      currentElement = currentElement.parentElement;
+    }
+
+    return undefined;
   }
-  return Array.from(context.element.querySelectorAll(selector)) as T[];
+
+  // Return workflow for yield* usage
+  return (function* (): Generator<
+    Operation<ParentContext<ParentEl, ParentApi> | undefined>,
+    ParentContext<ParentEl, ParentApi> | undefined,
+    any
+  > {
+    const op: Operation<ParentContext<ParentEl, ParentApi> | undefined> = (
+      ctx: WatchContext,
+    ) => {
+      const element = ctx.element;
+      let currentElement: HTMLElement | null = element.parentElement;
+
+      while (currentElement) {
+        const parentElement = parentContextRegistry.get(currentElement);
+        if (parentElement) {
+          // Get the API if it exists
+          const api = getContextApi(parentElement);
+          return {
+            element: parentElement as ParentEl,
+            api: api as ParentApi,
+          } as ParentContext<ParentEl, ParentApi>;
+        }
+        currentElement = currentElement.parentElement;
+      }
+
+      return undefined;
+    };
+    const parent = yield op;
+    return parent;
+  })();
 }
 
 // Type-safe generator creation helpers

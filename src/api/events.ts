@@ -31,6 +31,9 @@ import type {
   TextChange,
   VisibilityChange,
   ResizeChange,
+  Workflow,
+  Operation,
+  WatchContext,
 } from "../types";
 import {
   executeGenerator,
@@ -63,6 +66,12 @@ export function on<El extends Element, K extends keyof HTMLElementEventMap>(
   handler: HybridEventHandler<El, K>,
   options?: HybridEventOptions,
 ): ElementFn<El, CleanupFunction>;
+// Workflow overload for yield* usage with DOM events
+export function on<El extends Element, K extends keyof HTMLElementEventMap>(
+  event: K,
+  handler: HybridEventHandler<El, K>,
+  options?: HybridEventOptions,
+): Workflow<CleanupFunction>;
 
 // 2. CustomEvents with a specific detail type T
 export function on<El extends Element, T>(
@@ -82,6 +91,12 @@ export function on<El extends Element, T>(
   handler: HybridCustomEventHandler<El, T>,
   options?: HybridEventOptions,
 ): ElementFn<El, CleanupFunction>;
+// Workflow overload for yield* usage with CustomEvents
+export function on<El extends Element, T>(
+  event: CustomEvent<T>,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): Workflow<CleanupFunction>;
 
 // 3. Custom event strings, requiring a generic for the detail type T
 export function on<T = any, El extends Element = HTMLElement>(
@@ -101,6 +116,12 @@ export function on<T = any, El extends Element = HTMLElement>(
   handler: HybridCustomEventHandler<El, T>,
   options?: HybridEventOptions,
 ): ElementFn<El, CleanupFunction>;
+// Workflow overload for yield* usage with custom event strings
+export function on<T = any, El extends Element = HTMLElement>(
+  eventType: string,
+  handler: HybridCustomEventHandler<El, T>,
+  options?: HybridEventOptions,
+): Workflow<CleanupFunction>;
 
 /**
  * # on() - The Unified Event Listener
@@ -147,6 +168,60 @@ export function on<T = any, El extends Element = HTMLElement>(
 export function on<El extends Element, K extends keyof HTMLElementEventMap, T>(
   ...args: any[]
 ): any {
+  // Check if we're in a generator context and need to return a Workflow
+  const context = getCurrentContext();
+  const isWorkflowUsage =
+    context &&
+    !args[0]?.nodeType && // Not a direct element
+    typeof args[0] === "string" && // Event type string
+    typeof args[1] === "function" && // Handler function
+    args.length <= 3; // Not selector usage (which has 4 args)
+
+  if (isWorkflowUsage) {
+    // Return a Workflow for yield* usage
+    return (function* (): Generator<
+      Operation<CleanupFunction>,
+      CleanupFunction,
+      any
+    > {
+      const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+        const element = ctx.element;
+        if (!element) {
+          console.error("[DEBUG] Element is undefined in operation context!");
+          throw new Error("Element is undefined in event operation context");
+        }
+
+        const eventOrType = args[0];
+        const handler = args[1];
+        const options = args[2] || {};
+
+        const eventType = getEventType(eventOrType);
+        const inGeneratorContext = true;
+
+        const enhancedHandler = createEnhancedHandler(
+          element as unknown as HTMLElement,
+          handler,
+          inGeneratorContext,
+          options,
+        );
+
+        const finalHandler = applyTimingModifiers(enhancedHandler, options);
+
+        const cleanup = setupEventListener(
+          element,
+          eventType,
+          finalHandler,
+          options,
+        );
+
+        createCleanupFunction(element as unknown as HTMLElement)(cleanup);
+        return cleanup;
+      };
+      const cleanup = yield op;
+      return cleanup;
+    })();
+  }
+
   // 1. UNIFIED ARGUMENT PARSING
   const isDirectUsage = args[0] instanceof Element;
 
@@ -390,6 +465,38 @@ function setupEventListener(
     passive: options.passive,
     signal: options.signal,
   };
+  if (!element) {
+    console.error("[DEBUG] Element is undefined in setupEventListener!");
+    throw new Error("Element is undefined in setupEventListener");
+  }
+
+  // console.log(
+  //   "[DEBUG] setupEventListener - element received:",
+  //   element?.tagName,
+  //   typeof element,
+  // );
+
+  // console.log(
+  //   "[DEBUG] Right before addEventListener - element:",
+  //   element,
+  //   "hasMethod:",
+  //   typeof element?.addEventListener,
+  // );
+
+  if (!element) {
+    throw new Error("Element is null/undefined right before addEventListener");
+  }
+
+  if (typeof element.addEventListener !== "function") {
+    console.error(
+      "[DEBUG] addEventListener is not a function:",
+      typeof element.addEventListener,
+    );
+    console.error("[DEBUG] Element keys:", Object.keys(element));
+    console.error("[DEBUG] Element prototype:", Object.getPrototypeOf(element));
+    throw new Error("Element.addEventListener is not a function");
+  }
+
   element.addEventListener(eventType, handler, listenerOptions);
   return () => {
     if (options.signal?.aborted) return;
@@ -456,13 +563,37 @@ function throttle(
 // ==================== SHORTCUTS and UTILITIES ====================
 
 /**
+ * Interface for event shortcut functions that includes the gen property
+ */
+interface EventShortcutFunction<K extends keyof HTMLElementEventMap> {
+  <El extends Element>(
+    element: El,
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): CleanupFunction;
+  (
+    selector: string,
+    handler: HybridEventHandler<HTMLElement, K>,
+    options?: HybridEventOptions,
+  ): CleanupFunction | null;
+  <El extends Element>(
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): ElementFn<El, CleanupFunction>;
+  gen<El extends Element>(
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): Workflow<CleanupFunction>;
+}
+
+/**
  * @internal
  * A generic factory to create event shortcut functions like `click`, `input`, etc.
  * This reduces code duplication and ensures all shortcuts share the same robust logic.
  */
 function createEventShortcut<K extends keyof HTMLElementEventMap>(
   eventType: K,
-) {
+): EventShortcutFunction<K> {
   function shortcut<El extends Element>(
     element: El,
     handler: HybridEventHandler<El, K>,
@@ -480,18 +611,62 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
   function shortcut(...args: any[]): any {
     if (args[0] instanceof Element) {
       const [element, handler, options] = args;
-      return on(element, eventType, handler, options);
+      return on(element, eventType, handler as any, options);
     }
     // Check if first arg is a CSS selector (string) with handler as second arg
     if (typeof args[0] === "string" && args.length >= 2) {
       const [selector, handler, options] = args;
-      return on(selector, eventType, handler, options);
+      return on(selector, eventType, handler as any, options);
     }
     // Generator pattern - handler is first arg
     const [handler, options] = args;
-    return on(eventType, handler, options);
+    return on(eventType, handler as any, options);
   }
-  return shortcut;
+
+  // Add gen property
+  (shortcut as any).gen = function <El extends Element>(
+    handler: HybridEventHandler<El, K>,
+    options?: HybridEventOptions,
+  ): Workflow<CleanupFunction> {
+    return (function* (): Generator<
+      Operation<CleanupFunction>,
+      CleanupFunction,
+      any
+    > {
+      const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+        const element = ctx.element;
+        if (!element) {
+          throw new Error("Element is undefined in event operation context");
+        }
+
+        const enhancedHandler = createEnhancedHandler(
+          element as unknown as HTMLElement,
+          handler as any,
+          true, // inGeneratorContext
+          options || {},
+        );
+
+        const finalHandler = applyTimingModifiers(
+          enhancedHandler,
+          options || {},
+        );
+
+        const cleanup = setupEventListener(
+          element as unknown as HTMLElement,
+          eventType,
+          finalHandler,
+          options || {},
+        );
+
+        return cleanup;
+      };
+
+      yield op;
+      return yield op;
+    })();
+  };
+
+  return shortcut as EventShortcutFunction<K>;
 }
 
 /**
@@ -615,6 +790,22 @@ function createEventShortcut<K extends keyof HTMLElementEventMap>(
  * ```
  */
 export const click = createEventShortcut("click");
+
+/**
+ * Generator version of click event handler for use with yield*.
+ *
+ * @example Generator usage with yield*
+ * ```typescript
+ * import { watch, click } from 'watch-selector';
+ *
+ * watch('button', function* () {
+ *   yield* click.gen(function* (event) {
+ *     yield* addClass('clicked');
+ *     console.log('Button clicked!');
+ *   });
+ * });
+ * ```
+ */
 
 /**
  * Attaches an input event listener using the dual API pattern.
@@ -1076,43 +1267,80 @@ export function emit(...args: any[]): any {
   }
 }
 
+/**
+ * Generator version of emit for use with yield*.
+ */
+emit.gen = function <T = any>(
+  eventTypeOrEvent: string | CustomEvent<T>,
+  detail?: T,
+  options?: EventInit,
+): Workflow<void> {
+  return (function* (): Generator<Operation<void>, void, any> {
+    const op: Operation<void> = (ctx: WatchContext) => {
+      const element = ctx.element;
+      if (!element) {
+        throw new Error("Element is undefined in emit operation context");
+      }
+
+      let event: CustomEvent<T>;
+      if (typeof eventTypeOrEvent === "string") {
+        event = new CustomEvent(eventTypeOrEvent, {
+          detail: detail as T,
+          ...options,
+        });
+      } else {
+        event = eventTypeOrEvent;
+      }
+
+      element.dispatchEvent(event);
+    };
+    yield op;
+  })();
+};
+
 // ==================== OBSERVER-BASED EVENTS ====================
 
-function createObserverEvent<T, O, C>(
-  ObserverClass: new (
-    cb: (entries: T[]) => void,
-    opts?: O,
-  ) => { observe: (el: Element, opts?: any) => void; disconnect: () => void },
-  getChangeData: (entry: T, element: Element) => C,
-) {
-  function observe(
-    element: Element,
-    handler: (change: C) => void,
-    options?: O,
-  ): CleanupFunction;
-  function observe(
-    handler: (change: C) => void,
-    options?: O,
-  ): ElementFn<Element, CleanupFunction>;
-  function observe(...args: any[]): any {
-    const setup = (
-      element: Element,
-      handler: (change: C) => void,
-      options?: O,
-    ) => {
-      const observer = new ObserverClass((entries) => {
-        for (const entry of entries) {
-          handler(getChangeData(entry, element));
-        }
-      }, options);
-      observer.observe(element, options);
-      return () => observer.disconnect();
-    };
-    if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
-    return (element: Element) => setup(element, args[0], args[1]);
-  }
-  return observe;
-}
+// Unused helper function - kept for potential future use
+// function createObserverEvent<T, O, C>(
+//   ObserverClass: new (
+//     cb: (entries: T[]) => void,
+//     opts?: O,
+//   ) => { observe: (el: Element, opts?: any) => void; disconnect: () => void },
+//   getChangeData: (entry: T, element: Element) => C,
+// ) {
+//   function observe(
+//     element: Element,
+//     handler: (change: C) => void,
+//     options?: O,
+//   ): CleanupFunction;
+//   function observe(
+//     selector: string,
+//     handler: (change: C) => void,
+//     options?: O,
+//   ): CleanupFunction | null;
+//   function observe(
+//     handler: (change: C) => void,
+//     options?: O,
+//   ): ElementFn<Element, CleanupFunction>;
+//   function observe(...args: any[]): any {
+//     const setup = (
+//       element: Element,
+//       handler: (change: C) => void,
+//       options?: O,
+//     ) => {
+//       const observer = new ObserverClass((entries) => {
+//         for (const entry of entries) {
+//           handler(getChangeData(entry, element));
+//         }
+//       }, options);
+//       observer.observe(element, options);
+//       return () => observer.disconnect();
+//     };
+//     if (args[0] instanceof Element) return setup(args[0], args[1], args[2]);
+//     return (element: Element) => setup(element, args[0], args[1]);
+//   }
+//   return observe;
+// }
 
 /** Listens for changes to an element's attributes. */
 export function onAttr(
@@ -1147,6 +1375,17 @@ export function onAttr(
     | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): ElementFn<Element, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onAttr(
+  handler: (
+    change: AttributeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: MutationObserverInit,
+): Workflow<CleanupFunction>;
 export function onAttr(...args: any[]): any {
   const executeHandler = async (
     element: Element,
@@ -1229,6 +1468,39 @@ export function onAttr(...args: any[]): any {
       : null;
   }
 
+  // Check if we're in a generator context and need to return a Workflow
+  const context = getCurrentContext();
+  const isWorkflowUsage =
+    context &&
+    !args[0]?.nodeType && // Not a direct element
+    typeof args[0] === "function" && // Handler function
+    args.length <= 2; // Not selector usage
+
+  if (isWorkflowUsage) {
+    // Return a Workflow for yield* usage
+    return (function* (): Generator<
+      Operation<CleanupFunction>,
+      CleanupFunction,
+      any
+    > {
+      const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+        const element = ctx.element;
+        if (!element) {
+          throw new Error("Element is undefined in onAttr operation context");
+        }
+
+        const handler = args[0];
+        const options = args[1] || {};
+
+        const cleanup = setup(element, handler, options);
+        createCleanupFunction(element as unknown as HTMLElement)(cleanup);
+        return cleanup;
+      };
+      const cleanup = yield op;
+      return cleanup;
+    })();
+  }
+
   // Generator pattern
   return (element: Element) => setup(element, args[0], args[1]);
 }
@@ -1266,6 +1538,17 @@ export function onText(
     | AsyncGenerator<any, void, any>,
   options?: MutationObserverInit,
 ): ElementFn<Element, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onText(
+  handler: (
+    change: TextChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: MutationObserverInit,
+): Workflow<CleanupFunction>;
 export function onText(...args: any[]): any {
   const executeHandler = async (
     element: Element,
@@ -1389,6 +1672,17 @@ export function onVisible(
     | AsyncGenerator<any, void, any>,
   options?: IntersectionObserverInit,
 ): ElementFn<Element, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onVisible(
+  handler: (
+    change: VisibilityChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: IntersectionObserverInit,
+): Workflow<CleanupFunction>;
 export function onVisible(...args: any[]): any {
   const executeHandler = async (
     element: Element,
@@ -1504,6 +1798,17 @@ export function onResize(
     | AsyncGenerator<any, void, any>,
   options?: ResizeObserverOptions,
 ): ElementFn<Element, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onResize(
+  handler: (
+    change: ResizeChange & { element: Element },
+  ) =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+  options?: ResizeObserverOptions,
+): Workflow<CleanupFunction>;
 export function onResize(...args: any[]): any {
   const executeHandler = async (
     element: Element,
@@ -1560,6 +1865,68 @@ export function onResize(...args: any[]): any {
           element,
         });
       }
+
+      /**
+       * Generator version of onMount for use with yield*.
+       */
+      (onMount as any).gen = function (
+        handler: () => void | Promise<void> | Generator<any, any, any>,
+      ): Workflow<CleanupFunction> {
+        return (function* (): Generator<
+          Operation<CleanupFunction>,
+          CleanupFunction,
+          any
+        > {
+          const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+            const element = ctx.element;
+            if (!element) {
+              throw new Error(
+                "Element is undefined in onMount operation context",
+              );
+            }
+
+            let hasBeenCalled = false;
+            const wrappedHandler = async () => {
+              if (hasBeenCalled) return;
+              hasBeenCalled = true;
+
+              try {
+                const result = handler();
+                if (
+                  result &&
+                  typeof result === "object" &&
+                  typeof (result as any).next === "function"
+                ) {
+                  // Handle generator
+                  await executeGenerator(
+                    element,
+                    "",
+                    0,
+                    [],
+                    () => result as Generator<any, any, any>,
+                  );
+                } else if (
+                  result &&
+                  typeof (result as any).then === "function"
+                ) {
+                  // Handle promise
+                  await result;
+                }
+              } catch (error) {
+                console.error("Error in onMount handler:", error);
+              }
+            };
+
+            // Execute immediately since element is already mounted
+            wrappedHandler();
+
+            // Return a no-op cleanup function
+            return () => {};
+          };
+          const cleanup = yield op;
+          return cleanup;
+        })();
+      };
     });
     observer.observe(element, options);
     return () => observer.disconnect();
@@ -1616,10 +1983,18 @@ export function onMount<El extends Element>(
     | Generator<any, void, any>
     | AsyncGenerator<any, void, any>,
 ): ElementFn<El, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onMount(
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+): Workflow<CleanupFunction>;
 export function onMount(...args: any[]): any {
   // Helper to execute the handler with generator support
   const executeHandler = async (element: Element, handler: any) => {
-    const result = handler();
+    const result = handler(element);
 
     // Handle async generator
     if (
@@ -1657,10 +2032,130 @@ export function onMount(...args: any[]): any {
   // Direct element pattern
   if (args[0] instanceof Element) {
     const [element, handler] = args;
-    if (element.isConnected) {
+    const isConnected =
+      element.isConnected !== undefined
+        ? element.isConnected
+        : element.parentNode !== null && element.ownerDocument !== null;
+    if (isConnected) {
       queueMicrotask(() => executeHandler(element, handler));
     }
     return () => {}; // onMount is immediate, so cleanup is a no-op
+  }
+
+  /**
+   * Generator version of onMount for use with yield*.
+   */
+  (onMount as any).gen = function (
+    handler: () => void | Promise<void> | Generator<any, any, any>,
+  ): Workflow<CleanupFunction> {
+    return (function* (): Generator<
+      Operation<CleanupFunction>,
+      CleanupFunction,
+      any
+    > {
+      const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+        const element = ctx.element;
+        if (!element) {
+          throw new Error("Element is undefined in onMount operation context");
+        }
+
+        let hasBeenCalled = false;
+        const wrappedHandler = async () => {
+          if (hasBeenCalled) return;
+          hasBeenCalled = true;
+
+          try {
+            const result = handler();
+            if (
+              result &&
+              typeof result === "object" &&
+              typeof (result as any).next === "function"
+            ) {
+              // Handle generator
+              await executeGenerator(
+                element,
+                "",
+                0,
+                [],
+                () => result as Generator<any, any, any>,
+              );
+            } else if (result && typeof (result as any).then === "function") {
+              // Handle promise
+              await result;
+            }
+          } catch (error) {
+            console.error("Error in onMount handler:", error);
+          }
+        };
+
+        // Execute immediately since element is already mounted
+        wrappedHandler();
+
+        // Return a no-op cleanup function
+        return () => {};
+      };
+      const cleanup = yield op;
+      return cleanup;
+    })();
+  };
+
+  /**
+   * Generator version of onUnmount for use with yield*.
+   */
+  (onUnmount as any).gen = function (
+    handler: () => void | Promise<void>,
+  ): Workflow<CleanupFunction> {
+    return (function* (): Generator<
+      Operation<CleanupFunction>,
+      CleanupFunction,
+      any
+    > {
+      const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+        const element = ctx.element;
+        if (!element) {
+          throw new Error(
+            "Element is undefined in onUnmount operation context",
+          );
+        }
+
+        const cleanup = setup(element, handler);
+        return cleanup;
+      };
+      const cleanup = yield op;
+      return cleanup;
+    })();
+  };
+
+  // Helper function to create setup for onUnmount
+  function setup(
+    element: Element,
+    handler: () => void | Promise<void>,
+  ): CleanupFunction {
+    const wrappedHandler = async () => {
+      try {
+        const result = handler();
+        if (result && typeof (result as any).then === "function") {
+          await result;
+        }
+      } catch (error) {
+        console.error("Error in onUnmount handler:", error);
+      }
+    };
+
+    if (!unmountHandlers.has(element)) {
+      unmountHandlers.set(element, new Set());
+    }
+    unmountHandlers.get(element)!.add(wrappedHandler);
+
+    return () => {
+      const handlers = unmountHandlers.get(element);
+      if (handlers) {
+        handlers.delete(wrappedHandler);
+        if (handlers.size === 0) {
+          unmountHandlers.delete(element);
+        }
+      }
+    };
   }
 
   // CSS selector pattern
@@ -1668,7 +2163,11 @@ export function onMount(...args: any[]): any {
     const [selector, handler] = args;
     const elements = document.querySelectorAll(selector);
     elements.forEach((element) => {
-      if (element.isConnected) {
+      const isConnected =
+        element.isConnected !== undefined
+          ? element.isConnected
+          : element.parentNode !== null && element.ownerDocument !== null;
+      if (isConnected) {
         queueMicrotask(() => executeHandler(element, handler));
       }
     });
@@ -1691,12 +2190,22 @@ export function onMount(...args: any[]): any {
         await executeHandler(element, handler);
       };
 
-      if (element.isConnected) {
+      // Check if element is connected - happy-dom might not have isConnected property
+      const isConnected =
+        element.isConnected !== undefined
+          ? element.isConnected
+          : element.parentNode !== null && element.ownerDocument !== null;
+
+      if (isConnected) {
         queueMicrotask(wrappedHandler);
       } else {
         // Wait for element to be connected
         const observer = new MutationObserver(() => {
-          if (element.isConnected) {
+          const connected =
+            element.isConnected !== undefined
+              ? element.isConnected
+              : element.parentNode !== null && element.ownerDocument !== null;
+          if (connected) {
             wrappedHandler();
             observer.disconnect();
           }
@@ -1708,9 +2217,16 @@ export function onMount(...args: any[]): any {
           (context as any).cleanup(() => observer.disconnect());
         }
       }
+      // console.log("[onMount] Returning from context branch");
+      return () => {}; // Return cleanup function
     } else {
+      // console.log("[onMount] No context, direct call branch");
       // Direct call without context
-      if (element.isConnected) {
+      const isConnected =
+        element.isConnected !== undefined
+          ? element.isConnected
+          : element.parentNode !== null && element.ownerDocument !== null;
+      if (isConnected) {
         queueMicrotask(() => executeHandler(element, handler));
       }
     }
@@ -1755,10 +2271,18 @@ export function onUnmount<El extends Element>(
     | Generator<any, void, any>
     | AsyncGenerator<any, void, any>,
 ): ElementFn<El, CleanupFunction>;
+// Workflow overload for yield* usage
+export function onUnmount(
+  handler: () =>
+    | void
+    | Promise<void>
+    | Generator<any, void, any>
+    | AsyncGenerator<any, void, any>,
+): Workflow<CleanupFunction>;
 export function onUnmount(...args: any[]): any {
   // Helper to execute the handler with generator support
   const executeHandler = async (element: Element, handler: any) => {
-    const result = handler();
+    const result = handler(element);
 
     // Handle async generator
     if (
@@ -1871,3 +2395,8 @@ export function onUnmount(...args: any[]): any {
     return cleanup;
   };
 }
+
+// Note: Convenience event functions (click, input, change, submit) are
+// imported from events-sync.ts and re-exported from index.ts to avoid
+// duplicate exports here. The implementations with Workflow support
+// already exist in events-sync.ts.

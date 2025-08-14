@@ -49,9 +49,9 @@ import {
  *
  * @example Basic DOM manipulation with yield* pattern
  * ```typescript
- * import { watchEnhanced } from 'watch-selector';
+ * import { watch } from 'watch-selector';
  *
- * watchEnhanced('button', function* (ctx) {
+ * watch('button', function* (ctx) {
  *   // All DOM functions are available on context
  *   yield* ctx.text('Click me!');
  *   yield* ctx.addClass('interactive');
@@ -64,7 +64,7 @@ import {
  *
  * @example Event handling with state management
  * ```typescript
- * watchEnhanced('.counter', function* (ctx) {
+ * watch('.counter', function* (ctx) {
  *   // Initialize state
  *   yield* ctx.setState('count', 0);
  *   yield* ctx.text('Count: 0');
@@ -88,7 +88,7 @@ import {
  *
  * @example Complex UI component with lifecycle
  * ```typescript
- * watchEnhanced('.dropdown', function* (ctx) {
+ * watch('.dropdown', function* (ctx) {
  *   // Setup initial state
  *   yield* ctx.hide('.dropdown-menu');
  *   yield* ctx.attr('aria-expanded', 'false');
@@ -137,7 +137,7 @@ import {
  *
  * @example Observer events for reactive updates
  * ```typescript
- * watchEnhanced('[data-price]', function* (ctx) {
+ * watch('[data-price]', function* (ctx) {
  *   // Watch for attribute changes
  *   yield* ctx.onAttr('data-price', function* (newValue, oldValue) {
  *     const price = parseFloat(newValue || '0');
@@ -171,7 +171,7 @@ import {
  *
  * @example Form handling with validation
  * ```typescript
- * watchEnhanced('form.signup', function* (ctx) {
+ * watch('form.signup', function* (ctx) {
  *   // Real-time validation
  *   yield* ctx.on('input', '[required]', function* (event) {
  *     const input = event.target as HTMLInputElement;
@@ -216,7 +216,7 @@ import {
  *
  * @example Type-safe element access
  * ```typescript
- * watchEnhanced('input[type="email"]', function* (ctx) {
+ * watch('input[type="email"]', function* (ctx) {
  *   // ctx.self() returns HTMLInputElement
  *   const input = ctx.self();
  *
@@ -231,7 +231,7 @@ import {
  *
  * @example DOM traversal with attached functions
  * ```typescript
- * watchEnhanced('.card', function* (ctx) {
+ * watch('.card', function* (ctx) {
  *   // Query child elements
  *   const title = yield* ctx.query<HTMLHeadingElement>('h2');
  *   const buttons = yield* ctx.queryAll<HTMLButtonElement>('button');
@@ -242,14 +242,21 @@ import {
  * });
  * ```
  */
-export function watchEnhanced<S extends string, TReturn = void>(
+export function watch<S extends string, TReturn = void>(
   selector: S,
   generator: (
     ctx: EnhancedTypedGeneratorContext<ElementFromSelector<S>>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<ElementFromSelector<S>>;
 
-export function watchEnhanced<S extends string, TReturn = void>(
+export function watch<S extends string, TReturn = void>(
+  selector: S,
+  generator: (
+    ctx: EnhancedTypedGeneratorContext<ElementFromSelector<S>>,
+  ) => Generator<Operation<any>, TReturn, unknown>,
+): WatchController<ElementFromSelector<S>>;
+
+export function watch<S extends string, TReturn = void>(
   selector: S,
   generator: (
     ctx: EnhancedTypedGeneratorContext<ElementFromSelector<S>>,
@@ -257,14 +264,14 @@ export function watchEnhanced<S extends string, TReturn = void>(
 ): WatchController<ElementFromSelector<S>>;
 
 // Single element overloads
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   element: El,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<El>;
 
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   element: El,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -272,14 +279,14 @@ export function watchEnhanced<El extends HTMLElement, TReturn = void>(
 ): WatchController<El>;
 
 // Matcher function overloads
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   matcher: ElementMatcher<El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<El>;
 
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   matcher: ElementMatcher<El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -287,14 +294,14 @@ export function watchEnhanced<El extends HTMLElement, TReturn = void>(
 ): WatchController<El>;
 
 // Array of elements overloads
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   elements: El[],
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<El>;
 
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   elements: El[],
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -302,14 +309,14 @@ export function watchEnhanced<El extends HTMLElement, TReturn = void>(
 ): WatchController<El>;
 
 // NodeList overloads
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   nodeList: NodeListOf<El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<El>;
 
-export function watchEnhanced<El extends HTMLElement, TReturn = void>(
+export function watch<El extends HTMLElement, TReturn = void>(
   nodeList: NodeListOf<El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -317,7 +324,7 @@ export function watchEnhanced<El extends HTMLElement, TReturn = void>(
 ): WatchController<El>;
 
 // Event delegation overloads (parent + child selector)
-export function watchEnhanced<
+export function watch<
   ParentEl extends HTMLElement,
   S extends string,
   TReturn = void,
@@ -329,7 +336,7 @@ export function watchEnhanced<
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<ElementFromSelector<S>>;
 
-export function watchEnhanced<
+export function watch<
   ParentEl extends HTMLElement,
   S extends string,
   TReturn = void,
@@ -342,22 +349,14 @@ export function watchEnhanced<
 ): WatchController<ElementFromSelector<S>>;
 
 // Pre-defined context overloads
-export function watchEnhanced<
-  S extends string,
-  El extends HTMLElement,
-  TReturn = void,
->(
+export function watch<S extends string, El extends HTMLElement, TReturn = void>(
   context: PreDefinedWatchContext<S, El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
   ) => Generator<Operation<any>, TReturn, unknown>,
 ): WatchController<El>;
 
-export function watchEnhanced<
-  S extends string,
-  El extends HTMLElement,
-  TReturn = void,
->(
+export function watch<S extends string, El extends HTMLElement, TReturn = void>(
   context: PreDefinedWatchContext<S, El>,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -365,10 +364,7 @@ export function watchEnhanced<
 ): WatchController<El>;
 
 // Implementation
-export function watchEnhanced<
-  El extends HTMLElement = HTMLElement,
-  TReturn = void,
->(
+export function watch<El extends HTMLElement = HTMLElement, TReturn = void>(
   targetOrParent: WatchTarget<El> | El | PreDefinedWatchContext<string, El>,
   generatorOrChildSelector?:
     | ((
@@ -470,12 +466,12 @@ export function watchEnhanced<
 /**
  * Run a generator on a specific element with enhanced context
  *
- * @example Using runOnEnhanced with attached DOM functions
+ * @example Using runOn with attached DOM functions
  * ```typescript
- * import { runOnEnhanced } from 'watch-selector';
+ * import { runOn } from 'watch-selector';
  *
  * const button = document.querySelector('button');
- * await runOnEnhanced(button, function* (ctx) {
+ * await runOn(button, function* (ctx) {
  *   yield* ctx.text('Processing...');
  *   yield* ctx.addClass('loading');
  *   yield* ctx.attr('disabled', 'true');
@@ -489,7 +485,7 @@ export function watchEnhanced<
  * });
  * ```
  */
-export async function runOnEnhanced<El extends HTMLElement, T = void>(
+export async function runOn<El extends HTMLElement, T = void>(
   element: El,
   generator: (
     ctx: EnhancedTypedGeneratorContext<El>,
@@ -499,11 +495,11 @@ export async function runOnEnhanced<El extends HTMLElement, T = void>(
 ): Promise<T | undefined> {
   // Wrap the generator to provide enhanced context
   const wrappedGenerator = (
-    baseContext: TypedGeneratorContext<El>,
+    baseContext?: TypedGeneratorContext<El>,
   ):
     | Generator<Operation<any>, T, unknown>
     | AsyncGenerator<Operation<any>, T, unknown> => {
-    const enhancedContext = createEnhancedContext(baseContext);
+    const enhancedContext = createEnhancedContext(baseContext!);
     return generator(enhancedContext);
   };
 
@@ -529,10 +525,10 @@ export async function runOnEnhanced<El extends HTMLElement, T = void>(
  *
  * @example Watching child elements with attached DOM functions
  * ```typescript
- * import { scopedWatchEnhanced } from 'watch-selector';
+ * import { scopedWatch } from 'watch-selector';
  *
  * const container = document.querySelector('.container');
- * scopedWatchEnhanced(container, '.item', function* (ctx) {
+ * scopedWatch(container, '.item', function* (ctx) {
  *   yield* ctx.addClass('observed');
  *
  *   yield* ctx.on('click', function* (event) {
@@ -548,7 +544,7 @@ export async function runOnEnhanced<El extends HTMLElement, T = void>(
  * });
  * ```
  */
-export function scopedWatchEnhanced<
+export function scopedWatch<
   ParentEl extends HTMLElement,
   S extends string,
   TReturn = void,
@@ -561,7 +557,7 @@ export function scopedWatchEnhanced<
     | Generator<Operation<any>, TReturn, unknown>
     | AsyncGenerator<Operation<any>, TReturn, unknown>,
 ): WatchController<ElementFromSelector<S>> {
-  return watchEnhanced(parent as any, selector, generator as any);
+  return watch(parent as any, selector, generator as any);
 }
 
 // Re-export the enhanced context type for external use
@@ -569,3 +565,10 @@ export type { EnhancedTypedGeneratorContext } from "./core/enhanced-context/cont
 
 // Export helper to manually create enhanced context if needed
 export { createEnhancedContext } from "./core/enhanced-context/context-with-dom";
+
+// Keep the old names as aliases for backward compatibility
+export {
+  watch as watchEnhanced,
+  runOn as runOnEnhanced,
+  scopedWatch as scopedWatchEnhanced,
+};

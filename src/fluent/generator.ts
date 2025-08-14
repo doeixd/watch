@@ -314,16 +314,69 @@ export class FluentGeneratorSelector<El extends Element = Element> {
   if(condition: (element: El) => boolean): FluentGeneratorSelector<El> {
     const previousOps = [...this.operations];
 
-    const conditionalOp = async (element: El) => {
-      if (condition(element)) {
-        for (const op of previousOps) {
-          await op(element);
-        }
-      }
-    };
+    // Clear operations to collect subsequent ones
+    this.operations = [];
 
-    this.operations = [...previousOps, conditionalOp];
-    return this;
+    // Store operations that will be added after if()
+    const conditionalOps: Array<(element: El) => void | any> = [];
+
+    // Create a proxy to capture operations meant to be conditional
+    const proxy = new Proxy(this, {
+      get(target, prop, receiver) {
+        const original = Reflect.get(target, prop, receiver);
+
+        // For methods that add operations, capture them for conditional execution
+        if (
+          typeof original === "function" &&
+          prop !== "flow" &&
+          prop !== "flowReturn" &&
+          prop !== "if" &&
+          prop !== "find"
+        ) {
+          return function (...args: any[]) {
+            original.apply(target, args);
+
+            // Capture the last added operation for conditional execution
+            if (target.operations.length > 0) {
+              conditionalOps.push(
+                target.operations[target.operations.length - 1],
+              );
+            }
+
+            return receiver;
+          };
+        }
+
+        // For flow methods, apply the conditional logic
+        if (prop === "flow" || prop === "flowReturn") {
+          return function (...args: any[]) {
+            // Replace operations with the conditional operation
+            target.operations = [
+              async (element: El) => {
+                // First run previous operations
+                for (const op of previousOps) {
+                  await op(element);
+                }
+
+                // Then conditionally run subsequent operations
+                if (condition(element)) {
+                  for (const conditionalOp of conditionalOps) {
+                    await conditionalOp(element);
+                  }
+                }
+              },
+            ];
+
+            // Call the original flow method
+            return (original as any).apply(target, args);
+          };
+        }
+
+        return original;
+      },
+    });
+
+    return proxy as FluentGeneratorSelector<El>;
   }
 
   /**
@@ -345,23 +398,66 @@ export class FluentGeneratorSelector<El extends Element = Element> {
   find(selector: string): FluentGeneratorSelector<El> {
     const previousOps = [...this.operations];
 
-    const findOp = async (element: El) => {
-      // First run previous operations on the parent element
-      for (const op of previousOps) {
-        await op(element);
-      }
+    // Clear operations and replace with a new one that handles children
+    this.operations = [];
 
-      // Then find and process children with subsequent operations
-      const children = element.querySelectorAll(selector);
-      // Note: Operations added after find() will need to be captured separately
-      // This is a simplified implementation
-      children.forEach((_child) => {
-        // Future operations would be applied here
-      });
-    };
+    // Store operations that will be added after find()
+    const childOps: Array<(element: El) => void | any> = [];
 
-    this.operations = [findOp];
-    return this;
+    // Create a proxy to capture operations meant for children
+    const proxy = new Proxy(this, {
+      get(target, prop, receiver) {
+        const original = Reflect.get(target, prop, receiver);
+
+        // For methods that add operations, capture them for children
+        if (
+          typeof original === "function" &&
+          prop !== "flow" &&
+          prop !== "flowReturn"
+        ) {
+          return function (...args: any[]) {
+            original.apply(target, args);
+
+            // Capture the last added operation for children
+            if (target.operations.length > 0) {
+              childOps.push(target.operations[target.operations.length - 1]);
+            }
+
+            return receiver;
+          };
+        }
+
+        // For flow methods, apply the find logic
+        if (prop === "flow" || prop === "flowReturn") {
+          return function (...args: any[]) {
+            // Replace operations with the find operation
+            target.operations = [
+              async (element: Element) => {
+                // First run previous operations on the parent
+                for (const op of previousOps) {
+                  await op(element as El);
+                }
+
+                // Then find children and apply child operations
+                const children = element.querySelectorAll(selector);
+                children.forEach((child) => {
+                  for (const childOp of childOps) {
+                    childOp(child as El);
+                  }
+                });
+              },
+            ];
+
+            // Call the original flow method
+            return (original as any).apply(target, args);
+          };
+        }
+
+        return original;
+      },
+    });
+
+    return proxy as FluentGeneratorSelector<El>;
   }
 
   /**

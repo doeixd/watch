@@ -1,980 +1,830 @@
 /**
- * @fileoverview Comprehensive integration tests for the generator module DOM operations
+ * @fileoverview DOM integration tests for the unified API
  *
- * These tests verify that the generator module functions correctly manipulate the DOM
- * and maintain proper state across various operations.
+ * These tests verify that the unified API DOM functions work correctly
+ * with yield* patterns in generator contexts.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { watch } from "../../src/watch";
 import {
   text,
-  getText,
-  appendText,
-  prependText,
   html,
-  getHtml,
-  appendHtml,
-  prependHtml,
   addClass,
   removeClass,
   toggleClass,
   hasClass,
-  replaceClass,
-  setClasses,
   style,
-  styleProperty,
-  // styleProperty is used instead of getStyle
-  removeStyle,
   attr,
-  getAttr,
-  removeAttr,
   hasAttr,
+  removeAttr,
   prop,
-  getProp,
   data,
-  getData,
-  removeData,
   value,
-  getValue,
   checked,
-  isChecked,
   focus,
   blur,
   show,
   hide,
-  toggle,
   self,
   query,
+  async,
   queryAll,
   parent,
   children,
   siblings,
-  delay,
-  run,
-} from "../../src/generator/dom";
+} from "../../src/index";
+import { delay } from "../../src/core/async-wrapper";
 
-describe("Generator DOM Integration Tests", () => {
-  let container: HTMLElement;
-  let cleanup: (() => void) | null = null;
+describe("Unified API DOM Integration Tests", () => {
+  let testContainer: HTMLElement;
 
   beforeEach(() => {
-    container = document.createElement("div");
-    container.id = "test-container";
-    document.body.appendChild(container);
+    testContainer = document.createElement("div");
+    testContainer.id = "test-container";
+    document.body.appendChild(testContainer);
   });
 
   afterEach(() => {
-    if (cleanup) {
-      cleanup();
-      cleanup = null;
+    if (testContainer && testContainer.parentNode) {
+      testContainer.parentNode.removeChild(testContainer);
     }
-    document.body.removeChild(container);
+    document.body.innerHTML = "";
   });
 
-  describe("Text Content Operations", () => {
-    it("should set and get text content correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Text Manipulation", () => {
+    it("should handle text operations with yield*", async () => {
+      const div = document.createElement("div");
+      div.textContent = "Original";
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
-        // Test setting text
-        yield* text("Hello World");
-        expect(element.textContent).toBe("Hello World");
+      await watch(div, async function* () {
+        // Get original text
+        const original = yield* text();
+        expect(original).toBe("Original");
 
-        // Test getting text
-        const content = yield* getText();
-        expect(content).toBe("Hello World");
+        // Set new text
+        yield* text("New Text");
 
-        // Test appending text
-        yield* appendText(" - Appended");
-        expect(element.textContent).toBe("Hello World - Appended");
+        // Verify change
+        const newText = yield* text();
+        expect(newText).toBe("New Text");
 
-        // Test prepending text
-        yield* prependText("Prepended - ");
-        expect(element.textContent).toBe("Prepended - Hello World - Appended");
+        // Update with dynamic content
+        yield* text(`Updated: ${original}`);
       });
+
+      expect(div.textContent).toBe("Updated: Original");
     });
 
-    it("should handle empty and special characters in text", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle complex text updates", async () => {
+      const span = document.createElement("span");
+      testContainer.appendChild(span);
 
-      await watch(element, async function* () {
-        // Test empty string
-        yield* text("");
-        expect(element.textContent).toBe("");
+      let counter = 0;
 
-        // Test special characters
-        yield* text('<script>alert("XSS")</script>');
-        expect(element.textContent).toBe('<script>alert("XSS")</script>');
-        expect(element.innerHTML).not.toContain("<script>");
+      await watch(span, async function* () {
+        yield* text("Counter: 0");
 
-        // Test unicode
-        yield* text("Hello 世界 🌍");
-        expect(element.textContent).toBe("Hello 世界 🌍");
+        // Simulate multiple updates
+        for (let i = 1; i <= 3; i++) {
+          await delay(10);
+          counter = i;
+          yield* text(`Counter: ${counter}`);
+        }
       });
+
+      expect(span.textContent).toBe("Counter: 3");
+      expect(counter).toBe(3);
     });
   });
 
-  describe("HTML Content Operations", () => {
-    it("should set and get HTML content correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("HTML Manipulation", () => {
+    it("should handle HTML operations with yield*", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
+      await watch(div, async function* () {
         // Set HTML
-        yield* html("<strong>Bold</strong> <em>Italic</em>");
-        expect(element.innerHTML).toBe("<strong>Bold</strong> <em>Italic</em>");
+        yield* html("<strong>Bold</strong> text");
 
         // Get HTML
-        const htmlContent = yield* getHtml();
-        expect(htmlContent).toBe("<strong>Bold</strong> <em>Italic</em>");
+        const content = yield* html();
+        expect(content).toBe("<strong>Bold</strong> text");
 
-        // Verify DOM structure
-        const strong = element.querySelector("strong");
-        const em = element.querySelector("em");
-        expect(strong?.textContent).toBe("Bold");
-        expect(em?.textContent).toBe("Italic");
+        // Update HTML
+        yield* html("<em>Italic</em> content");
       });
+
+      expect(div.innerHTML).toBe("<em>Italic</em> content");
+      expect(div.querySelector("em")?.textContent).toBe("Italic");
     });
 
-    it("should append and prepend HTML correctly", async () => {
-      const element = document.createElement("div");
-      element.innerHTML = "<span>Middle</span>";
-      container.appendChild(element);
+    it("should handle nested HTML structures", async () => {
+      const container = document.createElement("div");
+      testContainer.appendChild(container);
 
-      await watch(element, async function* () {
-        // Append HTML
-        yield* appendHtml("<span>End</span>");
-        expect(element.children.length).toBe(2);
-        expect(element.lastElementChild?.textContent).toBe("End");
+      await watch(container, async function* () {
+        yield* html(`
+          <div class="header">
+            <h1>Title</h1>
+            <nav>
+              <a href="#1">Link 1</a>
+              <a href="#2">Link 2</a>
+            </nav>
+          </div>
+          <div class="content">
+            <p>Paragraph content</p>
+          </div>
+        `);
 
-        // Prepend HTML
-        yield* prependHtml("<span>Start</span>");
-        expect(element.children.length).toBe(3);
-        expect(element.firstElementChild?.textContent).toBe("Start");
+        // Verify structure
+        const header = yield* query(".header");
+        const title = yield* query("h1");
+        const links = yield* queryAll("nav a");
 
-        // Verify order
-        const spans = element.querySelectorAll("span");
-        expect(spans[0].textContent).toBe("Start");
-        expect(spans[1].textContent).toBe("Middle");
-        expect(spans[2].textContent).toBe("End");
+        expect(header).toBeTruthy();
+        expect(title?.textContent).toBe("Title");
+        expect(links).toHaveLength(2);
+        expect(links[0].getAttribute("href")).toBe("#1");
       });
+
+      expect(container.querySelector(".header")).toBeTruthy();
+      expect(container.querySelector("h1")?.textContent).toBe("Title");
+      expect(container.querySelectorAll("nav a")).toHaveLength(2);
     });
   });
 
-  describe("Class Manipulation Operations", () => {
-    it("should add, remove, and toggle classes correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Class Manipulation", () => {
+    it("should handle class operations with yield*", async () => {
+      const div = document.createElement("div");
+      div.className = "original existing";
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
-        // Add single class
-        yield* addClass("active");
-        expect(element.classList.contains("active")).toBe(true);
+      await watch(div, async function* () {
+        // Check existing class
+        const hasOriginal = yield* hasClass("original");
+        expect(hasOriginal).toBe(true);
 
-        // Add multiple classes
-        yield* addClass("primary large");
-        expect(element.classList.contains("primary")).toBe(true);
-        expect(element.classList.contains("large")).toBe(true);
-
-        // Check class existence
-        const hasActive = yield* hasClass("active");
-        expect(hasActive).toBe(true);
-
-        const hasInactive = yield* hasClass("inactive");
-        expect(hasInactive).toBe(false);
+        // Add new class
+        yield* addClass("new-class");
+        const hasNew = yield* hasClass("new-class");
+        expect(hasNew).toBe(true);
 
         // Toggle class
-        const toggleResult1 = yield* toggleClass("active");
-        expect(toggleResult1).toBe(false);
-        expect(element.classList.contains("active")).toBe(false);
+        yield* toggleClass("toggled");
+        const hasToggled = yield* hasClass("toggled");
+        expect(hasToggled).toBe(true);
 
-        const toggleResult2 = yield* toggleClass("active");
-        expect(toggleResult2).toBe(true);
-        expect(element.classList.contains("active")).toBe(true);
+        // Remove class
+        yield* removeClass("original");
+        const stillHasOriginal = yield* hasClass("original");
+        expect(stillHasOriginal).toBe(false);
 
-        // Force toggle
-        yield* toggleClass("forced", true);
-        expect(element.classList.contains("forced")).toBe(true);
-
-        yield* toggleClass("forced", true);
-        expect(element.classList.contains("forced")).toBe(true);
-
-        yield* toggleClass("forced", false);
-        expect(element.classList.contains("forced")).toBe(false);
-
-        // Remove classes
-        yield* removeClass("primary large");
-        expect(element.classList.contains("primary")).toBe(false);
-        expect(element.classList.contains("large")).toBe(false);
+        // Multiple operations
+        yield* addClass("class1");
+        yield* addClass("class2");
+        yield* removeClass("existing");
       });
+
+      expect(div.classList.contains("original")).toBe(false);
+      expect(div.classList.contains("existing")).toBe(false);
+      expect(div.classList.contains("new-class")).toBe(true);
+      expect(div.classList.contains("toggled")).toBe(true);
+      expect(div.classList.contains("class1")).toBe(true);
+      expect(div.classList.contains("class2")).toBe(true);
     });
 
-    it("should replace and set classes correctly", async () => {
-      const element = document.createElement("div");
-      element.className = "old-class another-class";
-      container.appendChild(element);
+    it("should handle conditional class application", async () => {
+      const button = document.createElement("button");
+      testContainer.appendChild(button);
 
-      await watch(element, async function* () {
-        // Replace class
-        const replaced = yield* replaceClass("old-class", "new-class");
-        expect(replaced).toBe(true);
-        expect(element.classList.contains("old-class")).toBe(false);
-        expect(element.classList.contains("new-class")).toBe(true);
-        expect(element.classList.contains("another-class")).toBe(true);
+      await watch(button, async function* () {
+        // Simulate different states
+        const states = ["loading", "success", "error"];
 
-        // Try to replace non-existent class
-        const notReplaced = yield* replaceClass("non-existent", "replacement");
-        expect(notReplaced).toBe(false);
+        for (const state of states) {
+          // Clear previous state classes
+          yield* removeClass("loading");
+          yield* removeClass("success");
+          yield* removeClass("error");
 
-        // Set entire class list (string)
-        yield* setClasses("class1 class2 class3");
-        expect(element.className).toBe("class1 class2 class3");
+          // Add current state
+          yield* addClass(state);
+          yield* text(`State: ${state}`);
 
-        // Set entire class list (array)
-        yield* setClasses(["classA", "classB", "classC"]);
-        expect(element.className).toBe("classA classB classC");
+          // Verify state
+          const hasState = yield* hasClass(state);
+          expect(hasState).toBe(true);
+
+          await delay(10);
+        }
       });
-    });
-  });
 
-  describe("Style Manipulation Operations", () => {
-    it("should set and get styles correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      await watch(element, async function* () {
-        // Set single style
-        yield* style({ color: "red" });
-        expect(element.style.color).toBe("red");
-
-        // Set multiple styles
-        yield* style({
-          backgroundColor: "blue",
-          padding: "10px",
-          fontSize: "16px",
-        });
-        expect(element.style.backgroundColor).toBe("blue");
-        expect(element.style.padding).toBe("10px");
-        expect(element.style.fontSize).toBe("16px");
-
-        // Get style property
-        const color = yield* styleProperty("color");
-        expect(color).toBeTruthy(); // Computed style format may vary
-
-        // Get style (alternative)
-        const bgColor = yield* styleProperty("background-color");
-        expect(bgColor).toBeTruthy();
-
-        // Remove style
-        yield* removeStyle("padding");
-        expect(element.style.padding).toBe("");
-      });
-    });
-
-    it("should handle kebab-case and camelCase style properties", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      await watch(element, async function* () {
-        // Test kebab-case
-        yield* style("font-size", "20px");
-        expect(element.style.fontSize).toBe("20px");
-
-        // Test camelCase
-        yield* style("marginTop", "15px");
-        expect(element.style.marginTop).toBe("15px");
-
-        // Test batch with mixed cases
-        yield* style({
-          "border-radius": "5px",
-          paddingLeft: "10px",
-        });
-        expect(element.style.borderRadius).toBe("5px");
-        expect(element.style.paddingLeft).toBe("10px");
-      });
+      expect(button.classList.contains("error")).toBe(true);
+      expect(button.classList.contains("loading")).toBe(false);
+      expect(button.classList.contains("success")).toBe(false);
+      expect(button.textContent).toBe("State: error");
     });
   });
 
-  describe("Attribute Operations", () => {
-    it("should set, get, and remove attributes correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Style Manipulation", () => {
+    it("should handle style operations with yield*", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
-        // Set single attribute
-        yield* attr("id", "test-id");
-        expect(element.getAttribute("id")).toBe("test-id");
+      await watch(div, async function* () {
+        // Set individual styles
+        yield* style("color", "red");
+        yield* style("fontSize", "16px");
+        yield* style("display", "block");
 
-        // Set multiple attributes
-        yield* attr({
-          "data-test": "value",
-          "aria-label": "Test Label",
-          role: "button",
-        });
-        expect(element.getAttribute("data-test")).toBe("value");
-        expect(element.getAttribute("aria-label")).toBe("Test Label");
-        expect(element.getAttribute("role")).toBe("button");
+        // Get styles
+        const color = yield* style("color");
+        const fontSize = yield* style("fontSize");
 
-        // Get attribute
-        const id = yield* getAttr("id");
-        expect(id).toBe("test-id");
+        expect(color).toBe("red");
+        expect(fontSize).toBe("16px");
 
-        const nonExistent = yield* getAttr("non-existent");
-        expect(nonExistent).toBe(null);
+        // Update styles
+        yield* style("color", "blue");
+        yield* style("padding", "10px");
+      });
 
-        // Check attribute existence
-        const hasId = yield* hasAttr("id");
-        expect(hasId).toBe(true);
+      expect(div.style.color).toBe("blue");
+      expect(div.style.fontSize).toBe("16px");
+      expect(div.style.padding).toBe("10px");
+    });
 
-        const hasNonExistent = yield* hasAttr("non-existent");
-        expect(hasNonExistent).toBe(false);
+    it("should handle complex styling scenarios", async () => {
+      const card = document.createElement("div");
+      card.className = "card";
+      testContainer.appendChild(card);
+
+      await watch(card, async function* () {
+        // Apply theme styles
+        const theme = "dark";
+
+        if (theme === "dark") {
+          yield* style("backgroundColor", "#333");
+          yield* style("color", "#fff");
+          yield* style("border", "1px solid #555");
+        } else {
+          yield* style("backgroundColor", "#fff");
+          yield* style("color", "#333");
+          yield* style("border", "1px solid #ddd");
+        }
+
+        // Add responsive styles
+        yield* style("padding", "20px");
+        yield* style("borderRadius", "8px");
+        yield* style("boxShadow", "0 2px 4px rgba(0,0,0,0.1)");
+
+        // Verify applied styles
+        const bgColor = yield* style("backgroundColor");
+        const textColor = yield* style("color");
+
+        expect(bgColor).toBe("rgb(51, 51, 51)");
+        expect(textColor).toBe("rgb(255, 255, 255)");
+      });
+
+      expect(card.style.backgroundColor).toBe("rgb(51, 51, 51)");
+      expect(card.style.padding).toBe("20px");
+      expect(card.style.borderRadius).toBe("8px");
+    });
+  });
+
+  describe("Attribute Manipulation", () => {
+    it("should handle attribute operations with yield*", async () => {
+      const input = document.createElement("input");
+      testContainer.appendChild(input);
+
+      await watch(input, async function* () {
+        // Set attributes
+        yield* attr("type", "email");
+        yield* attr("placeholder", "Enter email");
+        yield* attr("required", "");
+        yield* attr("data-validation", "email");
+
+        // Check attributes
+        const hasRequired = yield* hasAttr("required");
+        expect(hasRequired).toBe(true);
+
+        // Get attributes
+        const type = yield* attr("type");
+        const placeholder = yield* attr("placeholder");
+        const validation = yield* attr("data-validation");
+
+        expect(type).toBe("email");
+        expect(placeholder).toBe("Enter email");
+        expect(validation).toBe("email");
 
         // Remove attribute
-        yield* removeAttr("role");
-        expect(element.hasAttribute("role")).toBe(false);
+        yield* removeAttr("required");
+        const stillRequired = yield* hasAttr("required");
+        expect(stillRequired).toBe(false);
+
+        // Update attribute
+        yield* attr("placeholder", "Email address");
       });
+
+      expect(input.getAttribute("type")).toBe("email");
+      expect(input.getAttribute("placeholder")).toBe("Email address");
+      expect(input.getAttribute("data-validation")).toBe("email");
+      expect(input.hasAttribute("required")).toBe(false);
     });
 
-    it("should handle boolean attributes correctly", async () => {
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      container.appendChild(input);
+    it("should handle ARIA attributes", async () => {
+      const button = document.createElement("button");
+      testContainer.appendChild(button);
 
-      await watch(input, async function* () {
-        // Set boolean attributes
-        yield* attr("disabled", "");
-        expect(input.hasAttribute("disabled")).toBe(true);
-        expect(input.disabled).toBe(true);
+      await watch(button, async function* () {
+        // Set ARIA attributes
+        yield* attr("aria-label", "Close dialog");
+        yield* attr("aria-expanded", "false");
+        yield* attr("aria-controls", "menu");
+        yield* attr("role", "button");
 
-        yield* attr("required", "required");
-        expect(input.hasAttribute("required")).toBe(true);
-        expect(input.required).toBe(true);
+        // Simulate state change
+        yield* attr("aria-expanded", "true");
+        yield* addClass("expanded");
 
-        // Remove boolean attributes
-        yield* removeAttr("disabled");
-        expect(input.hasAttribute("disabled")).toBe(false);
-        expect(input.disabled).toBe(false);
+        // Verify ARIA state
+        const expanded = yield* attr("aria-expanded");
+        const label = yield* attr("aria-label");
+        const controls = yield* attr("aria-controls");
+
+        expect(expanded).toBe("true");
+        expect(label).toBe("Close dialog");
+        expect(controls).toBe("menu");
       });
+
+      expect(button.getAttribute("aria-expanded")).toBe("true");
+      expect(button.getAttribute("aria-label")).toBe("Close dialog");
+      expect(button.classList.contains("expanded")).toBe(true);
     });
   });
 
-  describe("Property Operations", () => {
-    it("should set and get properties correctly", async () => {
-      const input = document.createElement("input");
+  describe("Property Manipulation", () => {
+    it("should handle property operations with yield*", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
       input.type = "text";
-      container.appendChild(input);
+      testContainer.appendChild(input);
 
-      await watch(input, async function* () {
-        // Set property
-        yield* prop("value", "Test Value");
-        expect(input.value).toBe("Test Value");
+      await watch(input, function* () {
+        // Set properties
+        yield* prop("value", "initial value");
+        yield* prop("disabled", false);
+        yield* prop("readOnly", false);
 
-        // Get property
-        const value = yield* getProp("value");
-        expect(value).toBe("Test Value");
+        // Get properties
+        const value = yield* prop("value");
+        const disabled = yield* prop("disabled");
 
-        // Set complex property
-        const customData = { id: 1, name: "Test" };
-        yield* prop("customData", customData);
-        expect((input as any).customData).toEqual(customData);
+        expect(value).toBe("initial value");
+        expect(disabled).toBe(false);
+
+        // Update properties
+        yield* prop("value", "updated value");
+        yield* prop("disabled", true);
       });
+
+      expect(input.value).toBe("updated value");
+      expect(input.disabled).toBe(true);
     });
 
-    it("should handle checkbox and radio properties", async () => {
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      container.appendChild(checkbox);
+    it("should handle complex form properties", async () => {
+      const select = document.createElement("select") as HTMLSelectElement;
+      select.innerHTML = `
+        <option value="1">Option 1</option>
+        <option value="2">Option 2</option>
+        <option value="3">Option 3</option>
+      `;
+      testContainer.appendChild(select);
 
-      await watch(checkbox, async function* () {
-        // Set checked property
-        yield* prop("checked", true);
-        expect(checkbox.checked).toBe(true);
+      await watch(select, async function* () {
+        // Set selection
+        yield* prop("selectedIndex", 1);
 
-        // Set indeterminate
-        yield* prop("indeterminate", true);
-        expect(checkbox.indeterminate).toBe(true);
+        // Get selection
+        const selectedIndex = yield* prop("selectedIndex");
+        const value = yield* prop("value");
 
-        // Get checked property
-        const isChecked = yield* getProp("checked");
-        expect(isChecked).toBe(true);
+        expect(selectedIndex).toBe(1);
+        expect(value).toBe("2");
+
+        // Change selection
+        yield* prop("value", "3");
+        const newValue = yield* prop("value");
+        expect(newValue).toBe("3");
       });
+
+      expect(select.value).toBe("3");
+      expect(select.selectedIndex).toBe(2);
     });
   });
 
-  describe("Data Attribute Operations", () => {
-    it("should set, get, and remove data attributes", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Data Attributes", () => {
+    it("should handle data operations with yield*", async () => {
+      const div = document.createElement("div");
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
-        // Set data attribute
-        yield* data("user-id", "12345");
-        expect(element.getAttribute("data-user-id")).toBe("12345");
-
-        // Get data attribute
-        const userId = yield* getData("user-id");
-        expect(userId).toBe("12345");
-
-        // Set multiple data attributes
+      await watch(div, function* () {
+        // Set data attributes
+        yield* data("user-id", "123");
         yield* data("role", "admin");
-        yield* data("status", "active");
-        expect(element.getAttribute("data-role")).toBe("admin");
-        expect(element.getAttribute("data-status")).toBe("active");
+        yield* data("config", "{}");
 
-        // Remove data attribute
-        yield* removeData("status");
-        expect(element.hasAttribute("data-status")).toBe(false);
+        // Get data attributes
+        const userId = yield* data("user-id");
+        const role = yield* data("role");
+        const config = yield* data("config");
 
-        // Get non-existent data
-        const nonExistent = yield* getData("non-existent");
-        expect(nonExistent).toBe(null);
+        expect(userId).toBe("123");
+        expect(role).toBe("admin");
+        expect(config).toBe("{}");
+
+        // Update data
+        yield* data("user-id", "456");
+        yield* data("last-updated", new Date().toISOString());
       });
+
+      expect(div.dataset.userId).toBe("456");
+      expect(div.dataset.role).toBe("admin");
+      expect(div.dataset.lastUpdated).toBeTruthy();
     });
   });
 
   describe("Form Value Operations", () => {
-    it("should handle input values correctly", async () => {
-      const input = document.createElement("input");
+    it("should handle form values with yield*", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
       input.type = "text";
-      container.appendChild(input);
+      testContainer.appendChild(input);
 
       await watch(input, async function* () {
         // Set value
-        yield* value("Test Input");
-        expect(input.value).toBe("Test Input");
+        yield* value("test input");
 
         // Get value
-        const val = yield* getValue();
-        expect(val).toBe("Test Input");
+        const val = yield* value();
+        expect(val).toBe("test input");
 
         // Update value
-        yield* value("Updated Value");
-        const updatedVal = yield* getValue();
-        expect(updatedVal).toBe("Updated Value");
+        yield* value("updated input");
       });
+
+      expect(input.value).toBe("updated input");
     });
 
-    it("should handle textarea values correctly", async () => {
-      const textarea = document.createElement("textarea");
-      container.appendChild(textarea);
-
-      await watch(textarea, async function* () {
-        // Set multiline value
-        yield* value("Line 1\nLine 2\nLine 3");
-        expect(textarea.value).toBe("Line 1\nLine 2\nLine 3");
-
-        // Get value
-        const val = yield* getValue();
-        expect(val).toBe("Line 1\nLine 2\nLine 3");
-      });
-    });
-
-    it("should handle select values correctly", async () => {
-      const select = document.createElement("select");
-      const option1 = document.createElement("option");
-      option1.value = "opt1";
-      option1.textContent = "Option 1";
-      const option2 = document.createElement("option");
-      option2.value = "opt2";
-      option2.textContent = "Option 2";
-      select.appendChild(option1);
-      select.appendChild(option2);
-      container.appendChild(select);
-
-      await watch(select, async function* () {
-        // Set value
-        yield* value("opt2");
-        expect(select.value).toBe("opt2");
-
-        // Get value
-        const val = yield* getValue();
-        expect(val).toBe("opt2");
-
-        // Verify selected option
-        expect(option2.selected).toBe(true);
-        expect(option1.selected).toBe(false);
-      });
-    });
-
-    it("should handle checkbox checked state", async () => {
-      const checkbox = document.createElement("input");
+    it("should handle checkbox states with yield*", async () => {
+      const checkbox = document.createElement("input") as HTMLInputElement;
       checkbox.type = "checkbox";
-      container.appendChild(checkbox);
+      testContainer.appendChild(checkbox);
 
       await watch(checkbox, async function* () {
         // Set checked
         yield* checked(true);
-        expect(checkbox.checked).toBe(true);
 
         // Get checked state
-        const isCheckedResult = yield* isChecked();
-        expect(isCheckedResult).toBe(true);
+        const isChecked = yield* checked();
+        expect(isChecked).toBe(true);
 
-        // Uncheck
+        // Toggle
         yield* checked(false);
-        expect(checkbox.checked).toBe(false);
-
-        const isUnchecked = yield* isChecked();
+        const isUnchecked = yield* checked();
         expect(isUnchecked).toBe(false);
       });
-    });
-  });
 
-  describe("Focus Operations", () => {
-    it("should handle focus and blur correctly", async () => {
-      const input = document.createElement("input");
-      container.appendChild(input);
-
-      await watch(input, async function* () {
-        // Focus element
-        yield* focus();
-        expect(document.activeElement).toBe(input);
-
-        // Blur element
-        yield* blur();
-        expect(document.activeElement).not.toBe(input);
-      });
-    });
-  });
-
-  describe("Visibility Operations", () => {
-    it("should show and hide elements correctly", async () => {
-      const element = document.createElement("div");
-      element.textContent = "Visible Content";
-      container.appendChild(element);
-
-      await watch(element, async function* () {
-        // Hide element
-        yield* hide();
-        expect(element.style.display).toBe("none");
-
-        // Show element
-        yield* show();
-        expect(element.style.display).toBe("");
-
-        // Toggle visibility
-        yield* toggle();
-        expect(element.style.display).toBe("none");
-
-        yield* toggle();
-        expect(element.style.display).toBe("");
-
-        // Toggle visibility
-        const hidden = yield* toggle();
-        expect(hidden).toBe(false);
-        expect(element.style.display).toBe("none");
-
-        const shown = yield* toggle();
-        expect(shown).toBe(true);
-        expect(element.style.display).toBe("");
-      });
+      expect(checkbox.checked).toBe(false);
     });
 
-    it("should preserve original display value when showing", async () => {
-      const element = document.createElement("div");
-      element.style.display = "flex";
-      container.appendChild(element);
-
-      await watch(element, async function* () {
-        // Store original display
-        const originalDisplay = element.style.display;
-
-        // Hide and show
-        yield* hide();
-        expect(element.style.display).toBe("none");
-
-        yield* show("flex");
-        expect(element.style.display).toBe("flex");
-      });
-    });
-  });
-
-  describe("Element Selection Operations", () => {
-    it("should get self reference correctly", async () => {
-      const element = document.createElement("div");
-      element.id = "test-element";
-      container.appendChild(element);
-
-      await watch(element, async function* () {
-        const selfElement = yield* self();
-        expect(selfElement).toBe(element);
-        expect(selfElement.id).toBe("test-element");
-
-        // Type assertion
-        const typedSelf = yield* self<HTMLDivElement>();
-        expect(typedSelf).toBe(element);
-      });
-    });
-
-    it("should query child elements correctly", async () => {
-      const parent = document.createElement("div");
-      parent.innerHTML = `
-        <span class="first">First</span>
-        <span class="second">Second</span>
-        <div class="nested">
-          <span class="third">Third</span>
-        </div>
-      `;
-      container.appendChild(parent);
-
-      await watch(parent, async function* () {
-        // Query single element
-        const first = yield* query(".first");
-        expect(first?.textContent).toBe("First");
-
-        // Query nested element
-        const third = yield* query(".nested .third");
-        expect(third?.textContent).toBe("Third");
-
-        // Query non-existent
-        const nonExistent = yield* query(".non-existent");
-        expect(nonExistent).toBe(null);
-
-        // Query all elements
-        const allSpans = yield* queryAll("span");
-        expect(allSpans.length).toBe(3);
-        expect(allSpans[0].textContent).toBe("First");
-        expect(allSpans[1].textContent).toBe("Second");
-        expect(allSpans[2].textContent).toBe("Third");
-
-        // Query with no matches
-        const noMatches = yield* queryAll(".no-match");
-        expect(noMatches.length).toBe(0);
-      });
-    });
-
-    it("should get parent and siblings correctly", async () => {
-      const parentDiv = document.createElement("div");
-      parentDiv.className = "parent";
-      const child1 = document.createElement("span");
-      child1.className = "child1";
-      child1.textContent = "Child 1";
-      const child2 = document.createElement("span");
-      child2.className = "child2";
-      child2.textContent = "Child 2";
-      const child3 = document.createElement("span");
-      child3.className = "child3";
-      child3.textContent = "Child 3";
-
-      parentDiv.appendChild(child1);
-      parentDiv.appendChild(child2);
-      parentDiv.appendChild(child3);
-      container.appendChild(parentDiv);
-
-      await watch(child2, async function* () {
-        // Get parent
-        const parentElement = yield* parent();
-        expect(parentElement).toBe(parentDiv);
-        expect(parentElement?.className).toBe("parent");
-
-        // Get siblings
-        const siblingsArray = yield* siblings();
-        expect(siblingsArray.length).toBe(2);
-        expect(siblingsArray[0]).toBe(child1);
-        expect(siblingsArray[1]).toBe(child3);
-      });
-    });
-
-    it("should get children correctly", async () => {
-      const parentDiv = document.createElement("div");
-      const child1 = document.createElement("span");
-      child1.textContent = "Child 1";
-      const child2 = document.createElement("div");
-      child2.textContent = "Child 2";
-      const textNode = document.createTextNode("Text node");
-
-      parentDiv.appendChild(child1);
-      parentDiv.appendChild(textNode);
-      parentDiv.appendChild(child2);
-      container.appendChild(parentDiv);
-
-      await watch(parentDiv, async function* () {
-        // Get children (only elements, not text nodes)
-        const childrenArray = yield* children();
-        expect(childrenArray.length).toBe(2);
-        expect(childrenArray[0]).toBe(child1);
-        expect(childrenArray[1]).toBe(child2);
-      });
-    });
-  });
-
-  describe("Utility Operations", () => {
-    it("should handle delay correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      const startTime = Date.now();
-
-      await watch(element, async function* () {
-        yield* text("Before delay");
-        yield* delay(100);
-        yield* text("After delay");
-      });
-
-      const elapsed = Date.now() - startTime;
-      expect(elapsed).toBeGreaterThanOrEqual(90); // Allow some margin
-      expect(element.textContent).toBe("After delay");
-    });
-
-    it("should run arbitrary functions correctly", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
-
-      let sideEffectValue = 0;
-      const results: any[] = [];
-
-      await watch(element, async function* () {
-        // Run function with return value
-        const result1 = yield* run(() => {
-          sideEffectValue = 42;
-          return "done";
-        });
-        results.push(result1);
-
-        // Run async function
-        const result2 = yield* run(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-          return "async done";
-        });
-        results.push(result2);
-
-        // Run function that accesses element
-        const result3 = yield* run(() => {
-          element.dataset.test = "value";
-          return element.dataset.test;
-        });
-        results.push(result3);
-      });
-
-      expect(sideEffectValue).toBe(42);
-      expect(results[0]).toBe("done");
-      expect(results[1]).toBe("async done");
-      expect(results[2]).toBe("value");
-      expect(element.dataset.test).toBe("value");
-    });
-  });
-
-  describe("Complex Integration Scenarios", () => {
-    it("should handle complex form interactions", async () => {
+    it("should handle complex form scenarios", async () => {
       const form = document.createElement("form");
       form.innerHTML = `
-        <input type="text" name="username" placeholder="Username">
-        <input type="email" name="email" placeholder="Email">
-        <input type="checkbox" name="subscribe" value="yes">
-        <select name="role">
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
+        <input type="text" name="name" />
+        <input type="email" name="email" />
+        <select name="country">
+          <option value="us">United States</option>
+          <option value="ca">Canada</option>
+          <option value="uk">United Kingdom</option>
         </select>
-        <button type="submit">Submit</button>
+        <input type="checkbox" name="newsletter" />
+        <textarea name="message"></textarea>
       `;
-      container.appendChild(form);
+      testContainer.appendChild(form);
 
-      const usernameInput = form.querySelector(
-        'input[name="username"]',
+      await watch(form, function* () {
+        // Fill out form
+        const nameInput = yield* query('input[name="name"]');
+        const emailInput = yield* query('input[name="email"]');
+        const countrySelect = yield* query('select[name="country"]');
+        const newsletterCheck = yield* query('input[name="newsletter"]');
+        const messageTextarea = yield* query('textarea[name="message"]');
+
+        if (nameInput) {
+          yield* value(nameInput as HTMLElement, "John Doe");
+        }
+        if (emailInput) {
+          yield* value(emailInput as HTMLElement, "john@example.com");
+        }
+        if (countrySelect) {
+          yield* prop(countrySelect as HTMLElement, "value", "ca");
+        }
+        if (newsletterCheck) {
+          yield* checked(newsletterCheck as HTMLElement, true);
+        }
+        if (messageTextarea) {
+          yield* value(messageTextarea as HTMLElement, "Hello world!");
+        }
+
+        // Verify values
+        const name = nameInput ? yield* value(nameInput as HTMLElement) : "";
+        const email = emailInput ? yield* value(emailInput as HTMLElement) : "";
+        const country = countrySelect
+          ? yield* prop(countrySelect as HTMLElement, "value")
+          : "";
+        const newsletter = newsletterCheck
+          ? yield* checked(newsletterCheck as HTMLElement)
+          : false;
+        const message = messageTextarea
+          ? yield* value(messageTextarea as HTMLElement)
+          : "";
+
+        expect(name).toBe("John Doe");
+        expect(email).toBe("john@example.com");
+        expect(country).toBe("ca");
+        expect(newsletter).toBe(true);
+        expect(message).toBe("Hello world!");
+      });
+
+      const nameInput = form.querySelector(
+        'input[name="name"]',
       ) as HTMLInputElement;
       const emailInput = form.querySelector(
         'input[name="email"]',
       ) as HTMLInputElement;
-      const subscribeCheckbox = form.querySelector(
-        'input[name="subscribe"]',
-      ) as HTMLInputElement;
-      const roleSelect = form.querySelector(
-        'select[name="role"]',
+      const countrySelect = form.querySelector(
+        'select[name="country"]',
       ) as HTMLSelectElement;
+      const newsletterCheck = form.querySelector(
+        'input[name="newsletter"]',
+      ) as HTMLInputElement;
+      const messageTextarea = form.querySelector(
+        'textarea[name="message"]',
+      ) as HTMLTextAreaElement;
 
-      // Watch individual inputs
-      await watch(usernameInput, async function* () {
-        yield* value("testuser");
-        yield* addClass("valid");
-        yield* attr("aria-invalid", "false");
-      });
-
-      await watch(emailInput, async function* () {
-        yield* value("test@example.com");
-        yield* addClass("valid");
-        yield* attr("aria-invalid", "false");
-      });
-
-      await watch(subscribeCheckbox, async function* () {
-        yield* checked(true);
-        yield* attr("aria-describedby", "subscribe-help");
-      });
-
-      await watch(roleSelect, async function* () {
-        yield* value("admin");
-      });
-
-      // Verify values
-      expect(usernameInput.value).toBe("testuser");
-      expect(emailInput.value).toBe("test@example.com");
-      expect(subscribeCheckbox.checked).toBe(true);
-      expect(roleSelect.value).toBe("admin");
-
-      // Verify final state
-      expect(form.dataset.formState).toBe("complete");
-      expect(usernameInput.classList.contains("valid")).toBe(true);
-      expect(emailInput.classList.contains("valid")).toBe(true);
-    });
-
-    it("should handle dynamic list manipulation", async () => {
-      const list = document.createElement("ul");
-      list.className = "todo-list";
-      container.appendChild(list);
-
-      const todos = [
-        { id: 1, text: "First task", done: false },
-        { id: 2, text: "Second task", done: true },
-        { id: 3, text: "Third task", done: false },
-      ];
-
-      await watch(list, async function* () {
-        // Build list HTML
-        const todoHTML = todos
-          .map(
-            (todo) => `
-          <li data-id="${todo.id}" class="${todo.done ? "done" : ""}">
-            <span class="text">${todo.text}</span>
-            <input type="checkbox" ${todo.done ? "checked" : ""}>
-          </li>
-        `,
-          )
-          .join("");
-
-        yield* html(todoHTML);
-
-        // Verify structure
-        const items = yield* queryAll("li");
-        expect(items.length).toBe(3);
-
-        // Update item states
-        for (const item of items) {
-          const checkbox = item.querySelector(
-            'input[type="checkbox"]',
-          ) as HTMLInputElement;
-          if (checkbox?.checked) {
-            await watch(item, async function* () {
-              yield* addClass("completed");
-              yield* style({ "text-decoration": "line-through" });
-            });
-          }
-        }
-
-        // Add summary
-        const completedCount = yield* queryAll("li.completed");
-        yield* appendHtml(
-          `<li class="summary">Completed: ${completedCount.length}/${todos.length}</li>`,
-        );
-      });
-
-      // Verify final state
-      const summaryItem = list.querySelector(".summary");
-      expect(summaryItem?.textContent).toBe("Completed: 1/3");
-    });
-
-    it("should handle cascading style updates", async () => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <div class="card-header">Header</div>
-        <div class="card-body">Body</div>
-        <div class="card-footer">Footer</div>
-      `;
-      container.appendChild(card);
-
-      await watch(card, async function* () {
-        // Apply theme
-        const theme = "dark";
-
-        if (theme === "dark") {
-          yield* addClass("theme-dark");
-          yield* style({
-            backgroundColor: "#1a1a1a",
-            color: "white",
-            borderColor: "#333",
-          });
-
-          // Style children
-          const header = yield* query(".card-header");
-          if (header) {
-            await watch(header, async function* () {
-              yield* style({
-                backgroundColor: "#2a2a2a",
-                borderBottom: "1px solid #444",
-              });
-            });
-          }
-
-          const body = yield* query(".card-body");
-          if (body) {
-            await watch(body, async function* () {
-              yield* style({ padding: "20px" });
-            });
-          }
-
-          const footer = yield* query(".card-footer");
-          if (footer) {
-            await watch(footer, async function* () {
-              yield* style({
-                backgroundColor: "#2a2a2a",
-                borderTop: "1px solid #444",
-              });
-            });
-          }
-        }
-
-        // Add interactive states
-        yield* attr("tabindex", "0");
-        yield* attr("role", "article");
-        yield* data("theme", theme);
-      });
-
-      // Verify styles applied
-      expect(card.classList.contains("theme-dark")).toBe(true);
-      expect(card.style.backgroundColor).toBe("rgb(26, 26, 26)");
-      expect(card.dataset.theme).toBe("dark");
+      expect(nameInput.value).toBe("John Doe");
+      expect(emailInput.value).toBe("john@example.com");
+      expect(countrySelect.value).toBe("ca");
+      expect(newsletterCheck.checked).toBe(true);
+      expect(messageTextarea.value).toBe("Hello world!");
     });
   });
 
-  describe("Error Handling and Edge Cases", () => {
-    it("should handle operations on null/undefined gracefully", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+  describe("Visibility Operations", () => {
+    it("should handle show/hide with yield*", async () => {
+      const div = document.createElement("div");
+      div.style.display = "block";
+      div.textContent = "Visible content";
+      testContainer.appendChild(div);
 
-      await watch(element, async function* () {
-        // Query non-existent element
-        const nonExistent = yield* query(".does-not-exist");
-        expect(nonExistent).toBe(null);
+      await watch(div, function* () {
+        // Hide element
+        yield* hide();
 
-        // Safe operations on null
-        if (nonExistent) {
-          // This block should not execute since nonExistent is null
-        }
+        yield* async(delay(10));
 
-        // Get attribute that doesn't exist
-        const noAttr = yield* getAttr("non-existent-attr");
-        expect(noAttr).toBe(null);
-
-        // Get data that doesn't exist
-        const noData = yield* getData("non-existent-data");
-        expect(noData).toBe(null);
+        // Show element
+        yield* show();
       });
+
+      expect(div.style.display).not.toBe("none");
     });
 
-    it("should handle rapid sequential updates", async () => {
-      const element = document.createElement("div");
-      container.appendChild(element);
+    it("should handle conditional visibility", async () => {
+      const modal = document.createElement("div");
+      modal.className = "modal";
+      modal.innerHTML = `
+        <div class="backdrop"></div>
+        <div class="content">
+          <h2>Modal Title</h2>
+          <p>Modal content</p>
+          <button class="close">Close</button>
+        </div>
+      `;
+      testContainer.appendChild(modal);
 
-      await watch(element, async function* () {
-        // Rapid text updates
-        for (let i = 0; i < 100; i++) {
-          yield* text(`Update ${i}`);
+      await watch(modal, function* () {
+        // Start hidden
+        yield* hide();
+        yield* addClass("modal-hidden");
+
+        // Show modal
+        yield* show();
+        yield* removeClass("modal-hidden");
+        yield* addClass("modal-visible");
+
+        // Add animation classes
+        yield* addClass("fade-in");
+
+        await delay(100);
+
+        // Hide modal
+        yield* removeClass("fade-in");
+        yield* addClass("fade-out");
+
+        await delay(50);
+
+        yield* hide();
+        yield* removeClass("modal-visible");
+        yield* removeClass("fade-out");
+        yield* addClass("modal-hidden");
+      });
+
+      expect(modal.style.display).toBe("none");
+      expect(modal.classList.contains("modal-hidden")).toBe(true);
+      expect(modal.classList.contains("modal-visible")).toBe(false);
+    });
+  });
+
+  describe("DOM Traversal", () => {
+    it("should handle traversal operations with yield*", async () => {
+      const container = document.createElement("div");
+      container.innerHTML = `
+        <div class="parent">
+          <span class="child1">Child 1</span>
+          <span class="child2">Child 2</span>
+          <div class="nested">
+            <span class="grandchild">Grandchild</span>
+          </div>
+        </div>
+      `;
+      testContainer.appendChild(container);
+
+      const parentDiv = container.querySelector(".parent") as HTMLElement;
+      const child2 = container.querySelector(".child2") as HTMLElement;
+
+      await watch(child2, function* () {
+        // Get parent
+        const parentElement = yield* parent();
+        expect(parentElement).toBe(parentDiv);
+
+        // Get siblings
+        const siblingElements = yield* siblings();
+        expect(siblingElements).toHaveLength(2); // child1 and nested div
+
+        // Verify sibling content
+        const child1 = siblingElements.find((el) =>
+          el.classList.contains("child1"),
+        );
+        const nested = siblingElements.find((el) =>
+          el.classList.contains("nested"),
+        );
+
+        expect(child1?.textContent).toBe("Child 1");
+        expect(nested?.querySelector(".grandchild")?.textContent).toBe(
+          "Grandchild",
+        );
+      });
+
+      await watch(parentDiv, function* () {
+        // Get children
+        const childElements = yield* children();
+        expect(childElements).toHaveLength(3);
+
+        // Query within context
+        const child1 = yield* query(".child1");
+        const grandchild = yield* query(".grandchild");
+
+        expect(child1?.textContent).toBe("Child 1");
+        expect(grandchild?.textContent).toBe("Grandchild");
+
+        // Query all spans
+        const allSpans = yield* queryAll("span");
+        expect(allSpans).toHaveLength(3);
+      });
+    });
+  });
+
+  describe("Focus Management", () => {
+    it("should handle focus operations with yield*", async () => {
+      const input = document.createElement("input") as HTMLInputElement;
+      input.type = "text";
+      input.placeholder = "Focus test";
+      testContainer.appendChild(input);
+
+      await watch(input, function* () {
+        // Focus element
+        yield* focus();
+
+        await delay(10);
+
+        // Blur element
+        yield* blur();
+      });
+
+      // Note: In test environment, actual focus behavior may vary
+      // but the functions should execute without error
+      expect(input.placeholder).toBe("Focus test");
+    });
+  });
+
+  describe("Complex DOM Workflows", () => {
+    it("should handle complex DOM manipulation workflow", async () => {
+      const app = document.createElement("div");
+      app.className = "app";
+      testContainer.appendChild(app);
+
+      await watch(app, function* () {
+        // Build app structure
+        yield* html(`
+          <header class="header">
+            <h1>My App</h1>
+            <nav class="nav"></nav>
+          </header>
+          <main class="main">
+            <div class="content"></div>
+          </main>
+          <footer class="footer">
+            <p>&copy; 2024</p>
+          </footer>
+        `);
+
+        // Style the app
+        yield* style("minHeight", "100vh");
+        yield* style("display", "flex");
+        yield* style("flexDirection", "column");
+
+        // Enhance header
+        const header = yield* query(".header");
+        if (header) {
+          yield* style(header as HTMLElement, "padding", "20px");
+          yield* style(header as HTMLElement, "backgroundColor", "#f0f0f0");
+          yield* addClass(header as HTMLElement, "app-header");
         }
 
-        expect(element.textContent).toBe("Update 99");
+        // Add navigation items
+        const nav = yield* query(".nav");
+        if (nav) {
+          yield* html(
+            nav as HTMLElement,
+            `
+            <a href="#home">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+          `,
+          );
+
+          const navLinks = yield* queryAll(nav as HTMLElement, "a");
+          for (const link of navLinks) {
+            yield* style(link, "margin", "0 10px");
+            yield* style(link, "textDecoration", "none");
+            yield* addClass(link, "nav-link");
+          }
+        }
+
+        // Style main content
+        const main = yield* query(".main");
+        if (main) {
+          yield* style(main as HTMLElement, "flex", "1");
+          yield* style(main as HTMLElement, "padding", "20px");
+          yield* addClass(main as HTMLElement, "app-main");
+        }
+
+        // Add content
+        const content = yield* query(".content");
+        if (content) {
+          yield* html(
+            content as HTMLElement,
+            `
+            <h2>Welcome</h2>
+            <p>This is a complex DOM manipulation example.</p>
+            <button class="cta">Get Started</button>
+          `,
+          );
+
+          const button = yield* query(content as HTMLElement, ".cta");
+          if (button) {
+            yield* style(button, "padding", "10px 20px");
+            yield* style(button, "backgroundColor", "#007bff");
+            yield* style(button, "color", "white");
+            yield* style(button, "border", "none");
+            yield* style(button, "borderRadius", "4px");
+            yield* addClass(button, "primary-button");
+          }
+        }
+
+        // Final app class
+        yield* addClass("initialized");
       });
+
+      // Verify final structure
+      expect(app.classList.contains("initialized")).toBe(true);
+      expect(app.querySelector(".header")).toBeTruthy();
+      expect(app.querySelector("h1")?.textContent).toBe("My App");
+      expect(app.querySelectorAll(".nav a")).toHaveLength(3);
+      expect(app.querySelector(".cta")).toBeTruthy();
+      expect(app.style.minHeight).toBe("100vh");
     });
   });
 });

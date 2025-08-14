@@ -17,22 +17,7 @@
  * ```
  */
 
-import type {
-  Operation,
-  Workflow,
-  AsyncWorkflow,
-  SyncWorkflow,
-} from "../types";
-
-/**
- * Detects if we're in an async context by checking if there's an active
- * async generator in the call stack.
- */
-function isAsyncContext(): boolean {
-  // This is a heuristic - in practice, you'd check the actual generator type
-  // For now, we'll default to sync for better performance
-  return false;
-}
+import type { Operation, Workflow, SyncWorkflow } from "../types";
 
 /**
  * The magical `$` helper function that bridges Operations and generators.

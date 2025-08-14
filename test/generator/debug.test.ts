@@ -1,20 +1,33 @@
 /**
- * @fileoverview Debug tests for the generator submodule
+ * @fileoverview Comprehensive debug tests for the unified API with yield* support
  *
- * Simple tests to debug the generator module implementation
+ * Tests verify that all unified API functions work correctly with yield* patterns
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { watch } from '../../src/watch';
-import { text, getText, addClass, hasClass } from '../../src/generator/dom';
-import { getState, setState } from '../../src/generator/state';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { runOn } from "../../src/watch";
+import {
+  setState,
+  getState,
+  updateState,
+  hasState,
+} from "../../src/api/state-sync";
+import {
+  text,
+  addClass,
+  removeClass,
+  toggleClass,
+  hasClass,
+  style,
+  attr,
+} from "../../src/api/dom-new";
 
-describe('Generator Debug Tests', () => {
+describe("Unified API Debug Tests", () => {
   let container: HTMLElement;
 
   beforeEach(() => {
-    container = document.createElement('div');
-    container.id = 'test-container';
+    container = document.createElement("div");
+    container.id = "test-container";
     document.body.appendChild(container);
   });
 
@@ -22,148 +35,147 @@ describe('Generator Debug Tests', () => {
     document.body.removeChild(container);
   });
 
-  it('should test basic generator execution', async () => {
-    const button = document.createElement('button');
+  it("should test basic generator execution with yield*", async () => {
+    const button = document.createElement("button");
     container.appendChild(button);
 
-    console.log('Starting test with button:', button);
-
-    try {
-      await watch(button, async function* () {
-        console.log('Inside generator function');
-
-        // Try the simplest operation first
-        console.log('About to yield text operation');
-        yield* text('Hello World');
-        console.log('Text operation completed');
-
-        // Check if it worked
-        console.log('Button text content:', button.textContent);
-      });
-
-      expect(button.textContent).toBe('Hello World');
-    } catch (error) {
-      console.error('Error in test:', error);
-      throw error;
-    }
-  });
-
-  it('should test generator with Operation type', async () => {
-    const button = document.createElement('button');
-    container.appendChild(button);
-
-    await watch(button, async function* () {
-      // Test that our Operations work
-      const textOp = text('Test');
-      console.log('Text operation:', textOp);
-      console.log('Is async iterable?', Symbol.asyncIterator in textOp);
-
-      // Try to iterate manually
-      const iterator = textOp[Symbol.asyncIterator]();
-      const { value, done } = await iterator.next();
-      console.log('First yield value:', value);
-      console.log('Is function?', typeof value === 'function');
-      console.log('Done?', done);
-
-      // Now try with yield*
-      yield* text('Button Text');
+    await runOn(button, function* () {
+      yield* text("Hello World");
     });
 
-    expect(button.textContent).toBe('Button Text');
+    expect(button.textContent).toBe("Hello World");
   });
 
-  it('should test multiple operations', async () => {
-    const div = document.createElement('div');
+  it("should test multiple DOM operations with yield*", async () => {
+    const div = document.createElement("div");
     container.appendChild(div);
 
-    await watch(div, async function* () {
-      yield* text('Testing');
-      yield* addClass('active');
+    await runOn(div, function* () {
+      yield* text("Testing");
+      yield* addClass("active");
 
-      const hasActive = yield* hasClass('active');
-      console.log('Has active class:', hasActive);
+      const hasActive = yield* hasClass("active");
+      expect(hasActive).toBe(true);
 
-      const content = yield* getText();
-      console.log('Content:', content);
+      const content = yield* text();
+      expect(content).toBe("Testing");
     });
 
-    expect(div.textContent).toBe('Testing');
-    expect(div.classList.contains('active')).toBe(true);
+    expect(div.textContent).toBe("Testing");
+    expect(div.classList.contains("active")).toBe(true);
   });
 
-  it('should test state operations', async () => {
-    const div = document.createElement('div');
+  it("should test state operations with yield*", async () => {
+    const div = document.createElement("div");
     container.appendChild(div);
 
-    await watch(div, async function* () {
-      yield* setState('test', 'value');
-      const value = yield* getState('test');
-      console.log('State value:', value);
+    await runOn(div, function* () {
+      yield* setState("test", "value");
+      const value = yield* getState("test");
 
       yield* text(`State: ${value}`);
     });
 
-    expect(div.textContent).toBe('State: value');
+    expect(div.textContent).toBe("State: value");
   });
 
-  it('should test the Operation execution flow', async () => {
-    const button = document.createElement('button');
+  it("should test complex DOM manipulation workflow", async () => {
+    const button = document.createElement("button");
     container.appendChild(button);
 
-    // Test the raw Operation function
-    const operation = (context: any) => {
-      console.log('Operation context:', context);
-      context.element.textContent = 'Direct Operation';
-    };
-
-    await watch(button, async function* () {
-      // Yield the operation directly to see what happens
-      yield operation;
+    await runOn(button, function* () {
+      yield* text("Click me");
+      yield* addClass("interactive");
+      yield* style("background-color", "blue");
+      yield* attr("data-test", "true");
     });
 
-    expect(button.textContent).toBe('Direct Operation');
+    expect(button.textContent).toBe("Click me");
+    expect(button.classList.contains("interactive")).toBe(true);
+    expect(button.style.backgroundColor).toBe("blue");
+    expect(button.getAttribute("data-test")).toBe("true");
   });
 
-  it('should test Workflow structure', async () => {
-    const button = document.createElement('button');
-    container.appendChild(button);
+  it("should test state and DOM combination", async () => {
+    const div = document.createElement("div");
+    container.appendChild(div);
 
-    // Create a simple workflow manually
-    const simpleWorkflow = async function* () {
-      yield (context: any) => {
-        context.element.textContent = 'Manual Workflow';
-      };
-    };
+    await runOn(div, function* () {
+      yield* setState("count", 0);
 
-    await watch(button, async function* () {
-      yield* simpleWorkflow();
+      yield* updateState("count", (n: number) => (n || 0) + 1);
+      const count = yield* getState("count");
+
+      yield* text(`Count: ${count}`);
+      yield* addClass(`count-${count}`);
     });
 
-    expect(button.textContent).toBe('Manual Workflow');
+    expect(div.textContent).toBe("Count: 1");
+    expect(div.classList.contains("count-1")).toBe(true);
   });
 
-  it('should compare manual vs generator module', async () => {
-    const div1 = document.createElement('div');
-    const div2 = document.createElement('div');
-    container.appendChild(div1);
-    container.appendChild(div2);
+  it("should test class manipulation operations", async () => {
+    const element = document.createElement("div");
+    container.appendChild(element);
 
-    // Manual approach
-    await watch(div1, async function* () {
-      const manualWorkflow = async function* () {
-        yield (context: any) => {
-          context.element.textContent = 'Manual';
-        };
-      };
-      yield* manualWorkflow();
+    await runOn(element, function* () {
+      yield* addClass("first");
+      yield* addClass("second");
+
+      let hasFirst = yield* hasClass("first");
+      expect(hasFirst).toBe(true);
+
+      yield* removeClass("first");
+      hasFirst = yield* hasClass("first");
+      expect(hasFirst).toBe(false);
+
+      yield* toggleClass("third");
+      const hasThird = yield* hasClass("third");
+      expect(hasThird).toBe(true);
     });
 
-    // Generator module approach
-    await watch(div2, async function* () {
-      yield* text('Module');
+    expect(element.classList.contains("second")).toBe(true);
+    expect(element.classList.contains("third")).toBe(true);
+    expect(element.classList.contains("first")).toBe(false);
+  });
+
+  it("should test error handling gracefully", async () => {
+    const div = document.createElement("div");
+    container.appendChild(div);
+
+    try {
+      await runOn(div, function* () {
+        yield* text("Before operations");
+        yield* addClass("test");
+        yield* setState("status", "complete");
+        yield* text("After operations");
+      });
+
+      expect(div.textContent).toBe("After operations");
+      expect(div.classList.contains("test")).toBe(true);
+    } catch (error) {
+      throw error;
+    }
+  });
+
+  it("should test advanced state operations", async () => {
+    const div = document.createElement("div");
+    container.appendChild(div);
+
+    await runOn(div, function* () {
+      yield* setState("user", { name: "John", age: 30 });
+      yield* setState("active", true);
+
+      const hasUser = yield* hasState("user");
+      const hasActive = yield* hasState("active");
+
+      expect(hasUser).toBe(true);
+      expect(hasActive).toBe(true);
+
+      const user = yield* getState("user");
+      yield* text(`Hello ${user.name}`);
     });
 
-    expect(div1.textContent).toBe('Manual');
-    expect(div2.textContent).toBe('Module');
+    expect(div.textContent).toBe("Hello John");
   });
 });

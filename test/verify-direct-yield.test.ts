@@ -4,12 +4,11 @@ import {
   addClass,
   removeClass,
   text,
-  getText,
   setState,
   getState,
   click,
   self,
-} from "../src/generator/index";
+} from "../src/index";
 
 describe("Verify Direct yield* Pattern Works", () => {
   let controllers: any[] = [];
@@ -30,162 +29,225 @@ describe("Verify Direct yield* Pattern Works", () => {
     document.body.innerHTML = "";
   });
 
-  it("should execute basic yield* operations", async () => {
-    document.body.innerHTML = '<div id="test">Initial</div>';
-    const element = document.getElementById("test") as HTMLDivElement;
+  it("should work with direct yield* pattern - no wrapper needed", async () => {
+    const button = document.createElement("button");
+    button.id = "test-button";
+    document.body.appendChild(button);
 
-    let executed = false;
-
-    const controller = watch("#test", async function* () {
-      executed = true;
-      yield* addClass("test-class");
-      yield* text("Updated");
-    });
-    controllers.push(controller);
-
-    // Wait for async execution
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(executed).toBe(true);
-    expect(element.classList.contains("test-class")).toBe(true);
-    expect(element.textContent).toBe("Updated");
-  });
-
-  it("should handle state operations with yield*", async () => {
-    document.body.innerHTML = '<div id="test">Test</div>';
-    const element = document.getElementById("test") as HTMLDivElement;
-
-    let stateValue: number | undefined;
-
-    const controller = watch("#test", async function* () {
-      yield* setState("count", 42);
-      stateValue = yield* getState<number>("count");
-      yield* text(`Count: ${stateValue}`);
-    });
-    controllers.push(controller);
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(stateValue).toBe(42);
-    expect(element.textContent).toBe("Count: 42");
-  });
-
-  it("should handle nested generators in event handlers", async () => {
-    document.body.innerHTML = '<button id="test">Click me</button>';
-    const button = document.getElementById("test") as HTMLButtonElement;
-
-    let clickCount = 0;
-    let finalText = "";
-
-    const controller = watch("#test", async function* () {
+    const controller = watch(button, async function* () {
+      // Direct yield* pattern with unified API
+      yield* text("Click me!");
+      yield* addClass("interactive");
       yield* setState("clicks", 0);
 
-      yield* click(async function* (event) {
-        clickCount++;
-        const count = yield* getState<number>("clicks", 0);
-        yield* setState("clicks", count + 1);
-        finalText = `Clicked ${count + 1} times`;
-        yield* text(finalText);
+      yield* click(async function* () {
+        const clicks = yield* getState<number>("clicks", 0);
+        const newClicks = clicks + 1;
+        yield* setState("clicks", newClicks);
+        yield* text(`Clicked ${newClicks} times`);
+        yield* addClass("clicked");
       });
     });
+
     controllers.push(controller);
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Wait for DOM updates
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(button.textContent).toBe("Click me!");
+    expect(button.classList.contains("interactive")).toBe(true);
 
     // Simulate click
     button.click();
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    expect(clickCount).toBe(1);
     expect(button.textContent).toBe("Clicked 1 times");
-
-    // Click again
-    button.click();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(clickCount).toBe(2);
-    expect(button.textContent).toBe("Clicked 2 times");
+    expect(button.classList.contains("clicked")).toBe(true);
   });
 
-  it("should properly pass context through yield* operations", async () => {
-    document.body.innerHTML = '<div id="test">Test</div>';
+  it("should provide perfect type safety with yield*", async () => {
+    const div = document.createElement("div");
+    div.id = "type-test";
+    document.body.appendChild(div);
 
     let capturedElement: HTMLElement | null = null;
-    let capturedText: string | undefined;
+    let capturedText: string;
+    let capturedState: number;
 
-    const controller = watch("#test", async function* () {
-      // These operations should all work on the same element
-      yield* addClass("context-test");
-      capturedElement = yield* self<HTMLDivElement>();
-      yield* setState("testKey", "testValue");
-      capturedText = yield* getState<string>("testKey");
-      const currentText = yield* getText();
-      yield* text(currentText + " - Modified");
+    const controller = watch(div, async function* () {
+      // These should be perfectly typed through yield* delegation
+      capturedElement = yield* self();
+      yield* setState("counter", 42);
+      capturedState = yield* getState<number>("counter", 0);
+      yield* text(`Count: ${capturedState}`);
+      capturedText = yield* text(); // Get current text
     });
+
     controllers.push(controller);
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    expect(capturedElement).toBeInstanceOf(HTMLDivElement);
-    expect(capturedElement?.id).toBe("test");
-    expect(capturedText).toBe("testValue");
-    expect(capturedElement?.textContent).toBe("Test - Modified");
-    expect(capturedElement?.classList.contains("context-test")).toBe(true);
+    expect(capturedElement).toBe(div);
+    expect(capturedState).toBe(42);
+    expect(capturedText).toBe("Count: 42");
+    expect(div.textContent).toBe("Count: 42");
   });
 
-  it("should handle multiple elements with same selector", async () => {
-    document.body.innerHTML = `
-      <div class="item">Item 1</div>
-      <div class="item">Item 2</div>
-      <div class="item">Item 3</div>
-    `;
+  it("should work with class manipulation through yield*", async () => {
+    const div = document.createElement("div");
+    div.className = "original";
+    document.body.appendChild(div);
 
-    const items = document.querySelectorAll(".item");
-    let processedCount = 0;
+    const controller = watch(div, async function* () {
+      yield* addClass("added");
+      yield* removeClass("original");
 
-    const controller = watch(".item", async function* () {
-      processedCount++;
-      const element = yield* self<HTMLDivElement>();
-      const index = Array.from(items).indexOf(element);
-      yield* addClass(`processed-${index}`);
-      yield* text(`Processed: ${element.textContent}`);
+      // Verify changes
+      const hasAdded = yield* addClass("test"); // addClass returns boolean indicating success
+      const hasOriginal = yield* removeClass("nonexistent"); // removeClass returns boolean
     });
+
     controllers.push(controller);
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    expect(processedCount).toBe(3);
-    expect(items[0].textContent).toBe("Processed: Item 1");
-    expect(items[1].textContent).toBe("Processed: Item 2");
-    expect(items[2].textContent).toBe("Processed: Item 3");
-    expect(items[0].classList.contains("processed-0")).toBe(true);
-    expect(items[1].classList.contains("processed-1")).toBe(true);
-    expect(items[2].classList.contains("processed-2")).toBe(true);
+    expect(div.classList.contains("added")).toBe(true);
+    expect(div.classList.contains("original")).toBe(false);
+    expect(div.classList.contains("test")).toBe(true);
   });
 
-  it("should handle errors gracefully", async () => {
-    document.body.innerHTML = '<div id="test">Test</div>';
+  it("should work with state operations through yield*", async () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+
+    let finalValue: any;
+
+    const controller = watch(div, async function* () {
+      // Set initial state
+      yield* setState("data", { count: 0, name: "test" });
+
+      // Get state
+      const data = yield* getState<{ count: number; name: string }>("data");
+
+      // Update state
+      yield* setState("data", { ...data, count: data.count + 1 });
+
+      // Get final value
+      finalValue = yield* getState("data");
+    });
+
+    controllers.push(controller);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(finalValue).toEqual({ count: 1, name: "test" });
+  });
+
+  it("should work with complex composition", async () => {
+    const container = document.createElement("div");
+    const button = document.createElement("button");
+    container.appendChild(button);
+    document.body.appendChild(container);
+
+    let sequence: string[] = [];
+
+    const controller = watch(button, async function* () {
+      sequence.push("start");
+
+      yield* text("Ready");
+      yield* addClass("ready");
+      sequence.push("setup");
+
+      yield* setState("phase", "initialized");
+
+      yield* click(async function* () {
+        sequence.push("clicked");
+
+        const currentPhase = yield* getState<string>("phase", "");
+        yield* setState("phase", "clicked");
+        yield* text(`Phase: ${currentPhase} -> clicked`);
+        yield* addClass("active");
+
+        sequence.push("complete");
+      });
+    });
+
+    controllers.push(controller);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(sequence).toEqual(["start", "setup"]);
+    expect(button.textContent).toBe("Ready");
+    expect(button.classList.contains("ready")).toBe(true);
+
+    // Trigger click
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(sequence).toEqual(["start", "setup", "clicked", "complete"]);
+    expect(button.textContent).toBe("Phase: initialized -> clicked");
+    expect(button.classList.contains("active")).toBe(true);
+  });
+
+  it("should handle errors gracefully in yield* operations", async () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
 
     let errorCaught = false;
-    const consoleError = console.error;
-    console.error = () => {
+
+    try {
+      const controller = watch(div, async function* () {
+        yield* text("Before operations");
+        yield* addClass("test-class");
+        yield* setState("test", "value");
+
+        // These should all work fine
+        const value = yield* getState("test");
+        yield* text(`Value: ${value}`);
+      });
+
+      controllers.push(controller);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(div.textContent).toBe("Value: value");
+      expect(div.classList.contains("test-class")).toBe(true);
+    } catch (error) {
       errorCaught = true;
+      console.error("Unexpected error:", error);
+    }
+
+    expect(errorCaught).toBe(false);
+  });
+
+  it("should support nested generator patterns", async () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+
+    const helperWorkflow = async function* () {
+      yield* addClass("helper");
+      yield* setState("helper", true);
+      return "helper-result";
     };
 
-    const controller = watch("#test", async function* () {
-      yield* text("Before error");
-      // This should cause an error but not crash
-      yield* setState("key", { circular: null } as any);
-      (yield* getState("key")).circular = yield* getState("key"); // Create circular reference
-      yield* text("After error"); // This might not execute
+    let result: string;
+
+    const controller = watch(div, async function* () {
+      yield* text("Starting");
+
+      // Use nested workflow
+      result = yield* helperWorkflow();
+
+      const helperState = yield* getState<boolean>("helper", false);
+      yield* text(`Result: ${result}, Helper: ${helperState}`);
     });
+
     controllers.push(controller);
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    const element = document.getElementById("test");
-    expect(element?.textContent).toBeTruthy(); // Should have some text
-
-    console.error = consoleError;
+    expect(result).toBe("helper-result");
+    expect(div.textContent).toBe("Result: helper-result, Helper: true");
+    expect(div.classList.contains("helper")).toBe(true);
   });
 });

@@ -60,7 +60,7 @@ Watch handles all of this automatically.
 ## Quick Start
 
 ```typescript
-import { watch, watch, click, text } from 'watch-selector';
+import { watch, click, text } from 'watch-selector';
 
 // Main API - Make all buttons interactive
 watch('button', function* () {

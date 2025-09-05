@@ -53,23 +53,32 @@ function fixAsyncGenerators(filePath) {
 function ensureWorkflowImport(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
 
-  // Check if Workflow is already imported
-  if (!content.includes('Workflow') || content.includes('Workflow is not defined')) {
-    // Find the import statement for types
-    const importPattern = /import type \{([^}]+)\} from "\.\.\/types"/;
-    const match = content.match(importPattern);
+  // If Workflow is already imported from any *types* module, no-op
+  const hasWorkflowImport = /\bimport\s+type\s*\{[^}]*\bWorkflow\b[^}]*\}\s*from\s*['"][^'"]*types['"]/.test(content);
+  if (hasWorkflowImport) return;
 
-    if (match) {
-      const imports = match[1];
-      if (!imports.includes('Workflow')) {
-        // Add Workflow to the imports
-        const newImports = imports.trim() + ',\n  Workflow';
-        content = content.replace(importPattern, `import type {${newImports}} from "../types"`);
-        fs.writeFileSync(filePath, content, 'utf8');
-        console.log(`  ✓ Added Workflow import to ${filePath}`);
-      }
+  // Prefer augmenting an existing import from ../types or ../../types (any quotes)
+  const importPattern = /import\s+type\s*\{([^}]+)\}\s*from\s*['"](\.\.\/)+types['"]/;
+  const match = content.match(importPattern);
+  if (match) {
+    const names = match[1];
+    if (!/\bWorkflow\b/.test(names)) {
+      const replacement = match[0].replace('{' + names + '}', `{ ${names.trim()}, Workflow }`);
+      content = content.replace(importPattern, replacement);
+      fs.writeFileSync(filePath, content, 'utf8');
+      console.log(`  ✓ Added Workflow import to ${filePath}`);
     }
+    return;
   }
+
+  // Fallback: insert a new import after the first import line (assumes ../types from src/*)
+  const firstImport = content.match(/^\s*import[^\n]*\n/m);
+  const importLine = 'import type { Workflow } from "../types";\n';
+  content = firstImport
+    ? content.replace(firstImport[0], firstImport[0] + importLine)
+    : importLine + content;
+  fs.writeFileSync(filePath, content, 'utf8');
+  console.log(`  ✓ Inserted Workflow import into ${filePath}`);
 }
 
 // Main execution

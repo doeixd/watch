@@ -85,7 +85,7 @@ function ensureWorkflowImport(filePath) {
 console.log('Starting async generator fix...\n');
 
 filesToFix.forEach(file => {
-  const fullPath = path.join(__dirname, file);
+  const fullPath = path.resolve(process.cwd(), file);
   if (fs.existsSync(fullPath)) {
     // Ensure Workflow import first
     if (file.startsWith('src/generator/')) {

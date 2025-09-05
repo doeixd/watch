@@ -42,6 +42,7 @@ Watch handles all of this automatically.
 - [Quick Start](#quick-start)
 - [Why Choose Watch?](#why-choose-watch)
 - [Installation](#installation)
+- [Documentation](#documentation)
 - [Core Concepts](#core-concepts)
 - [Real-World Examples](#real-world-examples)
 - [Advanced Features](#advanced-features)
@@ -61,19 +62,21 @@ Watch handles all of this automatically.
 ```typescript
 import { watch, click, text } from 'watch-selector';
 
-// Make all buttons interactive
+// Main API - Make all buttons interactive
 watch('button', function* () {
-  yield click(() => {
-    yield text('Button clicked!');
+  yield* click(() => {
+    yield* text('Button clicked!');
   });
 });
 
-// Each button gets its own click counter
+// Enhanced API - Direct function calls, cleaner syntax
 watch('.counter-btn', function* (ctx) {
   let count = 0;
-  yield click(() => {
+  
+  yield* ctx.click(function* () {
     count++;
-    yield text(`Clicked ${count} times`);
+    ctx.text(`Clicked ${count} times`);
+    ctx.addClass('clicked');
   });
 });
 ```
@@ -94,7 +97,7 @@ document.querySelectorAll('button').forEach(btn => {
 
 // Watch approach persists automatically
 watch('button', function* () {
-  yield click(handler); // Works for all buttons, present and future
+  yield* click(handler); // Works for all buttons, present and future
 });
 ```
 
@@ -165,6 +168,129 @@ watch('button', function* () {
 
 <br>
 
+## Documentation
+
+### 📚 Comprehensive Guides
+
+- **[API Reference](./docs/API.md)** - Complete documentation of all functions, types, and patterns
+- **[Quick Reference](./docs/QUICK-REFERENCE.md)** - Concise guide to commonly used functions
+- **[Type Definitions](./docs/TYPES.md)** - Full TypeScript type reference
+- **[Explicit API Spec](./docs/EXPLICIT-API-SPEC.md)** - Specification for non-overloaded functions
+- **[Examples](./examples/)** - Real-world usage examples and patterns
+
+### 🚀 Getting Started
+
+The library provides multiple ways to interact with the DOM:
+
+1. **Direct manipulation** - Call functions directly on elements
+2. **CSS selectors** - Target elements by selector strings  
+3. **Generator functions** - Compose behaviors with `yield`
+4. **Async generators** - Use `yield*` for type-safe async flows
+5. **Pure workflows** - Import from `/generator` for clean syntax
+
+```typescript
+// All these patterns are supported:
+import { text, addClass } from 'watch-selector';
+
+// Direct element manipulation
+const button = document.querySelector('button');
+text(button, 'Click me!');
+
+// CSS selector manipulation  
+text('#my-button', 'Click me!');
+
+// Generator pattern with yield*
+watch('button', function* () {
+  yield* text('Click me!');
+  yield* addClass('interactive');
+});
+
+// Direct yield* - no $ helper needed
+watch('button', function* () {
+  yield* text('Click me!');
+  yield* addClass('interactive');
+});
+
+// Enhanced context with direct method calls
+watch('button', function* (ctx) {
+  ctx.text('Click me!');
+  ctx.addClass('interactive');
+  
+  // Event handlers still use yield*
+  yield* ctx.click(function* () {
+    ctx.toggleClass('clicked');
+  });
+});
+```
+
+### 🎯 Three API Styles + Enhanced Context
+
+Watch Selector offers three distinct API styles to match your preferences, plus an enhanced context option for maximum ergonomics:
+
+#### 1. **Overloaded API** (Default)
+The flexible, context-aware API with intelligent overloading:
+```typescript
+import { text, addClass, click } from 'watch-selector';
+
+// Functions adapt to context
+text(element, 'Hello');        // Direct element
+text('#button', 'Hello');      // Selector
+yield* text('Hello');          // Generator with type safety
+```
+
+#### 2. **Explicit API** 
+Clear, unambiguous function names that specify exactly what they do:
+```typescript
+import * as explicit from 'watch-selector/explicit';
+
+explicit.setTextElement(element, 'Hello');     // Set text on element
+explicit.setTextFirst('#button', 'Hello');     // Set text on first match
+explicit.setTextAll('.items', 'Updated');      // Set text on all matches
+explicit.getTextElement(element);              // Get text from element
+```
+
+#### 3. **Fluent API**
+jQuery-like chainable interface for elegant DOM manipulation:
+```typescript
+import { selector, element, $ } from 'watch-selector/fluent';
+
+selector('#button')
+  .text('Click me!')
+  .addClass('primary', 'large')
+  .style('backgroundColor', 'blue')
+  .click(() => console.log('Clicked!'));
+
+// Or use $ for jQuery familiarity
+$('.items')
+  .addClass('found')
+  .each((el, i) => console.log(`Item ${i}:`, el));
+```
+
+#### 4. **Enhanced Context API** (Recommended)
+The most ergonomic option with direct function calls:
+```typescript
+import { watch } from 'watch-selector';
+
+watch('button', function* (ctx) {
+  ctx.text('Click me!');           // Direct calls - no yield* needed
+  ctx.addClass('interactive');     // Clean, readable syntax
+  
+  yield* ctx.click(function* () {  // Event handlers still use yield*
+    ctx.toggleClass('clicked');
+  });
+});
+```
+
+Choose the style that best fits your needs:
+- **Enhanced Context**: Maximum ergonomics with direct calls (recommended)
+- **Overloaded**: Maximum flexibility and conciseness
+- **Explicit**: Crystal clear intent, no ambiguity
+- **Fluent**: Elegant chaining for multiple operations
+
+See [examples/api-comparison.ts](./examples/api-comparison.ts) for detailed comparisons.
+
+<br>
+
 ## Core Concepts
 
 ### Watchers
@@ -182,9 +308,9 @@ Generators create persistent contexts that survive DOM changes:
 watch('.component', function* () {
   let state = 0; // Persists for each element's lifetime
   
-  yield click(() => {
+  yield* click(() => {
     state++; // State is maintained across events
-    yield text(`State: ${state}`);
+    yield* text(`State: ${state}`);
   });
   
   // Cleanup happens automatically when element is removed
@@ -204,9 +330,9 @@ watch('.counter', function* () {
   const counter = createState('count', 0);
   const element = self(); // Get current element
   
-  yield click(() => {
+  yield* click(() => {
     counter.update(c => c + 1);
-    yield text(`Count: ${counter.get()}`);
+    yield* text(`Count: ${counter.get()}`);
   });
 });
 ```
@@ -217,40 +343,64 @@ Generators can optionally receive a context parameter for enhanced ergonomics:
 // Traditional approach (still works)
 watch('button', function* () {
   const element = self();
-  yield click(() => console.log('Clicked!'));
+  yield* click(() => console.log('Clicked!'));
 });
 
 // New context parameter approach
 watch('button', function* (ctx) {
   const element = ctx.self(); // Direct access via context
-  yield click(() => console.log('Clicked!'));
+  yield* click(() => console.log('Clicked!'));
 });
 ```
 
-**Benefits:**
-- **Better discoverability** - TypeScript autocomplete shows all available methods
-- **Explicit context** - No reliance on hidden global state
-- **Backward compatible** - Existing code continues to work unchanged
-- **Mixed usage** - You can use both patterns in the same generator
-
-All primitives support both patterns:
+#### Enhanced Context API
+For the most ergonomic experience, use `watch` with direct function calls:
 ```typescript
-watch('form', function* (ctx) {
-  // Context object provides direct access to element functions
-  const element = ctx.self();
-  const input = ctx.el('input');
-  const allInputs = ctx.all('input');
+import { watch } from 'watch-selector';
+
+watch('button', function* (ctx) {
+  // DOM functions work as direct synchronous calls
+  ctx.text('Click me!');
+  ctx.addClass('interactive');
   
-  // State functions accept optional context parameter
-  setState('valid', false, ctx);
-  const isValid = getState('valid', ctx);
+  const parent = ctx.parent();  // Direct return value
+  const children = ctx.children('.child');  // Direct return value
   
-  // Global functions still work (use getCurrentContext internally)
-  setState('backup', true);
-  const backup = getState('backup');
+  // State management with direct calls
+  ctx.setState('count', 0);
+  const count = ctx.getState('count', 0);
   
-  // Both access the same element's state
-  expect(isValid).toBe(getState('valid')); // true - same element
+  // Event handlers still use yield* for generator composition
+  yield* ctx.click(function* () {
+    const newCount = ctx.getState('count', 0) + 1;
+    ctx.setState('count', newCount);
+    ctx.text(`Clicked ${newCount} times`);
+    ctx.toggleClass('active');
+  });
+});
+```
+
+**Enhanced Context Benefits:**
+- **Direct synchronous calls** - No `yield*` needed for DOM/state functions
+- **Better discoverability** - TypeScript autocomplete shows all available methods
+- **Cleaner code** - More readable without yield* everywhere
+- **Type safety** - Full TypeScript inference for all return values
+- **Mixed patterns** - Event handlers still use generators for composition
+
+**API Comparison:**
+```typescript
+// Main API - uses yield*
+watch('button', function* () {
+  yield* text('Hello');
+  const content = yield* text();
+  yield* addClass('active');
+});
+
+// Enhanced API - direct calls
+watch('button', function* (ctx) {
+  ctx.text('Hello');
+  const content = ctx.text();
+  ctx.addClass('active');
 });
 ```
 
@@ -2430,7 +2580,7 @@ function* withErrorHandling(innerGen) {
 | `createState` | `(key, initial) => TypedState` | Create element-scoped state |
 | `createTypedState` | `(key, initial) => TypedState` | Create typed element-scoped state |
 | `createComputed` | `(fn, deps) => () => T` | Create computed value |
-| `getState` | `(key, ctx?) => T` | Get state value (optionally pass context) |
+| `getState` | `(key, defaultValue?, ctx?) => T` | Get state value (optionally pass context) |
 | `setState` | `(key, val, ctx?) => void` | Set state value (optionally pass context) |
 | `updateState` | `(key, fn, ctx?) => void` | Update state value (optionally pass context) |
 | `hasState` | `(key, ctx?) => boolean` | Check if state exists (optionally pass context) |

@@ -198,11 +198,10 @@ export async function executeGenerator<
   index: number,
   array: readonly El[],
   generatorFn: (
-    ctx: TypedGeneratorContext<El>,
+    ctx?: TypedGeneratorContext<El>,
   ) => Generator<any, T, unknown> | AsyncGenerator<any, T, unknown>,
   signal?: AbortSignal,
 ): Promise<T | undefined> {
-  createWatchContext(element, selector, index, array);
   const generatorContext: GeneratorContext<El> = {
     element,
     selector,
@@ -321,17 +320,21 @@ async function handleYieldedValue<El extends HTMLElement>(
   // Handle functions - could be element functions or Workflow operations
   if (typeof yielded === "function") {
     // Check if function looks like it expects a WatchContext (from generator submodule)
-    // These functions typically have "context" in their parameter name
+    // These functions typically have "context" as the first parameter name
     const fnStr = yielded.toString();
-    const isWatchContextFn = fnStr.includes("context");
+    
+    // More precise check - look for context as a parameter name, not just anywhere in the function
+    const paramMatch = fnStr.match(/^\s*(?:async\s+)?(?:function\s*)?[^(]*\(\s*([^)]*)\)/);
+    const firstParam = paramMatch?.[1]?.trim().split(',')[0]?.trim() || '';
+    const isWatchContextFn = firstParam.includes('context') || firstParam.includes('ctx');
 
     // Check if function looks like it expects an element (ElementFn pattern)
-    // But exclude functions that look like WatchContext functions
+    // Look for element-related parameter names or single parameter functions
     const isElementFn =
       !isWatchContextFn &&
-      (fnStr.includes("element") ||
-        fnStr.includes("el") ||
-        fnStr.includes("HTMLElement") ||
+      (firstParam.includes("element") ||
+        firstParam.includes("el") ||
+        firstParam.includes("HTMLElement") ||
         yielded.length === 1); // Most ElementFns expect 1 argument
 
     // First try WatchContext functions (from generator submodule)
@@ -606,6 +609,79 @@ export function getCurrentElement<
  * });
  * ```
  */
+/**
+ * Returns the current element being processed in a watch generator.
+ *
+ * The self() function provides direct access to the DOM element that triggered
+ * the current generator execution. This is the element that matched the selector
+ * in watch(). The element is properly typed based on the selector used.
+ *
+ * @template El - The type of HTMLElement (auto-inferred from selector)
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns The current element being watched
+ * @throws Error if called outside of a generator context
+ *
+ * @example Direct element access with yield*
+ * ```typescript
+ * import { watch, self, addClass } from 'watch-selector';
+ *
+ * watch('button', function* () {
+ *   const button = self(); // Typed as HTMLButtonElement
+ *
+ *   // Direct DOM manipulation
+ *   button.disabled = true;
+ *   console.log('Button ID:', button.id);
+ *
+ *   // Or use with library functions
+ *   yield* addClass('processing');
+ * });
+ * ```
+ *
+ * @example Accessing element properties
+ * ```typescript
+ * watch('input[type="checkbox"]', function* () {
+ *   const checkbox = self() as HTMLInputElement;
+ *
+ *   yield* click(function* () {
+ *     console.log('Checked:', checkbox.checked);
+ *     console.log('Value:', checkbox.value);
+ *
+ *     // Update based on state
+ *     if (checkbox.checked) {
+ *       yield* addClass('selected');
+ *     } else {
+ *       yield* removeClass('selected');
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Storing element reference for later use
+ * ```typescript
+ * watch('.draggable', function* () {
+ *   const element = self();
+ *   let isDragging = false;
+ *
+ *   yield* on('mousedown', function* (e) {
+ *     isDragging = true;
+ *     const startX = e.clientX - element.offsetLeft;
+ *     const startY = e.clientY - element.offsetTop;
+ *
+ *     const handleMove = (e: MouseEvent) => {
+ *       if (!isDragging) return;
+ *       element.style.left = `${e.clientX - startX}px`;
+ *       element.style.top = `${e.clientY - startY}px`;
+ *     };
+ *
+ *     document.addEventListener('mousemove', handleMove);
+ *
+ *     yield* cleanup(() => {
+ *       document.removeEventListener('mousemove', handleMove);
+ *     });
+ *   });
+ * });
+ * ```
+ */
 export function self<El extends HTMLElement = HTMLElement>(
   ctx?: TypedGeneratorContext<El>,
 ): El {
@@ -684,6 +760,90 @@ export function self<El extends HTMLElement = HTMLElement>(
  * });
  * ```
  */
+/**
+ * Finds a single descendant element within the current watch context.
+ *
+ * Searches for the first element matching the selector within the current element's
+ * descendants. This is equivalent to calling querySelector on the current element.
+ * Use this when you need to find a specific child element within your component.
+ *
+ * @template T - The type of HTMLElement expected (for type safety)
+ * @param selector - CSS selector to find within the current element
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns The found element or null if not found
+ * @throws Error if called outside of a generator context
+ *
+ * @example Finding child elements in components with yield*
+ * ```typescript
+ * import { watch, el, click, addClass } from 'watch-selector';
+ *
+ * watch('.card', function* () {
+ *   // Find specific elements within the card
+ *   const title = el<HTMLHeadingElement>('.card-title');
+ *   const button = el<HTMLButtonElement>('.card-action');
+ *   const image = el<HTMLImageElement>('.card-image');
+ *
+ *   if (button && title) {
+ *     yield* click(button, function* () {
+ *       console.log('Card clicked:', title.textContent);
+ *       yield* addClass('card-selected');
+ *     });
+ *   }
+ *
+ *   if (image) {
+ *     image.loading = 'lazy';
+ *   }
+ * });
+ * ```
+ *
+ * @example Form field access
+ * ```typescript
+ * watch('.user-form', function* () {
+ *   yield* submit(function* (event) {
+ *     event.preventDefault();
+ *
+ *     // Get form fields
+ *     const emailInput = el<HTMLInputElement>('input[name="email"]');
+ *     const passwordInput = el<HTMLInputElement>('input[name="password"]');
+ *     const rememberCheckbox = el<HTMLInputElement>('input[type="checkbox"]');
+ *
+ *     if (emailInput && passwordInput) {
+ *       const credentials = {
+ *         email: emailInput.value,
+ *         password: passwordInput.value,
+ *         remember: rememberCheckbox?.checked || false
+ *       };
+ *
+ *       yield* addClass('submitting');
+ *       // Submit credentials...
+ *     }
+ *   });
+ * });
+ * ```
+ *
+ * @example Conditional rendering based on child elements
+ * ```typescript
+ * watch('.notification', function* () {
+ *   const closeBtn = el('.close-btn');
+ *   const icon = el<HTMLElement>('.icon');
+ *   const message = el('.message');
+ *
+ *   // Make dismissible if close button exists
+ *   if (closeBtn) {
+ *     yield* click(closeBtn, function* () {
+ *       yield* addClass('fade-out');
+ *       setTimeout(() => self().remove(), 300);
+ *     });
+ *   }
+ *
+ *   // Set icon based on type
+ *   const type = yield* getState('type', 'info');
+ *   if (icon) {
+ *     icon.className = `icon icon-${type}`;
+ *   }
+ * });
+ * ```
+ */
 export function el<T extends HTMLElement = HTMLElement>(
   selector: string,
   ctx?: TypedGeneratorContext<any>,
@@ -741,18 +901,248 @@ export function siblings<T extends HTMLElement = HTMLElement>(
 }
 
 // Global el.all function
-el.all = function <T extends HTMLElement = HTMLElement>(
+/**
+ * Finds all descendant elements matching a selector within the current watch context.
+ *
+ * Searches for all elements matching the selector within the current element's
+ * descendants. Returns an array (not NodeList) for easier iteration. This is
+ * equivalent to calling querySelectorAll on the current element and converting
+ * to an array.
+ *
+ * @template T - The type of HTMLElement expected (for type safety)
+ * @param selector - CSS selector to find within the current element
+ * @param ctx - Optional context (usually auto-detected)
+ * @returns Array of found elements (empty array if none found)
+ * @throws Error if called outside of a generator context
+ *
+ * @example Processing multiple child elements with yield*
+ * ```typescript
+ * import { watch, all, addClass, click } from 'watch-selector';
+ *
+ * watch('.gallery', function* () {
+ *   // Get all images in the gallery
+ *   const images = all<HTMLImageElement>('.gallery-image');
+ *
+ *   // Add lazy loading to all images
+ *   images.forEach(img => {
+ *     img.loading = 'lazy';
+ *     img.decoding = 'async';
+ *   });
+ *
+ *   // Add click handlers to all images
+ *   for (const img of images) {
+ *     yield* click(img, function* () {
+ *       // Open in lightbox
+ *       yield* addClass('lightbox-active');
+ *       console.log('Viewing:', img.alt);
+ *     });
+ *   }
+ *
+ *   // Update counter
+ *   yield* text('.image-count', `${images.length} images`);
+ * });
+ * ```
+ *
+ * @example Batch operations on form fields
+ * ```typescript
+ * watch('form', function* () {
+ *   // Get all required fields
+ *   const requiredFields = all<HTMLInputElement>('[required]');
+ *
+ *   // Add validation to each field
+ *   for (const field of requiredFields) {
+ *     yield* on('blur', field, function* () {
+ *       if (!field.value.trim()) {
+ *         yield* addClass('error', field);
+ *         const label = el(`label[for="${field.id}"]`);
+ *         if (label) {
+ *           yield* addClass('error-label', label);
+ *         }
+ *       } else {
+ *         yield* removeClass('error', field);
+ *       }
+ *     });
+ *   }
+ *
+ *   // Clear all errors on reset
+ *   yield* on('reset', function* () {
+ *     requiredFields.forEach(field => {
+ *       removeClass('error', field);
+ *     });
+ *   });
+ * });
+ * ```
+ *
+ * @example List item management
+ * ```typescript
+ * watch('.todo-list', function* () {
+ *   const updateStats = function* () {
+ *     const allItems = all('.todo-item');
+ *     const completed = allItems.filter(item =>
+ *       item.classList.contains('completed')
+ *     );
+ *
+ *     yield* text('.total-count', `${allItems.length}`);
+ *     yield* text('.completed-count', `${completed.length}`);
+ *     yield* text('.remaining-count', `${allItems.length - completed.length}`);
+ *
+ *     // Show/hide clear button
+ *     if (completed.length > 0) {
+ *       yield* show('.clear-completed');
+ *     } else {
+ *       yield* hide('.clear-completed');
+ *     }
+ *   };
+ *
+ *   // Initial stats
+ *   yield* updateStats();
+ *
+ *   // Update on changes
+ *   yield* click('.todo-item', updateStats);
+ * });
+ * ```
+ */
+export function all<T extends HTMLElement = HTMLElement>(
   selector: string,
   ctx?: TypedGeneratorContext<any>,
 ): T[] {
   const context = getCurrentContext(ctx);
   if (!context) {
-    throw new Error("el.all() can only be called within a generator context");
+    throw new Error("all() can only be called within a generator context");
   }
   return Array.from(context.element.querySelectorAll(selector)) as T[];
-};
+}
 
 // Add cleanup function to global context
+/**
+ * Registers a cleanup function to be called when the element is removed from the DOM.
+ *
+ * Cleanup functions are essential for preventing memory leaks. They are automatically
+ * called when the watched element is removed from the DOM, either by direct removal
+ * or when a parent element is removed. Use cleanup to remove event listeners,
+ * cancel timers, close connections, or perform any other necessary teardown.
+ *
+ * @param fn - Function to call during cleanup (can be async)
+ * @param ctx - Optional context (usually auto-detected)
+ * @throws Error if called outside of a generator context
+ *
+ * @example Cleaning up timers and intervals with yield*
+ * ```typescript
+ * import { watch, cleanup, text } from 'watch-selector';
+ *
+ * watch('.countdown', function* () {
+ *   let seconds = 60;
+ *
+ *   const interval = setInterval(() => {
+ *     seconds--;
+ *     yield* text(`Time remaining: ${seconds}s`);
+ *
+ *     if (seconds <= 0) {
+ *       clearInterval(interval);
+ *       yield* text('Time\'s up!');
+ *     }
+ *   }, 1000);
+ *
+ *   // Clean up interval when element is removed
+ *   yield* cleanup(() => {
+ *     clearInterval(interval);
+ *     console.log('Countdown cleaned up');
+ *   });
+ * });
+ * ```
+ *
+ * @example Cleaning up external event listeners
+ * ```typescript
+ * watch('.modal', function* () {
+ *   const handleEscape = (e: KeyboardEvent) => {
+ *     if (e.key === 'Escape') {
+ *       yield* removeClass('open');
+ *       yield* hide();
+ *     }
+ *   };
+ *
+ *   const handleClickOutside = (e: MouseEvent) => {
+ *     if (!self().contains(e.target as Node)) {
+ *       yield* removeClass('open');
+ *       yield* hide();
+ *     }
+ *   };
+ *
+ *   // Add global listeners
+ *   document.addEventListener('keydown', handleEscape);
+ *   document.addEventListener('click', handleClickOutside);
+ *
+ *   // Clean up global listeners
+ *   yield* cleanup(() => {
+ *     document.removeEventListener('keydown', handleEscape);
+ *     document.removeEventListener('click', handleClickOutside);
+ *   });
+ * });
+ * ```
+ *
+ * @example Cleaning up async operations
+ * ```typescript
+ * watch('.live-data', function* () {
+ *   let isActive = true;
+ *
+ *   const fetchData = async () => {
+ *     while (isActive) {
+ *       try {
+ *         const response = await fetch('/api/live-data');
+ *         const data = await response.json();
+ *
+ *         if (isActive) {
+ *           yield* text(data.value);
+ *           yield* attr('data-timestamp', data.timestamp);
+ *         }
+ *
+ *         await new Promise(resolve => setTimeout(resolve, 5000));
+ *       } catch (error) {
+ *         console.error('Failed to fetch live data:', error);
+ *         break;
+ *       }
+ *     }
+ *   };
+ *
+ *   fetchData();
+ *
+ *   // Stop async operation on cleanup
+ *   yield* cleanup(() => {
+ *     isActive = false;
+ *     console.log('Stopped fetching live data');
+ *   });
+ * });
+ * ```
+ *
+ * @example WebSocket cleanup
+ * ```typescript
+ * watch('.chat-widget', function* () {
+ *   const ws = new WebSocket('wss://chat.example.com');
+ *
+ *   ws.onmessage = (event) => {
+ *     const message = JSON.parse(event.data);
+ *     const messageEl = document.createElement('div');
+ *     messageEl.textContent = message.text;
+ *     el('.messages')?.appendChild(messageEl);
+ *   };
+ *
+ *   ws.onopen = () => {
+ *     yield* addClass('connected');
+ *   };
+ *
+ *   ws.onerror = () => {
+ *     yield* addClass('error');
+ *     yield* text('.status', 'Connection error');
+ *   };
+ *
+ *   // Clean up WebSocket connection
+ *   yield* cleanup(() => {
+ *     ws.close();
+ *     console.log('WebSocket connection closed');
+ *   });
+ * });
+ * ```
+ */
 export function cleanup(
   fn: CleanupFunction,
   ctx?: TypedGeneratorContext<any>,
@@ -762,12 +1152,12 @@ export function cleanup(
     throw new Error("cleanup() can only be called within a generator context");
   }
 
-  const element = context.element;
-  if (!cleanupRegistry.has(element)) {
-    cleanupRegistry.set(element, new Set());
+  // Register cleanup function for this element
+  if (!cleanupRegistry.has(context.element)) {
+    cleanupRegistry.set(context.element, new Set());
   }
 
-  const cleanups = cleanupRegistry.get(element)!;
+  const cleanups = cleanupRegistry.get(context.element)!;
   cleanups.add(fn);
 }
 

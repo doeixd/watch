@@ -1,8 +1,16 @@
-import { getState, setState } from '../core/state';
-import type { ElementFn } from '../types';
-import { getState, watchState } from '../core/state';
-import { addClass, removeClass } from './dom';
-import type { ElementFn } from '../types';
+import type { ElementFn, Workflow, WatchContext } from "../types";
+
+// Import the element state map function from context
+function getElementStateMap(element: HTMLElement): Map<string, any> {
+  // This will be provided by the context module
+  const stateStorage =
+    (globalThis as any).__watchSelectorElementStates || new WeakMap();
+  if (!stateStorage.has(element)) {
+    stateStorage.set(element, new Map());
+  }
+  (globalThis as any).__watchSelectorElementStates = stateStorage;
+  return stateStorage.get(element)!;
+}
 
 /**
  * A state cache entry for a single item managed by diffList.
@@ -19,12 +27,14 @@ interface DiffCacheEntry<T> {
  * @internal
  */
 function _createElement(renderOutput: string | HTMLElement): HTMLElement {
-    if (renderOutput instanceof HTMLElement) {
-        return renderOutput;
-    }
-    const template = document.createElement('template');
-    template.innerHTML = renderOutput.trim();
-    return template.content.firstChild as HTMLElement;
+  if (renderOutput instanceof HTMLElement) {
+    return renderOutput;
+  }
+  // WARNING: Only use with trusted content
+  // Consider sanitizing or validating the HTML string
+  const template = document.createElement("template");
+  template.innerHTML = renderOutput.trim();
+  return template.content.firstChild as HTMLElement;
 }
 
 /**
@@ -60,64 +70,67 @@ function _createElement(renderOutput: string | HTMLElement): HTMLElement {
  * // DOM nodes will be moved, added, or removed, instead of re-rendering everything.
  */
 export function diffList<T>(
-    data: T[],
-    keyFn: (item: T) => string | number,
-    renderFn: (item: T) => string | HTMLElement,
+  data: T[],
+  keyFn: (item: T) => string | number,
+  renderFn: (item: T) => string | HTMLElement,
 ): ElementFn<HTMLElement, void> {
-    const CACHE_KEY = '__diffListCache__';
+  const CACHE_KEY = "__diffListCache__";
 
-    return (container: HTMLElement): void => {
-        const oldCache: Map<string | number, DiffCacheEntry<T>> = getState(CACHE_KEY, container) || new Map();
-        const newCache: Map<string | number, DiffCacheEntry<T>> = new Map();
-        
-        // --- 1. Handle Removals ---
-        // Find keys that are in the old cache but not in the new data.
-        const newKeys = new Set(data.map(keyFn));
-        for (const [key, entry] of oldCache.entries()) {
-            if (!newKeys.has(key)) {
-                entry.element.remove();
-            }
-        }
+  return (container: HTMLElement): void => {
+    const containerStateMap = getElementStateMap(container);
+    const oldCache: Map<
+      string | number,
+      DiffCacheEntry<T>
+    > = containerStateMap.get(CACHE_KEY) || new Map();
+    const newCache: Map<string | number, DiffCacheEntry<T>> = new Map();
 
-        // --- 2. Handle Additions and Moves ---
-        let lastNode: Node | null = null;
-        data.forEach((item, index) => {
-            const key = keyFn(item);
-            let entry = oldCache.get(key);
+    // --- 1. Handle Removals ---
+    // Find keys that are in the old cache but not in the new data.
+    const newKeys = new Set(data.map(keyFn));
+    for (const [key, entry] of oldCache.entries()) {
+      if (!newKeys.has(key)) {
+        entry.element.remove();
+      }
+    }
 
-            if (entry) {
-                // Item exists, it's a potential move or update
-                entry.item = item; // Update item data in cache
-            } else {
-                // Item is new, render it
-                const element = _createElement(renderFn(item));
-                entry = { element, item, key };
-            }
+    // --- 2. Handle Additions and Moves ---
+    let lastNode: Node | null = null;
+    data.forEach((item) => {
+      const key = keyFn(item);
+      let entry = oldCache.get(key);
 
-            // --- Reconciliation Logic ---
-            // This ensures nodes are in the correct order.
-            const expectedNode = lastNode ? lastNode.nextSibling : container.firstChild;
-            if (entry.element !== expectedNode) {
-                container.insertBefore(entry.element, expectedNode);
-            }
-            
-            lastNode = entry.element;
-            newCache.set(key, entry);
-        });
+      if (entry) {
+        // Item exists, it's a potential move or update
+        entry.item = item; // Update item data in cache
+      } else {
+        // Item is new, render it
+        const element = _createElement(renderFn(item));
+        entry = { element, item, key };
+      }
 
-        // --- 3. Update State ---
-        // Store the new cache for the next reconciliation.
-        setState(CACHE_KEY, newCache, container);
-    };
+      // --- Reconciliation Logic ---
+      // This ensures nodes are in the correct order.
+      const expectedNode = lastNode
+        ? lastNode.nextSibling
+        : container.firstChild;
+      if (entry.element !== expectedNode) {
+        container.insertBefore(entry.element, expectedNode);
+      }
+
+      lastNode = entry.element;
+      newCache.set(key, entry);
+    });
+
+    // --- 3. Update State ---
+    // Store the new cache for the next reconciliation.
+    containerStateMap.set(CACHE_KEY, newCache);
+  };
 }
-
-
-
 
 /**
  * Configuration for the watchSelection primitive.
  */
-export interface WatchSelectionConfig<T> {
+export interface WatchSelectionConfig {
   /** The state key where the array of list data is stored. */
   dataStateKey: string;
   /** The state key where the ID of the currently selected item is stored. */
@@ -135,7 +148,6 @@ export interface WatchSelectionConfig<T> {
  *
  * It relies on the cache created by `diffList` to find the elements quickly.
  *
- * @template T The type of items in the data array.
  * @param config Configuration object for the selection manager.
  * @returns An ElementFn to be yielded inside a `watch` generator to initialize the manager.
  *
@@ -159,60 +171,76 @@ export interface WatchSelectionConfig<T> {
  * selectedItemId.set(newId);
  */
 export function watchSelection<T>(
-    config: WatchSelectionConfig<T>,
+  config: WatchSelectionConfig,
 ): ElementFn<HTMLElement, void> {
-    const { dataStateKey, selectedIdStateKey, className = 'selected' } = config;
-    const CACHE_KEY = '__diffListCache__';
+  const { selectedIdStateKey, className = "selected" } = config;
+  const CACHE_KEY = "__diffListCache__";
 
-    return (container: HTMLElement): void => {
-        // This function sets up the watcher and runs once.
-        watchState(selectedIdStateKey, (newId, oldId) => {
-            const cache: Map<string | number, DiffCacheEntry<T>> | undefined = getState(CACHE_KEY, container);
+  return (container: HTMLElement): void => {
+    // This function sets up the watcher and runs once.
+    const stateMap = getElementStateMap(container);
 
-            if (!cache) {
-                console.warn(`watchSelection cannot find the cache for diffList. Did you yield diffList() in this container first?`);
-                return;
-            }
+    // Watch for changes to the selected ID
+    // Note: We need to implement a custom watcher since watchState requires generator context
+    let lastSelectedId = stateMap.get(selectedIdStateKey);
 
-            // Deselect the old item
-            if (oldId !== null && oldId !== undefined) {
-                const oldEntry = cache.get(oldId);
-                if (oldEntry) {
-                    // This is a generator function, so we yield it.
-                    // Since we are in a simple callback, we need to run it.
-                    // For simplicity in this example, we call it directly.
-                    // A more robust implementation might use runOn.
-                    removeClass(oldEntry.element, className);
-                }
-            }
+    const checkSelection = () => {
+      const newId = stateMap.get(selectedIdStateKey);
+      const oldId = lastSelectedId;
 
-            // Select the new item
-            if (newId !== null && newId !== undefined) {
-                const newEntry = cache.get(newId);
-                if (newEntry) {
-                    addClass(newEntry.element, className);
-                }
-            }
-        }, container);
+      if (newId === oldId) return;
+      lastSelectedId = newId;
 
-        // --- Initial State ---
-        // Apply the class to the initially selected item on first run.
-        const currentId = getState(selectedIdStateKey, container);
-        if (currentId !== null && currentId !== undefined) {
-            const cache: Map<string | number, DiffCacheEntry<T>> = getState(CACHE_KEY, container);
-            if (cache) {
-                const entry = cache.get(currentId);
-                if (entry) {
-                    addClass(entry.element, className);
-                }
-            }
+      const cache: Map<string | number, DiffCacheEntry<T>> | undefined =
+        stateMap.get(CACHE_KEY);
+
+      if (!cache) {
+        console.warn(
+          `watchSelection cannot find the cache for diffList. Did you yield diffList() in this container first?`,
+        );
+        return;
+      }
+
+      // Deselect the old item
+      if (oldId !== null && oldId !== undefined) {
+        const oldEntry = cache.get(oldId);
+        if (oldEntry) {
+          oldEntry.element.classList.remove(className);
         }
+      }
+
+      // Select the new item
+      if (newId !== null && newId !== undefined) {
+        const newEntry = cache.get(newId);
+        if (newEntry) {
+          newEntry.element.classList.add(className);
+        }
+      }
     };
+
+    // Set up periodic checking (simplified approach)
+    // In a real implementation, this would integrate with the state system
+    const intervalId = setInterval(checkSelection, 100);
+
+    // Store cleanup function
+    stateMap.set("__watchSelection_cleanup__", () => clearInterval(intervalId));
+
+    // --- Initial State ---
+    // Apply the class to the initially selected item on first run.
+    const currentId = stateMap.get(selectedIdStateKey);
+    if (currentId !== null && currentId !== undefined) {
+      const cache: Map<string | number, DiffCacheEntry<T>> = stateMap.get(
+        CACHE_KEY,
+      );
+      if (cache) {
+        const entry = cache.get(currentId);
+        if (entry) {
+          entry.element.classList.add(className);
+        }
+      }
+    }
+  };
 }
-
-
-import { getState, setState, runOn } from 'watch-selector';
-import type { Workflow, WatchContext } from '../types';
 
 /**
  * A state cache entry for a single item managed by For.
@@ -222,24 +250,6 @@ interface ForCacheEntry<T> {
   element: HTMLElement;
   item: T;
   key: string | number;
-}
-
-/**
- * Creates an element from either an HTML string or an existing HTMLElement.
- * @internal
- */
-function _createElement(renderOutput: string | HTMLElement): HTMLElement {
-    if (renderOutput instanceof HTMLElement) {
-        return renderOutput;
-    }
-    // Using a template element is a robust way to parse an HTML string
-    const template = document.createElement('template');
-    template.innerHTML = renderOutput.trim();
-    const element = template.content.firstChild;
-    if (!(element instanceof HTMLElement)) {
-        throw new Error('For render function must return a single root element.');
-    }
-    return element;
 }
 
 /**
@@ -274,60 +284,65 @@ function _createElement(renderOutput: string | HTMLElement): HTMLElement {
  * // the <li> elements will be reordered in the DOM, not destroyed and recreated.
  */
 export function For<T>(
-    data: T[],
-    keyFn: (item: T) => string | number,
-    renderFn: (item: T) => string | HTMLElement,
+  data: T[],
+  keyFn: (item: T) => string | number,
+  renderFn: (item: T) => string | HTMLElement,
 ): Workflow<void> {
-    const CACHE_KEY = '__ForCache__';
+  const CACHE_KEY = "__ForCache__";
 
-    return (async function*() {
-        yield (context: WatchContext) => {
-            const container = context.element;
-            const oldCache: Map<string | number, ForCacheEntry<T>> = getState(CACHE_KEY, context) || new Map();
-            const newCache: Map<string | number, ForCacheEntry<T>> = new Map();
-            
-            const newKeys = new Set(data.map(keyFn));
+  return (function* () {
+    yield (context: WatchContext) => {
+      const container = context.element;
+      const contextStateMap = getElementStateMap(container);
+      const oldCache: Map<
+        string | number,
+        ForCacheEntry<T>
+      > = contextStateMap.get(CACHE_KEY) || new Map();
+      const newCache: Map<string | number, ForCacheEntry<T>> = new Map();
 
-            // 1. Handle Removals: Remove elements that are no longer in the data.
-            for (const [key, entry] of oldCache.entries()) {
-                if (!newKeys.has(key)) {
-                    entry.element.remove();
-                }
-            }
+      const newKeys = new Set(data.map(keyFn));
 
-            let lastNode: Node | null = null;
+      // 1. Handle Removals: Remove elements that are no longer in the data.
+      for (const [key, entry] of oldCache.entries()) {
+        if (!newKeys.has(key)) {
+          entry.element.remove();
+        }
+      }
 
-            // 2. Handle Additions and Moves
-            data.forEach((item) => {
-                const key = keyFn(item);
-                const existingEntry = oldCache.get(key);
+      let lastNode: Node | null = null;
 
-                let element: HTMLElement;
-                if (existingEntry) {
-                    // Item already exists, reuse its DOM element
-                    element = existingEntry.element;
-                } else {
-                    // Item is new, so we call the render function
-                    element = _createElement(renderFn(item));
-                }
-                
-                // 3. Re-order elements to match the new data order.
-                // This is the core of the reconciliation logic.
-                const expectedNode = lastNode ? lastNode.nextSibling : container.firstChild;
-                if (element !== expectedNode) {
-                    container.insertBefore(element, expectedNode);
-                }
-                
-                lastNode = element;
-                newCache.set(key, { element, item, key });
-            });
+      // 2. Handle Additions and Moves
+      data.forEach((item) => {
+        const key = keyFn(item);
+        const existingEntry = oldCache.get(key);
 
-            // 4. Update the state cache for the next run.
-            setState(CACHE_KEY, newCache, context);
-        };
-    })();
+        let element: HTMLElement;
+        if (existingEntry) {
+          // Item already exists, reuse its DOM element
+          element = existingEntry.element;
+        } else {
+          // Item is new, so we call the render function
+          element = _createElement(renderFn(item));
+        }
+
+        // 3. Re-order elements to match the new data order.
+        // This is the core of the reconciliation logic.
+        const expectedNode = lastNode
+          ? lastNode.nextSibling
+          : container.firstChild;
+        if (element !== expectedNode) {
+          container.insertBefore(element, expectedNode);
+        }
+
+        lastNode = element;
+        newCache.set(key, { element, item, key });
+      });
+
+      // Update the cache
+      contextStateMap.set(CACHE_KEY, newCache);
+    };
+  })();
 }
-
 
 /**
  * A state cache entry for the element managed by Show.
@@ -364,34 +379,34 @@ interface ShowState {
  * // The welcome message will be rendered and added to the DOM.
  */
 export function Show(
-    condition: boolean,
-    renderFn: () => string | HTMLElement,
+  condition: boolean,
+  renderFn: () => string | HTMLElement,
 ): Workflow<void> {
-    const STATE_KEY = '__showState__';
+  const STATE_KEY = "__showState__";
 
-    return (async function*() {
-        yield (context: WatchContext) => {
-            const container = context.element;
-            const state: ShowState | undefined = getState(STATE_KEY, context);
+  return (function* () {
+    yield (context: WatchContext) => {
+      const container = context.element;
+      const contextStateMap = getElementStateMap(container);
+      const state: ShowState | undefined = contextStateMap.get(STATE_KEY);
 
-            if (condition) {
-                if (!state || !state.isShown) {
-                    // Condition is true, but element isn't shown, so render and add it.
-                    const element = _createElement(renderFn());
-                    container.appendChild(element);
-                    setState(STATE_KEY, { element, isShown: true }, context);
-                }
-            } else {
-                if (state && state.isShown) {
-                    // Condition is false, but element is shown, so remove it.
-                    state.element.remove();
-                    setState(STATE_KEY, { ...state, isShown: false }, context);
-                }
-            }
-        };
-    })();
+      if (condition) {
+        if (!state || !state.isShown) {
+          // Condition is true, but element isn't shown, so render and add it.
+          const element = _createElement(renderFn());
+          container.appendChild(element);
+          contextStateMap.set(STATE_KEY, { element, isShown: true });
+        }
+      } else {
+        if (state && state.isShown) {
+          // Condition is false, but element is shown, so remove it.
+          state.element.remove();
+          contextStateMap.set(STATE_KEY, { ...state, isShown: false });
+        }
+      }
+    };
+  })();
 }
-
 
 /**
  * Creates a reactive render loop for a component generator.
@@ -422,39 +437,75 @@ export function Show(
  * yield* render(TodoListComponent, ['todos', 'filter']);
  */
 export function render(
-    componentGenerator: () => Generator<any, any, any> | AsyncGenerator<any, any, any>,
-    dependencies: string[],
+  componentGenerator: () =>
+    | Generator<any, any, any>
+    | AsyncGenerator<any, any, any>,
+  dependencies: string[],
 ): Workflow<void> {
-    return (async function*() {
-        yield (context: WatchContext) => {
-            const container = context.element;
+  return (function* () {
+    yield (context: WatchContext) => {
+      const container = context.element as HTMLElement;
+      const stateMap = getElementStateMap(container);
 
-            const rerender = () => {
-                // Use runOn to execute the generator in the context of our container element
-                runOn(container, componentGenerator);
-            };
+      // Store the component generator for re-rendering
+      stateMap.set("__render_component__", componentGenerator);
 
-            // Set up watchers for each dependency
-            dependencies.forEach(depKey => {
-                const unwatch = watchState(depKey, (newValue, oldValue) => {
-                    // Avoid re-rendering if the value is the same (e.g., for object references)
-                    if (newValue !== oldValue) {
-                        rerender();
-                    }
-                }, context);
-                // Ensure the watcher is cleaned up when the container is removed
-                cleanup(unwatch, context);
-            });
+      // Clear previous content and execute the component generator
+      const rerender = async () => {
+        // Clear container
+        container.innerHTML = "";
 
-            // Perform the initial render
+        // Execute the component generator
+        const gen = componentGenerator();
+
+        // Process all yielded operations
+        try {
+          let result = await gen.next();
+          while (!result.done) {
+            // Execute the operation if it's a function
+            if (typeof result.value === "function") {
+              result.value(context);
+            }
+            result = await gen.next();
+          }
+        } catch (error) {
+          console.error("Error rendering component:", error);
+        }
+      };
+
+      // Set up watchers for each dependency
+      const watchers: (() => void)[] = [];
+
+      dependencies.forEach((depKey) => {
+        // Store last known values
+        let lastValue = stateMap.get(depKey);
+
+        // Create a watcher function
+        const checkForChanges = () => {
+          const currentValue = stateMap.get(depKey);
+          if (currentValue !== lastValue) {
+            lastValue = currentValue;
             rerender();
+          }
         };
-    })();
+
+        // Set up periodic checking (simplified approach)
+        const intervalId = setInterval(checkForChanges, 100);
+        watchers.push(() => clearInterval(intervalId));
+      });
+
+      // Store cleanup functions
+      stateMap.set("__render_cleanup__", () => {
+        watchers.forEach((cleanup) => cleanup());
+      });
+
+      // Perform the initial render
+      rerender();
+    };
+  })();
 }
 
-
-
-export const SWITCH_STATE_KEY = '__switchState__';
+export const SWITCH_STATE_KEY = "__switchState__";
 
 export interface SwitchState {
   element: HTMLElement | null;
@@ -462,13 +513,13 @@ export interface SwitchState {
 }
 
 export interface CaseDescriptor {
-  type: 'case';
+  type: "case";
   match: any;
   render: () => string | HTMLElement;
 }
 
 export interface DefaultDescriptor {
-  type: 'default';
+  type: "default";
   render: () => string | HTMLElement;
 }
 
@@ -479,16 +530,21 @@ export type SwitchCase = CaseDescriptor | DefaultDescriptor;
  * @param match The value to match against the Switch expression.
  * @param renderFn The function to render if this case matches.
  */
-export function Case(match: any, renderFn: () => string | HTMLElement): CaseDescriptor {
-  return { type: 'case', match, render: renderFn };
+export function Case(
+  match: any,
+  renderFn: () => string | HTMLElement,
+): CaseDescriptor {
+  return { type: "case", match, render: renderFn };
 }
 
 /**
  * Represents the default case for a `Switch` primitive.
  * @param renderFn The function to render if no other case matches.
  */
-export function Default(renderFn: () => string | HTMLElement): DefaultDescriptor {
-  return { type: 'default', render: renderFn };
+export function Default(
+  renderFn: () => string | HTMLElement,
+): DefaultDescriptor {
+  return { type: "default", render: renderFn };
 }
 
 /**
@@ -512,13 +568,22 @@ export function Default(renderFn: () => string | HTMLElement): DefaultDescriptor
  *   Default(() => `<div>Select a tab</div>`)
  * );
  */
-export function Switch(expression: any, ...cases: SwitchCase[]): Workflow<void> {
-  return (async function*() {
+export function Switch(
+  expression: any,
+  ...cases: SwitchCase[]
+): Workflow<void> {
+  return (function* () {
     yield (context: WatchContext) => {
-      const state: SwitchState | undefined = getState(SWITCH_STATE_KEY, context);
+      const contextStateMap = getElementStateMap(context.element);
+      const state: SwitchState | undefined =
+        contextStateMap.get(SWITCH_STATE_KEY);
 
-      const defaultCase = cases.find(c => c.type === 'default') as DefaultDescriptor | undefined;
-      const matchingCase = cases.find(c => c.type === 'case' && c.match === expression) as CaseDescriptor | undefined;
+      const defaultCase = cases.find((c) => c.type === "default") as
+        | DefaultDescriptor
+        | undefined;
+      const matchingCase = cases.find(
+        (c) => c.type === "case" && c.match === expression,
+      ) as CaseDescriptor | undefined;
       const activeCase = matchingCase || defaultCase;
 
       // Do nothing if the active case hasn't changed.
@@ -535,23 +600,25 @@ export function Switch(expression: any, ...cases: SwitchCase[]): Workflow<void> 
       if (activeCase) {
         const element = _createElement(activeCase.render());
         context.element.appendChild(element);
-        setState(SWITCH_STATE_KEY, { element, activeCase }, context);
+        contextStateMap.set(SWITCH_STATE_KEY, { element, activeCase });
       } else {
         // No match and no default, clear the state
-        setState(SWITCH_STATE_KEY, { element: null, activeCase: null }, context);
+        contextStateMap.set(SWITCH_STATE_KEY, {
+          element: null,
+          activeCase: null,
+        });
       }
     };
   })();
 }
 
-
 // --- Async Primitive ---
 
-const ASYNC_STATE_KEY = '__asyncState__';
+const ASYNC_STATE_KEY = "__asyncState__";
 
 interface AsyncState {
   element: HTMLElement | null;
-  status: 'pending' | 'success' | 'error';
+  status: "pending" | "success" | "error";
 }
 
 interface AsyncTemplates<T> {
@@ -559,7 +626,6 @@ interface AsyncTemplates<T> {
   success: (data: T) => string | HTMLElement;
   error: (error: Error) => string | HTMLElement;
 }
-
 
 /**
  * Handles the rendering lifecycle of a promise, showing different content
@@ -581,12 +647,14 @@ interface AsyncTemplates<T> {
  */
 export function Async<T>(
   promise: Promise<T>,
-  templates: AsyncTemplates<T>
+  templates: AsyncTemplates<T>,
 ): Workflow<void> {
-  return (async function*() {
+  return (function* () {
     // This initial yield sets up the pending state immediately.
     yield (context: WatchContext) => {
-      const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+      const contextStateMap = getElementStateMap(context.element);
+      const state: AsyncState | undefined =
+        contextStateMap.get(ASYNC_STATE_KEY);
 
       // Clean up previous element if it exists
       if (state && state.element) {
@@ -595,36 +663,47 @@ export function Async<T>(
 
       const pendingElement = _createElement(templates.pending());
       context.element.appendChild(pendingElement);
-      setState(ASYNC_STATE_KEY, { element: pendingElement, status: 'pending' }, context);
+      contextStateMap.set(ASYNC_STATE_KEY, {
+        element: pendingElement,
+        status: "pending",
+      });
     };
 
     // This second yield waits for the promise to settle and then re-renders.
     yield async (context: WatchContext) => {
+      const contextStateMap = getElementStateMap(context.element);
       try {
         const data = await promise;
-        const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+        const state: AsyncState | undefined =
+          contextStateMap.get(ASYNC_STATE_KEY);
         // Only render if the component hasn't been replaced by something else in the meantime
-        if (state?.status === 'pending') {
-            if (state.element) state.element.remove();
-            const successElement = _createElement(templates.success(data));
-            context.element.appendChild(successElement);
-            setState(ASYNC_STATE_KEY, { element: successElement, status: 'success' }, context);
+        if (state?.status === "pending") {
+          if (state.element) state.element.remove();
+          const successElement = _createElement(templates.success(data));
+          context.element.appendChild(successElement);
+          contextStateMap.set(ASYNC_STATE_KEY, {
+            element: successElement,
+            status: "success",
+          });
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        const state: AsyncState | undefined = getState(ASYNC_STATE_KEY, context);
+        const state: AsyncState | undefined =
+          contextStateMap.get(ASYNC_STATE_KEY);
         // Only render if the component hasn't been replaced by something else
-        if (state?.status === 'pending') {
-            if (state.element) state.element.remove();
-            const errorElement = _createElement(templates.error(error));
-            context.element.appendChild(errorElement);
-            setState(ASYNC_STATE_KEY, { element: errorElement, status: 'error' }, context);
+        if (state?.status === "pending") {
+          if (state.element) state.element.remove();
+          const errorElement = _createElement(templates.error(error));
+          context.element.appendChild(errorElement);
+          contextStateMap.set(ASYNC_STATE_KEY, {
+            element: errorElement,
+            status: "error",
+          });
         }
       }
     };
   })();
 }
-
 
 // /**
 //  * A type representing the possible children for the tag function.

@@ -29,6 +29,9 @@ const controllerRegistry = new Map<
   WatchController<any>
 >();
 
+// Track destroyed controllers to prevent processing after destruction
+let destroyedControllers = new WeakSet<WatchController<any>>();
+
 // WeakMap to avoid polluting DOM elements with data attributes
 let elementToIdMap = new WeakMap<HTMLElement, string>();
 
@@ -287,6 +290,7 @@ export function getOrCreateController<El extends HTMLElement>(
 
   const instances = new Map<El, ManagedInstance>();
   const behaviorCleanupFns = new Set<() => void>();
+  const abortController = new AbortController();
 
   const controller = Object.assign(
     // Make the controller callable for backward compatibility
@@ -301,10 +305,19 @@ export function getOrCreateController<El extends HTMLElement>(
           ctx: TypedGeneratorContext<any>,
         ) => Generator<any, void, unknown> | AsyncGenerator<any, any, unknown>,
       ) => {
-        const cleanup = registerBehavior(target, generator, instances);
+        const cleanup = registerBehavior(
+          target,
+          generator,
+          instances,
+          abortController.signal,
+        );
         behaviorCleanupFns.add(cleanup);
       },
       destroy: () => {
+        // Mark controller as destroyed immediately and abort all operations
+        destroyedControllers.add(controller);
+        abortController.abort();
+
         // Execute cleanup functions for all managed elements
         instances.forEach((_, element) => {
           executeCleanup(element);
@@ -461,12 +474,19 @@ function registerBehavior<El extends HTMLElement>(
     ctx: TypedGeneratorContext<El>,
   ) => Generator<any, void, unknown> | AsyncGenerator<any, any, unknown>,
   instances: Map<El, ManagedInstance>,
+  signal?: AbortSignal,
 ): () => void {
   initializeObserver();
 
   const executedBehaviors = new WeakMap<HTMLElement, Set<Function>>();
 
   const setupFn: ElementHandler<El> = (element: El) => {
+    // Check if the controller has been destroyed
+    const targetKey = normalizeTargetKey(target);
+    const controller = controllerRegistry.get(targetKey);
+    if (!controller || destroyedControllers.has(controller) || signal?.aborted)
+      return;
+
     const behaviorsForElement = executedBehaviors.get(element) || new Set();
     if (behaviorsForElement.has(generator)) return; // Behavior already layered.
 
@@ -487,9 +507,13 @@ function registerBehavior<El extends HTMLElement>(
       // The index/array arguments are now relative to the controller's instance list.
       Array.from(instances.keys()).indexOf(element),
       Array.from(instances.keys()),
-      generator,
+      (ctx?: TypedGeneratorContext<El>) => generator(ctx!),
+      signal,
     ).catch((error) => {
-      console.error("Error in behavior generator:", error);
+      // Don't log abort errors
+      if (error?.name !== "AbortError") {
+        console.error("Error in behavior generator:", error);
+      }
       // Remove the failed behavior from the executed set so it can be retried
       behaviorsForElement.delete(generator);
       if (behaviorsForElement.size === 0) {
@@ -610,6 +634,7 @@ export function cleanup(): void {
   isObserving = false;
   selectorHandlers.clear();
   controllerRegistry.clear();
+  destroyedControllers = new WeakSet(); // Reset destroyed controllers
   elementToIdMap = new WeakMap(); // Clear element IDs
-  // Note: WeakMap will clean itself up
+  // Note: WeakSets will clean themselves up
 }

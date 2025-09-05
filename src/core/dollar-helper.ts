@@ -17,7 +17,7 @@
  * ```
  */
 
-import type { Operation, Workflow } from "../types";
+import type { Operation, Workflow, SyncWorkflow } from "../types";
 
 /**
  * The magical `$` helper function that bridges Operations and generators.
@@ -52,14 +52,16 @@ import type { Operation, Workflow } from "../types";
  * // yield* extracts El, so element is perfectly typed
  * const element = yield* $(self<HTMLButtonElement>());
  * ```
+ *
+ * @note The $ helper returns sync workflows for better performance.
+ * Users can use async generators when they need async operations.
  */
 export function $<TReturn, El extends HTMLElement = HTMLElement>(
   operation: Operation<TReturn, El>,
-): Workflow<TReturn> {
-  // This is the magic: create an async generator that yields the operation
-  // and returns whatever the runtime provides back to us.
-  // TypeScript's type inference handles the rest automatically.
-  return (async function* (): Workflow<TReturn> {
+): SyncWorkflow<TReturn> {
+  // Return sync workflow - better performance, no async overhead
+  // Users can still use async generators when they need them
+  return (function* (): SyncWorkflow<TReturn> {
     // Yield the operation to the runtime for execution
     const result = yield operation;
     // Return the result - TypeScript preserves the TReturn type
@@ -110,7 +112,7 @@ export function isWorkflow(value: any): value is Workflow<any> {
   return (
     value &&
     typeof value === "object" &&
-    typeof value[Symbol.asyncIterator] === "function"
+    typeof value[Symbol.iterator] === "function"
   );
 }
 

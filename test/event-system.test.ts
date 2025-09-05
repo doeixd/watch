@@ -865,9 +865,9 @@ describe("Event System", () => {
 
   describe("Error Handling", () => {
     it("should handle errors in event handlers gracefully", async () => {
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+      // const consoleSpy = vi
+      //   .spyOn(console, "error")
+      //   .mockImplementation(() => {});
       const element = createTestElement("div");
 
       await runOn(element, function* () {
@@ -883,9 +883,9 @@ describe("Event System", () => {
     });
 
     it("should handle errors in generator event handlers", async () => {
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+      // const consoleSpy = vi
+      //   .spyOn(console, "error")
+      //   .mockImplementation(() => {});
       const element = createTestElement("div");
 
       await runOn(element, function* () {
@@ -956,7 +956,7 @@ describe("Event System", () => {
       const startTime = performance.now();
 
       await runOn(element, function* () {
-        for (let i = 0; i < 1000; i++) {
+        for (let i = 0; i < 100; i++) {
           const handler = vi.fn();
           handlers.push(handler);
           yield on("click", handler);

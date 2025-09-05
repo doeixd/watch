@@ -4,11 +4,51 @@ import type {
   TypedState,
   CleanupFunction,
   TypedGeneratorContext,
+  WatchContext,
+  Operation,
+  Workflow,
 } from "../types";
 import { getCurrentContext } from "./context";
+import { getCleanupRegistry } from "./generator";
 
 // Global state storage per element
 let elementStates = new WeakMap<HTMLElement, Record<string, any>>();
+
+// Get state map for an element (for Workflow implementations)
+function getElementStateMap(element: HTMLElement): Map<string, any> {
+  // Convert the record-based state to a Map for consistency with other code
+  const record = elementStates.get(element) || {};
+  const map = new Map<string, any>();
+  Object.entries(record).forEach(([key, value]) => {
+    map.set(key, value);
+  });
+
+  // Wrap the map to sync back to the record when modified
+  const originalSet = map.set.bind(map);
+  const originalDelete = map.delete.bind(map);
+
+  map.set = (key: string, value: any) => {
+    const result = originalSet(key, value);
+    // Sync back to record
+    if (!elementStates.has(element)) {
+      elementStates.set(element, {});
+    }
+    elementStates.get(element)![key] = value;
+    return result;
+  };
+
+  map.delete = (key: string) => {
+    const result = originalDelete(key);
+    // Sync back to record
+    const record = elementStates.get(element);
+    if (record) {
+      delete record[key];
+    }
+    return result;
+  };
+
+  return map;
+}
 
 // Get state for current element
 function getElementState(
@@ -84,6 +124,64 @@ export function getState<T = any>(
   const state = getElementState(ctx);
   return state[key] as T;
 }
+
+/**
+ * Generator version of getState() for yield* usage.
+ *
+ * Returns a Workflow that yields the state value for the given key. Use this when
+ * you need to access element state within a generator using the yield* pattern.
+ *
+ * @template T - The type of the state value
+ * @param key - The state key to retrieve
+ * @param defaultValue - Optional default value if key doesn't exist
+ * @returns Workflow that yields the state value or undefined
+ *
+ * @example Basic state retrieval with yield*
+ * ```typescript
+ * watch('.counter', function* () {
+ *   const count = yield* getState.gen<number>('count', 0);
+ *   console.log(`Current count: ${count}`);
+ *
+ *   yield* text(`Count: ${count}`);
+ * });
+ * ```
+ *
+ * @example Complex state objects
+ * ```typescript
+ * interface UserData {
+ *   name: string;
+ *   email: string;
+ *   preferences: { theme: string };
+ * }
+ *
+ * watch('.user-profile', function* () {
+ *   const user = yield* getState.gen<UserData>('user');
+ *   if (user) {
+ *     yield* text(`Welcome, ${user.name}!`);
+ *     yield* addClass(`theme-${user.preferences.theme}`);
+ *   }
+ * });
+ * ```
+ */
+getState.gen = function <T = any>(
+  key: string,
+  defaultValue?: T,
+): Workflow<T | undefined> {
+  return (function* (): Generator<
+    Operation<T | undefined>,
+    T | undefined,
+    any
+  > {
+    const op: Operation<T | undefined> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      return elementStateMap.has(key)
+        ? (elementStateMap.get(key) as T)
+        : defaultValue;
+    };
+    const value = yield op;
+    return value;
+  })();
+};
 
 /**
  * Sets a state value for the current element context.
@@ -171,6 +269,78 @@ export function setState<T = any>(
 }
 
 /**
+ * Generator version of setState() for yield* usage.
+ *
+ * Returns a Workflow that sets a state value for the given key. Use this when
+ * you need to update element state within a generator using the yield* pattern.
+ *
+ * @template T - The type of the state value
+ * @param key - The state key to set
+ * @param value - The value to set
+ * @returns Workflow that sets the state value
+ *
+ * @example Basic state updates with yield*
+ * ```typescript
+ * watch('.counter', function* () {
+ *   yield* setState.gen('count', 0);
+ *
+ *   yield* click(function* () {
+ *     const current = yield* getState.gen<number>('count', 0);
+ *     yield* setState.gen('count', current + 1);
+ *     yield* text(`Count: ${current + 1}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Complex state updates
+ * ```typescript
+ * interface TodoState {
+ *   items: string[];
+ *   filter: 'all' | 'active' | 'completed';
+ * }
+ *
+ * watch('.todo-app', function* () {
+ *   yield* setState.gen<TodoState>('todos', {
+ *     items: [],
+ *     filter: 'all'
+ *   });
+ *
+ *   yield* click('.add-todo', function* () {
+ *     const current = yield* getState.gen<TodoState>('todos');
+ *     yield* setState.gen('todos', {
+ *       ...current,
+ *       items: [...current.items, 'New todo']
+ *     });
+ *   });
+ * });
+ * ```
+ */
+setState.gen = function <T = any>(key: string, value: T): Workflow<void> {
+  return (function* (): Generator<Operation<void>, void, any> {
+    const op: Operation<void> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const oldValue = elementStateMap.get(key);
+      elementStateMap.set(key, value);
+
+      // Trigger watchers only if value changed
+      if (value !== oldValue) {
+        const watchers = stateWatchers.get(key);
+        if (watchers) {
+          watchers.forEach((callback) => {
+            try {
+              callback(value, oldValue);
+            } catch (e) {
+              console.error("Error in state watcher:", e);
+            }
+          });
+        }
+      }
+    };
+    yield op;
+  })();
+};
+
+/**
  * Updates a state value using an updater function.
  *
  * This function allows you to update state based on the current value, similar to
@@ -247,6 +417,71 @@ export function updateState<T = any>(
 }
 
 /**
+ * Generator version of updateState() for yield* usage.
+ *
+ * Returns a Workflow that updates state using an updater function and yields the new value.
+ * Use this when you need to update state based on current value using yield*.
+ *
+ * @template T - The type of the state value
+ * @param key - The state key to update
+ * @param updater - Function that receives current value and returns new value
+ * @returns Workflow that yields the new state value
+ *
+ * @example Counter increment with yield*
+ * ```typescript
+ * watch('.counter', function* () {
+ *   yield* click(function* () {
+ *     const newCount = yield* updateState.gen<number>('count', (current) => (current || 0) + 1);
+ *     yield* text(`Count: ${newCount}`);
+ *   });
+ * });
+ * ```
+ *
+ * @example Immutable array updates
+ * ```typescript
+ * watch('.todo-list', function* () {
+ *   yield* click('.add-item', function* () {
+ *     const newItems = yield* updateState.gen<string[]>('items', (current) => [
+ *       ...(current || []),
+ *       'New item'
+ *     ]);
+ *     yield* text(`Total items: ${newItems.length}`);
+ *   });
+ * });
+ * ```
+ */
+updateState.gen = function <T = any>(
+  key: string,
+  updater: (current: T) => T,
+): Workflow<T> {
+  return (function* (): Generator<Operation<T>, T, any> {
+    const op: Operation<T> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = elementStateMap.get(key) as T;
+      const newValue = updater(current);
+      elementStateMap.set(key, newValue);
+
+      // Trigger watchers only if value changed
+      if (newValue !== current) {
+        const watchers = stateWatchers.get(key);
+        if (watchers) {
+          watchers.forEach((callback) => {
+            try {
+              callback(newValue, current);
+            } catch (e) {
+              console.error("Error in state watcher:", e);
+            }
+          });
+        }
+      }
+      return newValue;
+    };
+    const value = yield op;
+    return value;
+  })();
+};
+
+/**
  * Checks if a state key exists for the current element context.
  *
  * This function checks whether a specific state key has been set for the current
@@ -294,6 +529,38 @@ export function hasState(
   const state = getElementState(ctx);
   return key in state;
 }
+
+/**
+ * Generator version of hasState() for yield* usage.
+ *
+ * Returns a Workflow that yields true if the state key exists. Use this when
+ * you need to check state existence within a generator using yield*.
+ *
+ * @param key - The state key to check
+ * @returns Workflow that yields true if key exists, false otherwise
+ *
+ * @example Conditional logic based on state existence
+ * ```typescript
+ * watch('.component', function* () {
+ *   const hasConfig = yield* hasState.gen('config');
+ *
+ *   if (!hasConfig) {
+ *     yield* setState.gen('config', { theme: 'light', lang: 'en' });
+ *     yield* addClass('first-time-setup');
+ *   }
+ * });
+ * ```
+ */
+hasState.gen = function (key: string): Workflow<boolean> {
+  return (function* (): Generator<Operation<boolean>, boolean, any> {
+    const op: Operation<boolean> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      return elementStateMap.has(key);
+    };
+    const exists = yield op;
+    return exists;
+  })();
+};
 
 /**
  * Deletes a state key from the current element context.
@@ -347,6 +614,38 @@ export function deleteState(
   const state = getElementState(ctx);
   delete state[key];
 }
+
+/**
+ * Generator version of deleteState() for yield* usage.
+ *
+ * Returns a Workflow that deletes a state key. Use this when you need
+ * to remove state within a generator using the yield* pattern.
+ *
+ * @param key - The state key to delete
+ * @returns Workflow that deletes the state key
+ *
+ * @example Clean up temporary state
+ * ```typescript
+ * watch('.form', function* () {
+ *   yield* setState.gen('temp', 'processing...');
+ *
+ *   yield* submit(function* () {
+ *     // Process form...
+ *     yield* deleteState.gen('temp'); // Clean up temporary state
+ *     yield* setState.gen('status', 'completed');
+ *   });
+ * });
+ * ```
+ */
+deleteState.gen = function (key: string): Workflow<void> {
+  return (function* (): Generator<Operation<void>, void, any> {
+    const op: Operation<void> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      elementStateMap.delete(key);
+    };
+    yield op;
+  })();
+};
 
 /**
  * # createTypedState() - Create a Typed State Manager
@@ -541,6 +840,83 @@ export function watchState<T>(
   };
 }
 
+/**
+ * Generator version of watchState() for yield* usage.
+ *
+ * Returns a Workflow that registers a state change watcher and yields the cleanup function.
+ * Use this when you need to watch state changes within a generator using yield*.
+ *
+ * @template T - The type of the state value being watched
+ * @param key - The state key to watch
+ * @param callback - Function called when state changes
+ * @returns Workflow that yields a cleanup function
+ *
+ * @example Watch state changes with yield*
+ * ```typescript
+ * watch('.status-display', function* () {
+ *   const cleanup = yield* watchState.gen<string>('status', (newVal, oldVal) => {
+ *     console.log(`Status changed from ${oldVal} to ${newVal}`);
+ *   });
+ *
+ *   // The cleanup function will be automatically called when element is removed
+ *   yield* cleanup.gen(cleanup);
+ * });
+ * ```
+ *
+ * @example React to complex state changes
+ * ```typescript
+ * interface AppState {
+ *   user: { name: string; role: string };
+ *   theme: 'light' | 'dark';
+ * }
+ *
+ * watch('.app', function* () {
+ *   yield* watchState.gen<AppState>('appState', (newState, oldState) => {
+ *     if (newState.theme !== oldState?.theme) {
+ *       document.body.className = `theme-${newState.theme}`;
+ *     }
+ *   });
+ * });
+ * ```
+ */
+watchState.gen = function <T>(
+  key: string,
+  callback: (newValue: T, oldValue: T) => void,
+): Workflow<CleanupFunction> {
+  return (function* (): Generator<
+    Operation<CleanupFunction>,
+    CleanupFunction,
+    any
+  > {
+    const op: Operation<CleanupFunction> = (ctx: WatchContext) => {
+      if (!stateWatchers.has(key)) {
+        stateWatchers.set(key, new Set());
+      }
+
+      const watchers = stateWatchers.get(key)!;
+      watchers.add(callback);
+
+      const cleanup = () => {
+        watchers.delete(callback);
+        if (watchers.size === 0) {
+          stateWatchers.delete(key);
+        }
+      };
+
+      // Register cleanup with element
+      const cleanupRegistry = getCleanupRegistry();
+      if (!cleanupRegistry.has(ctx.element)) {
+        cleanupRegistry.set(ctx.element, new Set());
+      }
+      cleanupRegistry.get(ctx.element)!.add(cleanup);
+
+      return cleanup;
+    };
+    const cleanup = yield op;
+    return cleanup;
+  })();
+};
+
 // Enhanced setState that triggers watchers
 export function setStateReactive<T>(key: string, value: T): void {
   const oldValue = getState<T>(key);
@@ -595,6 +971,294 @@ export function batchStateUpdates(updates: () => void): void {
 }
 
 // Persist state to localStorage
+/**
+ * Increments a numeric state value by a specified amount.
+ *
+ * @template T - Must be a numeric type
+ * @param key - The state key to increment
+ * @param amount - The amount to increment by (default: 1)
+ * @param ctx - Optional context
+ * @returns The new incremented value
+ */
+export function incrementState<T extends number = number>(
+  key: string,
+  amount: T = 1 as T,
+  ctx?: TypedGeneratorContext<any>,
+): T {
+  const current = getState<T>(key, ctx) || (0 as T);
+  const newValue = (current + amount) as T;
+  setState(key, newValue, ctx);
+  return newValue;
+}
+
+/**
+ * Generator version of incrementState() for yield* usage.
+ */
+incrementState.gen = function <T extends number = number>(
+  key: string,
+  amount: T = 1 as T,
+): Workflow<T> {
+  return (function* (): Generator<Operation<T>, T, any> {
+    const op: Operation<T> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T) || (0 as T);
+      const newValue = (current + amount) as T;
+      elementStateMap.set(key, newValue);
+      return newValue;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Decrements a numeric state value by a specified amount.
+ *
+ * @template T - Must be a numeric type
+ * @param key - The state key to decrement
+ * @param amount - The amount to decrement by (default: 1)
+ * @param ctx - Optional context
+ * @returns The new decremented value
+ */
+export function decrementState<T extends number = number>(
+  key: string,
+  amount: T = 1 as T,
+  ctx?: TypedGeneratorContext<any>,
+): T {
+  const current = getState<T>(key, ctx) || (0 as T);
+  const newValue = (current - amount) as T;
+  setState(key, newValue, ctx);
+  return newValue;
+}
+
+/**
+ * Generator version of decrementState() for yield* usage.
+ */
+decrementState.gen = function <T extends number = number>(
+  key: string,
+  amount: T = 1 as T,
+): Workflow<T> {
+  return (function* (): Generator<Operation<T>, T, any> {
+    const op: Operation<T> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T) || (0 as T);
+      const newValue = (current - amount) as T;
+      elementStateMap.set(key, newValue);
+      return newValue;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Toggles a boolean state value.
+ *
+ * @param key - The state key to toggle
+ * @param ctx - Optional context
+ * @returns The new boolean value
+ */
+export function toggleState(
+  key: string,
+  ctx?: TypedGeneratorContext<any>,
+): boolean {
+  const current = getState<boolean>(key, ctx) || false;
+  const newValue = !current;
+  setState(key, newValue, ctx);
+  return newValue;
+}
+
+/**
+ * Generator version of toggleState() for yield* usage.
+ */
+toggleState.gen = function (key: string): Workflow<boolean> {
+  return (function* (): Generator<Operation<boolean>, boolean, any> {
+    const op: Operation<boolean> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as boolean) || false;
+      const newValue = !current;
+      elementStateMap.set(key, newValue);
+      return newValue;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Appends an item to an array state value.
+ *
+ * @template T - The array item type
+ * @param key - The state key for the array
+ * @param item - The item to append
+ * @param ctx - Optional context
+ * @returns The new array with the item appended
+ */
+export function appendToState<T>(
+  key: string,
+  item: T,
+  ctx?: TypedGeneratorContext<any>,
+): T[] {
+  const current = getState<T[]>(key, ctx) || [];
+  const newArray = [...current, item];
+  setState(key, newArray, ctx);
+  return newArray;
+}
+
+/**
+ * Generator version of appendToState() for yield* usage.
+ */
+appendToState.gen = function <T>(key: string, item: T): Workflow<T[]> {
+  return (function* (): Generator<Operation<T[]>, T[], any> {
+    const op: Operation<T[]> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T[]) || [];
+      const newArray = [...current, item];
+      elementStateMap.set(key, newArray);
+      return newArray;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Prepends an item to an array state value.
+ *
+ * @template T - The array item type
+ * @param key - The state key for the array
+ * @param item - The item to prepend
+ * @param ctx - Optional context
+ * @returns The new array with the item prepended
+ */
+export function prependToState<T>(
+  key: string,
+  item: T,
+  ctx?: TypedGeneratorContext<any>,
+): T[] {
+  const current = getState<T[]>(key, ctx) || [];
+  const newArray = [item, ...current];
+  setState(key, newArray, ctx);
+  return newArray;
+}
+
+/**
+ * Generator version of prependToState() for yield* usage.
+ */
+prependToState.gen = function <T>(key: string, item: T): Workflow<T[]> {
+  return (function* (): Generator<Operation<T[]>, T[], any> {
+    const op: Operation<T[]> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T[]) || [];
+      const newArray = [item, ...current];
+      elementStateMap.set(key, newArray);
+      return newArray;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Removes an item from an array state value.
+ *
+ * @template T - The array item type
+ * @param key - The state key for the array
+ * @param item - The item to remove
+ * @param ctx - Optional context
+ * @returns The new array with the item removed
+ */
+export function removeFromState<T>(
+  key: string,
+  item: T,
+  ctx?: TypedGeneratorContext<any>,
+): T[] {
+  const current = getState<T[]>(key, ctx) || [];
+  const newArray = current.filter((x) => x !== item);
+  setState(key, newArray, ctx);
+  return newArray;
+}
+
+/**
+ * Generator version of removeFromState() for yield* usage.
+ */
+removeFromState.gen = function <T>(key: string, item: T): Workflow<T[]> {
+  return (function* (): Generator<Operation<T[]>, T[], any> {
+    const op: Operation<T[]> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T[]) || [];
+      const newArray = current.filter((x) => x !== item);
+      elementStateMap.set(key, newArray);
+      return newArray;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Merges an object into an existing object state value.
+ *
+ * @template T - The object type
+ * @param key - The state key for the object
+ * @param updates - The object properties to merge
+ * @param ctx - Optional context
+ * @returns The new merged object
+ */
+export function mergeState<T extends Record<string, any>>(
+  key: string,
+  updates: Partial<T>,
+  ctx?: TypedGeneratorContext<any>,
+): T {
+  const current = getState<T>(key, ctx) || ({} as T);
+  const newObject = { ...current, ...updates };
+  setState(key, newObject, ctx);
+  return newObject;
+}
+
+/**
+ * Generator version of mergeState() for yield* usage.
+ */
+mergeState.gen = function <T extends Record<string, any>>(
+  key: string,
+  updates: Partial<T>,
+): Workflow<T> {
+  return (function* (): Generator<Operation<T>, T, any> {
+    const op: Operation<T> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      const current = (elementStateMap.get(key) as T) || ({} as T);
+      const newObject = { ...current, ...updates };
+      elementStateMap.set(key, newObject);
+      return newObject;
+    };
+    const result = yield op;
+    return result;
+  })();
+};
+
+/**
+ * Clears all state for the current element.
+ *
+ * @param ctx - Optional context
+ */
+export function clearState(ctx?: TypedGeneratorContext<any>): void {
+  const state = getElementState(ctx);
+  Object.keys(state).forEach((key) => delete state[key]);
+}
+
+/**
+ * Generator version of clearState() for yield* usage.
+ */
+clearState.gen = function (): Workflow<void> {
+  return (function* (): Generator<Operation<void>, void, any> {
+    const op: Operation<void> = (ctx: WatchContext) => {
+      const elementStateMap = getElementStateMap(ctx.element);
+      elementStateMap.clear();
+    };
+    yield op;
+  })();
+};
+
 export function createPersistedState<T>(
   key: string,
   initialValue: T,
@@ -645,7 +1309,7 @@ export function clearAllState(): void {
 // Debug helpers
 export function debugState(): Record<string, any> {
   const state = { ...getElementState() };
-  console.log("State:", state);
+  // console.log("State:", state);
   return state;
 }
 
@@ -654,13 +1318,13 @@ export function logState(keyOrPrefix?: string): void {
     // If it looks like a key (not the default prefix), log that specific key
     const state = getElementState();
     if (keyOrPrefix in state) {
-      console.log(`State[${keyOrPrefix}]:`, state[keyOrPrefix]);
+      // console.log(`State[${keyOrPrefix}]:`, state[keyOrPrefix]);
     } else {
-      console.log(`State[${keyOrPrefix}]:`, undefined);
+      // console.log(`State[${keyOrPrefix}]:`, undefined);
     }
   } else {
     // Default behavior - log all state
-    console.log(keyOrPrefix || "State:", debugState());
+    // console.log(keyOrPrefix || "State:", debugState());
   }
 }
 

@@ -24,7 +24,7 @@ import type {
   ManagedInstance,
   TypedGeneratorContext,
 } from "./types";
-import { getOrCreateController } from "./core/observer";
+import { getOrCreateController, initializeObserver } from "./core/observer";
 import { executeGenerator } from "./core/context";
 import { isPreDefinedWatchContext } from "./core/context-factory";
 import {
@@ -193,6 +193,14 @@ export function watch<S extends string>(
   ) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>,
 ): WatchController<ElementFromSelector<S>>;
 
+// New overload for sync generator workflow pattern with string selector (yield*)
+export function watch<S extends string, TReturn = void>(
+  selector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ElementFromSelector<S>>,
+  ) => Generator<any, TReturn, unknown>,
+): WatchController<ElementFromSelector<S>>;
+
 // New overload for async generator workflow pattern with string selector
 export function watch<S extends string, TReturn = void>(
   selector: S,
@@ -207,6 +215,14 @@ export function watch<El extends HTMLElement>(
   generator: (
     ctx: TypedGeneratorContext<El>,
   ) => Generator<ElementFn<El>, void, unknown>,
+): WatchController<El>;
+
+// New overload for sync generator workflow pattern with element (yield*)
+export function watch<El extends HTMLElement, TReturn = void>(
+  element: El,
+  generator: (
+    ctx: TypedGeneratorContext<El>,
+  ) => Generator<any, TReturn, unknown>,
 ): WatchController<El>;
 
 // New overload for async generator workflow pattern with element
@@ -225,6 +241,14 @@ export function watch<El extends HTMLElement>(
   ) => Generator<ElementFn<El>, void, unknown>,
 ): WatchController<El>;
 
+// New overload for sync generator workflow pattern with matcher (yield*)
+export function watch<El extends HTMLElement, TReturn = void>(
+  matcher: ElementMatcher<El>,
+  generator: (
+    ctx: TypedGeneratorContext<El>,
+  ) => Generator<any, TReturn, unknown>,
+): WatchController<El>;
+
 // New overload for async generator workflow pattern with matcher
 export function watch<El extends HTMLElement, TReturn = void>(
   matcher: ElementMatcher<El>,
@@ -239,6 +263,14 @@ export function watch<El extends HTMLElement>(
   generator: (
     ctx: TypedGeneratorContext<El>,
   ) => Generator<ElementFn<El>, void, unknown>,
+): WatchController<El>;
+
+// New overload for sync generator workflow pattern with element array (yield*)
+export function watch<El extends HTMLElement, TReturn = void>(
+  elements: El[],
+  generator: (
+    ctx: TypedGeneratorContext<El>,
+  ) => Generator<any, TReturn, unknown>,
 ): WatchController<El>;
 
 // New overload for async generator workflow pattern with element array
@@ -257,6 +289,14 @@ export function watch<El extends HTMLElement>(
   ) => Generator<ElementFn<El>, void, unknown>,
 ): WatchController<El>;
 
+// New overload for sync generator workflow pattern with NodeList (yield*)
+export function watch<El extends HTMLElement, TReturn = void>(
+  nodeList: NodeListOf<El>,
+  generator: (
+    ctx: TypedGeneratorContext<El>,
+  ) => Generator<any, TReturn, unknown>,
+): WatchController<El>;
+
 // New overload for async generator workflow pattern with NodeList
 export function watch<El extends HTMLElement, TReturn = void>(
   nodeList: NodeListOf<El>,
@@ -272,6 +312,19 @@ export function watch<Parent extends HTMLElement, S extends string>(
   generator: (
     ctx: TypedGeneratorContext<ElementFromSelector<S>>,
   ) => Generator<ElementFn<ElementFromSelector<S>>, void, unknown>,
+): WatchController<ElementFromSelector<S>>;
+
+// New overload for sync generator workflow pattern with parent and child selector (yield*)
+export function watch<
+  Parent extends HTMLElement,
+  S extends string,
+  TReturn = void,
+>(
+  parent: Parent,
+  childSelector: S,
+  generator: (
+    ctx: TypedGeneratorContext<ElementFromSelector<S>>,
+  ) => Generator<any, TReturn, unknown>,
 ): WatchController<ElementFromSelector<S>>;
 
 // New overload for async generator workflow pattern with parent and child selector
@@ -296,6 +349,18 @@ export function watch<
   generator: (
     ctx: TypedGeneratorContext<El>,
   ) => Generator<ElementFn<El>, void, unknown>,
+): WatchController<El>;
+
+// New overload for sync generator workflow pattern with predefined context (yield*)
+export function watch<
+  Ctx extends PreDefinedWatchContext<any, any, any>,
+  El extends Ctx["elementType"] = Ctx["elementType"],
+  TReturn = void,
+>(
+  context: Ctx,
+  generator: (
+    ctx: TypedGeneratorContext<El>,
+  ) => Generator<any, TReturn, unknown>,
 ): WatchController<El>;
 
 // New overload for async generator workflow pattern with predefined context
@@ -475,7 +540,8 @@ export function run<S extends string>(
         selector,
         index,
         elements as ElementFromSelector<S>[],
-        generator,
+        (ctx?: TypedGeneratorContext<ElementFromSelector<S>>) =>
+          generator(ctx!),
       )
         .then((returnValue) => {
           // Store the API if it exists
@@ -559,6 +625,9 @@ export function runOn<El extends HTMLElement, T = any>(
     | Generator<ElementFn<El>, T, unknown>
     | AsyncGenerator<ElementFn<El>, T, unknown>,
 ): Promise<T | undefined> {
+  // Initialize the global observer to ensure cleanup works
+  initializeObserver();
+
   const arr = [element];
 
   return executeGenerator(
@@ -566,7 +635,7 @@ export function runOn<El extends HTMLElement, T = any>(
     `element-${element.tagName.toLowerCase()}`,
     0,
     arr,
-    generator,
+    (ctx?: TypedGeneratorContext<El>) => generator(ctx!),
   ).then((returnValue) => {
     // Store the API if it exists
     if (returnValue !== undefined) {

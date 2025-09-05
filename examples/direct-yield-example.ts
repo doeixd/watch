@@ -6,8 +6,8 @@
  * type-safe code with perfect inference.
  */
 
-import { watch } from "../src/index";
 import {
+  watch,
   // DOM operations that return Workflows
   addClass,
   removeClass,
@@ -18,12 +18,10 @@ import {
   // State operations that return Workflows
   getState,
   setState,
-  incrementState,
 
   // Utility operations
   delay,
-  log,
-} from "../src/generator/index";
+} from "../src/index";
 
 // ============================================================================
 // EXAMPLE 1: Basic yield* usage without $ wrapper
@@ -37,13 +35,13 @@ document.body.innerHTML += `
   <div id="output"></div>
 `;
 
-watch("#direct-button", async function* () {
+watch("#direct-button", function* () {
   // Direct yield* usage - no $ wrapper needed!
   yield* addClass("interactive");
   yield* text("Ready to click!");
 
   // Get the element with perfect typing
-  const button = yield* self<HTMLButtonElement>();
+  const button = self() as HTMLButtonElement;
   console.log("Button element:", button.tagName); // TypeScript knows this is HTMLButtonElement
 
   // Style the button

@@ -13,7 +13,7 @@
  * - *Set* - Setter variants (when needed for clarity)
  */
 
-import type { ElementFn, ElementFromSelector } from "../types";
+import type { ElementFn } from "../types";
 import {
   _impl_text_set,
   _impl_text_get,
@@ -77,7 +77,7 @@ export function textSelector(selector: string, content: string): void {
  * Returns an ElementFn that sets text content (for generator use).
  */
 export function textGenerator<El extends HTMLElement = HTMLElement>(
-  content: string
+  content: string,
 ): ElementFn<El> {
   return (element: El) => _impl_text_set(element, content);
 }
@@ -100,10 +100,9 @@ export function textGetSelector(selector: string): string | null {
 /**
  * Returns an ElementFn that gets text content (for generator use).
  */
-export function textGetGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<
-  El,
-  string
-> {
+export function textGetGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El, string> {
   return (element: El) => _impl_text_get(element);
 }
 
@@ -132,7 +131,7 @@ export function htmlSelector(selector: string, content: string): void {
  * Returns an ElementFn that sets HTML content (for generator use).
  */
 export function htmlGenerator<El extends HTMLElement = HTMLElement>(
-  content: string
+  content: string,
 ): ElementFn<El> {
   return (element: El) => _impl_html_set(element, content);
 }
@@ -155,28 +154,87 @@ export function htmlGetSelector(selector: string): string | null {
 /**
  * Returns an ElementFn that gets HTML content (for generator use).
  */
-export function htmlGetGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<
-  El,
-  string
-> {
+export function htmlGetGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El, string> {
   return (element: El) => _impl_html_get(element);
 }
 
+/**
+ * Sets sanitized HTML content on an element (direct element version).
+ * Removes dangerous elements and attributes to prevent XSS attacks.
+ */
+export function safeHtmlDirect(element: HTMLElement, content: string): void {
+  // Create a temporary element to parse the HTML
+  const temp = document.createElement("div");
+  temp.innerHTML = content;
+
+  // Remove dangerous elements
+  const dangerousElements = temp.querySelectorAll(
+    "script, iframe, object, embed, link, style, meta, base",
+  );
+  dangerousElements.forEach((elem) => elem.remove());
+
+  // Remove dangerous attributes
+  const allElements = temp.querySelectorAll("*");
+  allElements.forEach((elem) => {
+    // Remove event handlers and javascript: URLs
+    for (const attr of Array.from(elem.attributes)) {
+      if (
+        attr.name.startsWith("on") ||
+        (attr.name === "href" && attr.value.startsWith("javascript:")) ||
+        (attr.name === "src" && attr.value.startsWith("javascript:"))
+      ) {
+        elem.removeAttribute(attr.name);
+      }
+    }
+  });
+
+  element.innerHTML = temp.innerHTML;
+}
+
+/**
+ * Sets sanitized HTML content on elements matching a CSS selector.
+ * Removes dangerous elements and attributes to prevent XSS attacks.
+ */
+export function safeHtmlSelector(selector: string, content: string): void {
+  const element = document.querySelector(selector) as HTMLElement;
+  if (element) {
+    safeHtmlDirect(element, content);
+  }
+}
+
+/**
+ * Returns an ElementFn that sets sanitized HTML content (generator version).
+ * Removes dangerous elements and attributes to prevent XSS attacks.
+ */
+export function safeHtmlGenerator<El extends HTMLElement = HTMLElement>(
+  content: string,
+): ElementFn<El> {
+  return (element: El) => safeHtmlDirect(element, content);
+}
+
 // ============================================================================
-// CLASS MANIPULATION FUNCTIONS
+// CLASS MANIPULATION
 // ============================================================================
 
 /**
  * Adds classes directly to an element.
  */
-export function addClassDirect(element: HTMLElement, ...classNames: string[]): void {
+export function addClassDirect(
+  element: HTMLElement,
+  ...classNames: string[]
+): void {
   _impl_addClass(element, ...classNames);
 }
 
 /**
  * Adds classes to elements matching a selector.
  */
-export function addClassSelector(selector: string, ...classNames: string[]): void {
+export function addClassSelector(
+  selector: string,
+  ...classNames: string[]
+): void {
   const element = document.querySelector(selector) as HTMLElement;
   if (element) {
     _impl_addClass(element, ...classNames);
@@ -195,14 +253,20 @@ export function addClassGenerator<El extends HTMLElement = HTMLElement>(
 /**
  * Removes classes directly from an element.
  */
-export function removeClassDirect(element: HTMLElement, ...classNames: string[]): void {
+export function removeClassDirect(
+  element: HTMLElement,
+  ...classNames: string[]
+): void {
   _impl_removeClass(element, ...classNames);
 }
 
 /**
  * Removes classes from elements matching a selector.
  */
-export function removeClassSelector(selector: string, ...classNames: string[]): void {
+export function removeClassSelector(
+  selector: string,
+  ...classNames: string[]
+): void {
   const element = document.querySelector(selector) as HTMLElement;
   if (element) {
     _impl_removeClass(element, ...classNames);
@@ -224,7 +288,7 @@ export function removeClassGenerator<El extends HTMLElement = HTMLElement>(
 export function toggleClassDirect(
   element: HTMLElement,
   className: string,
-  force?: boolean
+  force?: boolean,
 ): boolean {
   return _impl_toggleClass(element, className, force);
 }
@@ -235,7 +299,7 @@ export function toggleClassDirect(
 export function toggleClassSelector(
   selector: string,
   className: string,
-  force?: boolean
+  force?: boolean,
 ): boolean {
   const element = document.querySelector(selector) as HTMLElement;
   return element ? _impl_toggleClass(element, className, force) : false;
@@ -246,7 +310,7 @@ export function toggleClassSelector(
  */
 export function toggleClassGenerator<El extends HTMLElement = HTMLElement>(
   className: string,
-  force?: boolean
+  force?: boolean,
 ): ElementFn<El, boolean> {
   return (element: El) => _impl_toggleClass(element, className, force);
 }
@@ -254,7 +318,10 @@ export function toggleClassGenerator<El extends HTMLElement = HTMLElement>(
 /**
  * Checks if an element has a class.
  */
-export function hasClassDirect(element: HTMLElement, className: string): boolean {
+export function hasClassDirect(
+  element: HTMLElement,
+  className: string,
+): boolean {
   return _impl_hasClass(element, className);
 }
 
@@ -270,7 +337,7 @@ export function hasClassSelector(selector: string, className: string): boolean {
  * Returns an ElementFn that checks for a class (for generator use).
  */
 export function hasClassGenerator<El extends HTMLElement = HTMLElement>(
-  className: string
+  className: string,
 ): ElementFn<El, boolean> {
   return (element: El) => _impl_hasClass(element, className);
 }
@@ -285,7 +352,7 @@ export function hasClassGenerator<El extends HTMLElement = HTMLElement>(
 export function styleSetDirect(
   element: HTMLElement,
   property: string,
-  value: string
+  value: string,
 ): void {
   _impl_style_set_property(element, property, value);
 }
@@ -295,7 +362,7 @@ export function styleSetDirect(
  */
 export function styleSetObjectDirect(
   element: HTMLElement,
-  styles: Partial<CSSStyleDeclaration>
+  styles: Partial<CSSStyleDeclaration>,
 ): void {
   _impl_style_set_object(element, styles);
 }
@@ -306,7 +373,7 @@ export function styleSetObjectDirect(
 export function styleSetSelector(
   selector: string,
   property: string,
-  value: string
+  value: string,
 ): void {
   const element = document.querySelector(selector) as HTMLElement;
   if (element) {
@@ -319,7 +386,7 @@ export function styleSetSelector(
  */
 export function styleSetObjectSelector(
   selector: string,
-  styles: Partial<CSSStyleDeclaration>
+  styles: Partial<CSSStyleDeclaration>,
 ): void {
   const element = document.querySelector(selector) as HTMLElement;
   if (element) {
@@ -332,7 +399,7 @@ export function styleSetObjectSelector(
  */
 export function styleSetGenerator<El extends HTMLElement = HTMLElement>(
   property: string,
-  value: string
+  value: string,
 ): ElementFn<El> {
   return (element: El) => _impl_style_set_property(element, property, value);
 }
@@ -341,7 +408,7 @@ export function styleSetGenerator<El extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that sets multiple style properties (for generator use).
  */
 export function styleSetObjectGenerator<El extends HTMLElement = HTMLElement>(
-  styles: Partial<CSSStyleDeclaration>
+  styles: Partial<CSSStyleDeclaration>,
 ): ElementFn<El> {
   return (element: El) => _impl_style_set_object(element, styles);
 }
@@ -356,7 +423,10 @@ export function styleGetDirect(element: HTMLElement, property: string): string {
 /**
  * Gets a style property value from an element matching a selector.
  */
-export function styleGetSelector(selector: string, property: string): string | null {
+export function styleGetSelector(
+  selector: string,
+  property: string,
+): string | null {
   const element = document.querySelector(selector) as HTMLElement;
   return element ? _impl_style_get_property(element, property) : null;
 }
@@ -365,7 +435,7 @@ export function styleGetSelector(selector: string, property: string): string | n
  * Returns an ElementFn that gets a style property (for generator use).
  */
 export function styleGetGenerator<El extends HTMLElement = HTMLElement>(
-  property: string
+  property: string,
 ): ElementFn<El, string> {
   return (element: El) => _impl_style_get_property(element, property);
 }
@@ -377,7 +447,11 @@ export function styleGetGenerator<El extends HTMLElement = HTMLElement>(
 /**
  * Sets an attribute directly on an element.
  */
-export function attrSetDirect(element: HTMLElement, name: string, value: any): void {
+export function attrSetDirect(
+  element: HTMLElement,
+  name: string,
+  value: any,
+): void {
   _impl_attr_set_property(element, name, value);
 }
 
@@ -386,7 +460,7 @@ export function attrSetDirect(element: HTMLElement, name: string, value: any): v
  */
 export function attrSetObjectDirect(
   element: HTMLElement,
-  attrs: Record<string, any>
+  attrs: Record<string, any>,
 ): void {
   _impl_attr_set_object(element, attrs);
 }
@@ -394,7 +468,11 @@ export function attrSetObjectDirect(
 /**
  * Sets an attribute on elements matching a selector.
  */
-export function attrSetSelector(selector: string, name: string, value: any): void {
+export function attrSetSelector(
+  selector: string,
+  name: string,
+  value: any,
+): void {
   const element = document.querySelector(selector) as HTMLElement;
   if (element) {
     _impl_attr_set_property(element, name, value);
@@ -406,7 +484,7 @@ export function attrSetSelector(selector: string, name: string, value: any): voi
  */
 export function attrSetGenerator<El extends HTMLElement = HTMLElement>(
   name: string,
-  value: any
+  value: any,
 ): ElementFn<El> {
   return (element: El) => _impl_attr_set_property(element, name, value);
 }
@@ -414,7 +492,10 @@ export function attrSetGenerator<El extends HTMLElement = HTMLElement>(
 /**
  * Gets an attribute value directly from an element.
  */
-export function attrGetDirect(element: HTMLElement, name: string): string | null {
+export function attrGetDirect(
+  element: HTMLElement,
+  name: string,
+): string | null {
   return _impl_attr_get_property(element, name);
 }
 
@@ -429,7 +510,10 @@ export function attrGetSelector(selector: string, name: string): string | null {
 /**
  * Removes attributes directly from an element.
  */
-export function removeAttrDirect(element: HTMLElement, ...names: string[]): void {
+export function removeAttrDirect(
+  element: HTMLElement,
+  ...names: string[]
+): void {
   _impl_removeAttr(element, names);
 }
 
@@ -461,7 +545,7 @@ export function removeAttrGenerator<El extends HTMLElement = HTMLElement>(
  */
 export function valueDirect(
   element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-  value: string
+  value: string,
 ): void {
   _impl_value_set(element, value);
 }
@@ -483,7 +567,10 @@ export function valueSelector(selector: string, value: string): void {
  * Returns an ElementFn that sets the value (for generator use).
  */
 export function valueGenerator<
-  El extends HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement = HTMLInputElement
+  El extends
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement = HTMLInputElement,
 >(value: string): ElementFn<El> {
   return (element: El) => _impl_value_set(element, value);
 }
@@ -492,7 +579,7 @@ export function valueGenerator<
  * Gets the value directly from a form element.
  */
 export function valueGetDirect(
-  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
 ): string {
   return _impl_value_get(element);
 }
@@ -511,7 +598,10 @@ export function valueGetSelector(selector: string): string | null {
 /**
  * Sets the checked state directly on a checkbox/radio input.
  */
-export function checkedDirect(element: HTMLInputElement, checked: boolean): void {
+export function checkedDirect(
+  element: HTMLInputElement,
+  checked: boolean,
+): void {
   _impl_checked_set(element, checked);
 }
 
@@ -528,9 +618,9 @@ export function checkedSelector(selector: string, checked: boolean): void {
 /**
  * Returns an ElementFn that sets the checked state (for generator use).
  */
-export function checkedGenerator<El extends HTMLInputElement = HTMLInputElement>(
-  checked: boolean
-): ElementFn<El> {
+export function checkedGenerator<
+  El extends HTMLInputElement = HTMLInputElement,
+>(checked: boolean): ElementFn<El> {
   return (element: El) => _impl_checked_set(element, checked);
 }
 
@@ -573,7 +663,9 @@ export function focusSelector(selector: string): void {
 /**
  * Returns an ElementFn that focuses the element (for generator use).
  */
-export function focusGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<El> {
+export function focusGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El> {
   return (element: El) => _impl_focus(element);
 }
 
@@ -597,7 +689,9 @@ export function blurSelector(selector: string): void {
 /**
  * Returns an ElementFn that blurs the element (for generator use).
  */
-export function blurGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<El> {
+export function blurGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El> {
   return (element: El) => _impl_blur(element);
 }
 
@@ -625,7 +719,9 @@ export function showSelector(selector: string): void {
 /**
  * Returns an ElementFn that shows the element (for generator use).
  */
-export function showGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<El> {
+export function showGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El> {
   return (element: El) => _impl_show(element);
 }
 
@@ -649,7 +745,9 @@ export function hideSelector(selector: string): void {
 /**
  * Returns an ElementFn that hides the element (for generator use).
  */
-export function hideGenerator<El extends HTMLElement = HTMLElement>(): ElementFn<El> {
+export function hideGenerator<
+  El extends HTMLElement = HTMLElement,
+>(): ElementFn<El> {
   return (element: El) => _impl_hide(element);
 }
 
@@ -662,7 +760,7 @@ export function hideGenerator<El extends HTMLElement = HTMLElement>(): ElementFn
  */
 export function queryDirect<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector: string
+  selector: string,
 ): T | null {
   return _impl_query(element, selector);
 }
@@ -672,7 +770,7 @@ export function queryDirect<T extends HTMLElement = HTMLElement>(
  */
 export function querySelector<T extends HTMLElement = HTMLElement>(
   parentSelector: string,
-  childSelector: string
+  childSelector: string,
 ): T | null {
   const parent = document.querySelector(parentSelector) as HTMLElement;
   return parent ? _impl_query(parent, childSelector) : null;
@@ -682,7 +780,7 @@ export function querySelector<T extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that queries for a child (for generator use).
  */
 export function queryGenerator<T extends HTMLElement = HTMLElement>(
-  selector: string
+  selector: string,
 ): ElementFn<HTMLElement, T | null> {
   return (element: HTMLElement) => _impl_query(element, selector);
 }
@@ -692,7 +790,7 @@ export function queryGenerator<T extends HTMLElement = HTMLElement>(
  */
 export function queryAllDirect<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector: string
+  selector: string,
 ): T[] {
   return _impl_queryAll(element, selector);
 }
@@ -702,7 +800,7 @@ export function queryAllDirect<T extends HTMLElement = HTMLElement>(
  */
 export function queryAllSelector<T extends HTMLElement = HTMLElement>(
   parentSelector: string,
-  childSelector: string
+  childSelector: string,
 ): T[] {
   const parent = document.querySelector(parentSelector) as HTMLElement;
   return parent ? _impl_queryAll(parent, childSelector) : [];
@@ -712,7 +810,7 @@ export function queryAllSelector<T extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that queries for all children (for generator use).
  */
 export function queryAllGenerator<T extends HTMLElement = HTMLElement>(
-  selector: string
+  selector: string,
 ): ElementFn<HTMLElement, T[]> {
   return (element: HTMLElement) => _impl_queryAll(element, selector);
 }
@@ -722,7 +820,7 @@ export function queryAllGenerator<T extends HTMLElement = HTMLElement>(
  */
 export function parentDirect<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T | null {
   return _impl_parent(element, selector);
 }
@@ -731,7 +829,7 @@ export function parentDirect<T extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that gets the parent (for generator use).
  */
 export function parentGenerator<T extends HTMLElement = HTMLElement>(
-  selector?: string
+  selector?: string,
 ): ElementFn<HTMLElement, T | null> {
   return (element: HTMLElement) => _impl_parent(element, selector);
 }
@@ -741,7 +839,7 @@ export function parentGenerator<T extends HTMLElement = HTMLElement>(
  */
 export function childrenDirect<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T[] {
   return _impl_children(element, selector);
 }
@@ -750,7 +848,7 @@ export function childrenDirect<T extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that gets children (for generator use).
  */
 export function childrenGenerator<T extends HTMLElement = HTMLElement>(
-  selector?: string
+  selector?: string,
 ): ElementFn<HTMLElement, T[]> {
   return (element: HTMLElement) => _impl_children(element, selector);
 }
@@ -760,7 +858,7 @@ export function childrenGenerator<T extends HTMLElement = HTMLElement>(
  */
 export function siblingsDirect<T extends HTMLElement = HTMLElement>(
   element: HTMLElement,
-  selector?: string
+  selector?: string,
 ): T[] {
   return _impl_siblings(element, selector);
 }
@@ -769,7 +867,7 @@ export function siblingsDirect<T extends HTMLElement = HTMLElement>(
  * Returns an ElementFn that gets siblings (for generator use).
  */
 export function siblingsGenerator<T extends HTMLElement = HTMLElement>(
-  selector?: string
+  selector?: string,
 ): ElementFn<HTMLElement, T[]> {
   return (element: HTMLElement) => _impl_siblings(element, selector);
 }

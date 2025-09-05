@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.1.0](https://github.com/doeixd/watch/compare/v2.0.1...v2.1.0) (2025-09-05)
+
+
+### Features
+
+* added generator api ([5431152](https://github.com/doeixd/watch/commit/5431152f8f5552a9c80631c713929e821dfdddc7))
+* added switch ([e791660](https://github.com/doeixd/watch/commit/e791660bd9b1c567c2f3591e0131c0dc16fd6b3d))
+
+
+### Bug Fixes
+
+* toggleClasses ([9e2ace9](https://github.com/doeixd/watch/commit/9e2ace9d5a037bdbed29db05594705938c335d0b))
+* types of generator fn ([1edddbb](https://github.com/doeixd/watch/commit/1edddbbbd470e6acc44f8a1370abbe3cf12795fd))
+
 ### [2.0.1](https://github.com/doeixd/watch/compare/v2.0.0...v2.0.1) (2025-07-11)
 
 

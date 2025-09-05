@@ -9,19 +9,18 @@ Fixed context parameter handling throughout the watch-selector library to ensure
 
 ## Problem Identification
 
-The library has multiple context handling mechanisms:
-1. **getCurrentContext()** - Retrieves context from a global stack
-2. **Optional context parameters** - Functions can accept a context parameter
-3. **Enhanced contexts** - Contexts with attached DOM functions
-4. **Parent context registry** - For nested watch calls
+The library has multiple context-handling mechanisms:
+1. **getCurrentContext()** — retrieves the context from a global stack.
+2. **Optional context parameters** — functions may accept a context parameter.
+3. **Enhanced contexts** — contexts with attached DOM helpers.
+4. **Parent context registry** — used for nested `watch` calls.
 
 The main issues were:
-- Generator functions weren't consistently accepting optional context parameters
-- Enhanced context wasn't passing the base context to underlying generator functions
-- Parent context retrieval was incorrectly structured
-- Duplicate method definitions in enhanced context
-- Type errors with minimal context creation
-
+- Generator functions weren't consistently accepting optional context parameters.
+- The enhanced context wasn't passing the base context to underlying generator functions.
+- Parent-context retrieval was incorrectly structured.
+- Duplicate method definitions existed in the enhanced context.
+- Type errors occurred with minimal-context creation.
 ## Key Decisions
 
 ### 1. Unified Context Parameter Pattern

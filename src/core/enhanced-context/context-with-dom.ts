@@ -12,6 +12,8 @@ import type {
   Workflow,
   WatchContext,
   ParentContext,
+  EventHandler,
+  EventHandlerResult,
 } from "../../types";
 import type { CSSSelector, ClassName } from "../../utils/selector-types";
 import * as domNew from "../../api/dom-new";
@@ -211,7 +213,7 @@ export interface EnhancedTypedGeneratorContext<
    */
   on<K extends keyof HTMLElementEventMap>(
     event: K,
-    handler: any,
+    handler: EventHandler<HTMLElementEventMap[K]>,
     options?: any,
   ): Workflow<CleanupFunction>;
 
@@ -221,7 +223,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  click(handler: any, options?: any): Workflow<CleanupFunction>;
+  click(
+    handler: EventHandler<MouseEvent>,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Attach an input handler with yield* support.
@@ -229,7 +234,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  input(handler: any, options?: any): Workflow<CleanupFunction>;
+  input(
+    handler: EventHandler<InputEvent>,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Attach a change handler with yield* support.
@@ -237,7 +245,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  change(handler: any, options?: any): Workflow<CleanupFunction>;
+  change(
+    handler: EventHandler<Event>,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Attach a submit handler with yield* support.
@@ -245,7 +256,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  submit(handler: any, options?: any): Workflow<CleanupFunction>;
+  submit(
+    handler: EventHandler<SubmitEvent>,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Watch for attribute changes with yield* support.
@@ -253,7 +267,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Observer options
    * @returns Workflow<CleanupFunction>
    */
-  onAttr(handler: any, options?: any): Workflow<CleanupFunction>;
+  onAttr(
+    handler: (newValue: string | null, oldValue: string | null) => EventHandlerResult,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Watch for text content changes with yield* support.
@@ -261,7 +278,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Observer options
    * @returns Workflow<CleanupFunction>
    */
-  onText(handler: any, options?: any): Workflow<CleanupFunction>;
+  onText(
+    handler: (newText: string, oldText: string) => EventHandlerResult,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Watch for visibility changes with yield* support.
@@ -269,7 +289,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Observer options
    * @returns Workflow<CleanupFunction>
    */
-  onVisible(handler: any, options?: any): Workflow<CleanupFunction>;
+  onVisible(
+    handler: (isVisible: boolean) => EventHandlerResult,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Watch for element resize with yield* support.
@@ -277,21 +300,24 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Observer options
    * @returns Workflow<CleanupFunction>
    */
-  onResize(handler: any, options?: any): Workflow<CleanupFunction>;
+  onResize(
+    handler: (entry: ResizeObserverEntry) => EventHandlerResult,
+    options?: any,
+  ): Workflow<CleanupFunction>;
 
   /**
    * Handle element mount with yield* support.
    * @param handler - Mount handler
    * @returns Workflow<CleanupFunction>
    */
-  onMount(handler: any): Workflow<CleanupFunction>;
+  onMount(handler: () => EventHandlerResult): Workflow<CleanupFunction>;
 
   /**
    * Handle element unmount with yield* support.
    * @param handler - Unmount handler
    * @returns Workflow<CleanupFunction>
    */
-  onUnmount(handler: any): Workflow<CleanupFunction>;
+  onUnmount(handler: () => EventHandlerResult): Workflow<CleanupFunction>;
 
   // ============================================================================
   // DOM Manipulation Functions (Top-level)
@@ -1873,44 +1899,59 @@ export function createEnhancedContext<El extends HTMLElement = HTMLElement>(
     // Event functions with Workflow support
     on: <K extends keyof HTMLElementEventMap>(
       event: K,
-      handler: any,
+      handler: EventHandler<HTMLElementEventMap[K]>,
       options?: any,
     ) => events.on(event, handler, options),
-    click: (handler: any, options?: any) => events.click(handler, options),
-    input: (handler: any, options?: any) => events.input(handler, options),
-    change: (handler: any, options?: any) => events.change(handler, options),
-    submit: (handler: any, options?: any) => events.submit(handler, options),
+    click: (handler: EventHandler<MouseEvent>, options?: any) =>
+      events.click(handler, options),
+    input: (handler: EventHandler<InputEvent>, options?: any) =>
+      events.input(handler, options),
+    change: (handler: EventHandler<Event>, options?: any) =>
+      events.change(handler, options),
+    submit: (handler: EventHandler<SubmitEvent>, options?: any) =>
+      events.submit(handler, options),
 
     // Observer event functions
-    onAttr: (attributeName: string, handler: any) =>
-      observerEvents.onAttr(attributeName, handler),
-    onText: (handler: any) => observerEvents.onText(handler),
-    onVisible: (handler: any) => observerEvents.onVisible(handler),
-    onResize: (handler: any) => observerEvents.onResize(handler),
-    onMount: (handler: any) => observerEvents.onMount(handler),
-    onUnmount: (handler: any) => observerEvents.onUnmount(handler),
+    onAttr: (
+      attributeName: string,
+      handler: (newValue: string | null, oldValue: string | null) => EventHandlerResult,
+    ) => observerEvents.onAttr(attributeName, handler),
+    onText: (handler: (newText: string, oldText: string) => EventHandlerResult) =>
+      observerEvents.onText(handler),
+    onVisible: (handler: (isVisible: boolean) => EventHandlerResult) =>
+      observerEvents.onVisible(handler),
+    onResize: (handler: (entry: ResizeObserverEntry) => EventHandlerResult) =>
+      observerEvents.onResize(handler),
+    onMount: (handler: () => EventHandlerResult) =>
+      observerEvents.onMount(handler),
+    onUnmount: (handler: () => EventHandlerResult) =>
+      observerEvents.onUnmount(handler),
 
     // Explicit .gen functions for guaranteed Workflow behavior
     gen: {
       // Event .gen functions - directly access .gen properties
       on: <K extends keyof HTMLElementEventMap>(
         event: K,
-        handler: any,
+        handler: EventHandler<HTMLElementEventMap[K]>,
         options?: any,
       ) => events.on(event, handler, options),
 
-      click: (handler: any, options?: any) => events.click(handler, options),
+      click: (handler: EventHandler<MouseEvent>, options?: any) =>
+        events.click(handler, options),
 
-      input: (handler: any, options?: any) => events.input(handler, options),
+      input: (handler: EventHandler<InputEvent>, options?: any) =>
+        events.input(handler, options),
 
-      change: (handler: any, options?: any) => events.change(handler, options),
+      change: (handler: EventHandler<Event>, options?: any) =>
+        events.change(handler, options),
 
-      submit: (handler: any, options?: any) => events.submit(handler, options),
+      submit: (handler: EventHandler<SubmitEvent>, options?: any) =>
+        events.submit(handler, options),
 
-      onFocus: (handler: any, options?: any) =>
+      onFocus: (handler: EventHandler<FocusEvent>, options?: any) =>
         events.onFocus.gen(handler, options),
 
-      onBlur: (handler: any, options?: any) =>
+      onBlur: (handler: EventHandler<FocusEvent>, options?: any) =>
         events.onBlur.gen(handler, options),
 
       // Core generator .gen functions - directly access .gen properties

@@ -10,6 +10,7 @@ import type {
   WatchContext,
   Operation,
   CleanupFunction,
+  EventHandler,
 } from "../types";
 import { isCSSSelector, type CSSSelector } from "../utils/selector-types";
 
@@ -65,9 +66,6 @@ export function isDOMEventType(value: unknown): value is DOMEventType {
 // Type Definitions
 // ============================================================================
 
-type EventHandler<E extends Event = Event> = (
-  event: E,
-) => void | Generator<any, void, any>;
 type SyncGenerator<T = void> = Generator<any, T, any>;
 
 export interface EventOptions {

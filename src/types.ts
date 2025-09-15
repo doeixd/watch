@@ -271,6 +271,24 @@ export interface WatchEventListenerOptions extends AddEventListenerOptions {
   filter?: (event: Event, element: HTMLElement) => boolean;
 }
 
+// In your types.ts file or at the top of the context module
+
+/**
+ * The possible return types for an event handler, which can be a regular
+ * function, an async function, or a synchronous/asynchronous generator.
+ */
+export type EventHandlerResult =
+  | void
+  | Promise<void>
+  | Generator<any, void, any>
+  | AsyncGenerator<any, void, any>;
+
+/**
+ * A generic event handler function type.
+ * @template E - The specific Event type (e.g., MouseEvent, KeyboardEvent).
+ */
+export type EventHandler<E extends Event = Event> = (event: E) => EventHandlerResult;
+
 // Hybrid event handler types that support both regular functions and generators
 export type HybridEventHandler<
   El extends Element = HTMLElement,

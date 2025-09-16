@@ -1,6 +1,6 @@
 {
   "name": "watch-selector",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "files": [
     "dist",
     "src"

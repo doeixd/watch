@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.3.0](https://github.com/doeixd/watch/compare/v2.2.0...v2.3.0) (2025-09-16)
+
+
+### Features
+
+* **context:** Introduce generic event handlers for improved type safety ([0a2b8a2](https://github.com/doeixd/watch/commit/0a2b8a293796e5713ca288e0c0e0905ced609ed3))
+
 ## [2.2.0](https://github.com/doeixd/watch/compare/v2.1.0...v2.2.0) (2025-09-15)
 
 

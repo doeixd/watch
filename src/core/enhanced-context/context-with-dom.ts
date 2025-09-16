@@ -14,6 +14,7 @@ import type {
   ParentContext,
   EventHandler,
   EventHandlerResult,
+  WatchEventListenerOptions,
 } from "../../types";
 import type { CSSSelector, ClassName } from "../../utils/selector-types";
 import * as domNew from "../../api/dom-new";
@@ -28,6 +29,17 @@ type StyleValue = string | number | null;
 type StyleObject = Record<string, StyleValue>;
 type AttributeObject = Record<string, string>;
 type DataObject = Record<string, any>;
+
+/**
+ * A generic event handler function type for the enhanced context.
+ * It provides strongly-typed `currentTarget` and `target` properties
+ * on the event object.
+ */
+type ContextualEventHandler<
+  E extends Event,
+  El extends HTMLElement,
+  Target extends EventTarget = El,
+> = (event: E & { currentTarget: El; target: Target }) => EventHandlerResult;
 
 /**
  * Enhanced TypedGeneratorContext with all DOM manipulation, event, and state functions attached.
@@ -211,10 +223,10 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  on<K extends keyof HTMLElementEventMap>(
+  on<K extends keyof HTMLElementEventMap, T extends EventTarget = El>(
     event: K,
-    handler: EventHandler<HTMLElementEventMap[K]>,
-    options?: any,
+    handler: ContextualEventHandler<HTMLElementEventMap[K], El, T>,
+    options?: WatchEventListenerOptions,
   ): Workflow<CleanupFunction>;
 
   /**
@@ -223,9 +235,9 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  click(
-    handler: EventHandler<MouseEvent>,
-    options?: any,
+  click<T extends EventTarget = El>(
+    handler: ContextualEventHandler<MouseEvent, El, T>,
+    options?: WatchEventListenerOptions,
   ): Workflow<CleanupFunction>;
 
   /**
@@ -234,9 +246,9 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  input(
-    handler: EventHandler<InputEvent>,
-    options?: any,
+  input<T extends EventTarget = El>(
+    handler: ContextualEventHandler<InputEvent, El, T>,
+    options?: WatchEventListenerOptions,
   ): Workflow<CleanupFunction>;
 
   /**
@@ -245,9 +257,9 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  change(
-    handler: EventHandler<Event>,
-    options?: any,
+  change<T extends EventTarget = El>(
+    handler: ContextualEventHandler<Event, El, T>,
+    options?: WatchEventListenerOptions,
   ): Workflow<CleanupFunction>;
 
   /**
@@ -256,9 +268,9 @@ export interface EnhancedTypedGeneratorContext<
    * @param options - Event options
    * @returns Workflow<CleanupFunction>
    */
-  submit(
-    handler: EventHandler<SubmitEvent>,
-    options?: any,
+  submit<T extends EventTarget = El>(
+    handler: ContextualEventHandler<SubmitEvent, El, T>,
+    options?: WatchEventListenerOptions,
   ): Workflow<CleanupFunction>;
 
   /**
@@ -624,10 +636,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    on<K extends keyof HTMLElementEventMap>(
+    on<K extends keyof HTMLElementEventMap, T extends EventTarget = El>(
       event: K,
-      handler: any,
-      options?: any,
+      handler: ContextualEventHandler<HTMLElementEventMap[K], El, T>,
+      options?: WatchEventListenerOptions,
     ): Workflow<CleanupFunction>;
 
     /**
@@ -671,7 +683,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    click(handler: any, options?: any): Workflow<CleanupFunction>;
+    click<T extends EventTarget = El>(
+      handler: ContextualEventHandler<MouseEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     /**
      * Explicit generator version of input() that always returns a Workflow.
@@ -712,7 +727,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    input(handler: any, options?: any): Workflow<CleanupFunction>;
+    input<T extends EventTarget = El>(
+      handler: ContextualEventHandler<InputEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     /**
      * Explicit generator version of change() that always returns a Workflow.
@@ -760,7 +778,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    change(handler: any, options?: any): Workflow<CleanupFunction>;
+    change<T extends EventTarget = El>(
+      handler: ContextualEventHandler<Event, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     /**
      * Explicit generator version of submit() that always returns a Workflow.
@@ -810,7 +831,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    submit(handler: any, options?: any): Workflow<CleanupFunction>;
+    submit<T extends EventTarget = El>(
+      handler: ContextualEventHandler<SubmitEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     /**
      * Explicit generator version of onFocus() that always returns a Workflow.
@@ -848,7 +872,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    onFocus(handler: any, options?: any): Workflow<CleanupFunction>;
+    onFocus<T extends EventTarget = El>(
+      handler: ContextualEventHandler<FocusEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     /**
      * Explicit generator version of onBlur() that always returns a Workflow.
@@ -885,7 +912,10 @@ export interface EnhancedTypedGeneratorContext<
      * });
      * ```
      */
-    onBlur(handler: any, options?: any): Workflow<CleanupFunction>;
+    onBlur<T extends EventTarget = El>(
+      handler: ContextualEventHandler<FocusEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ): Workflow<CleanupFunction>;
 
     // ========================================================================
     // Core Generator Functions
@@ -1897,19 +1927,32 @@ export function createEnhancedContext<El extends HTMLElement = HTMLElement>(
     >() => generatorFns.getParentContext<ParentEl, ParentApi>(baseContext),
 
     // Event functions with Workflow support
-    on: <K extends keyof HTMLElementEventMap>(
+    on: <K extends keyof HTMLElementEventMap, T extends EventTarget = El>(
       event: K,
-      handler: EventHandler<HTMLElementEventMap[K]>,
-      options?: any,
-    ) => events.on(event, handler, options),
-    click: (handler: EventHandler<MouseEvent>, options?: any) =>
-      events.click(handler, options),
-    input: (handler: EventHandler<InputEvent>, options?: any) =>
-      events.input(handler, options),
-    change: (handler: EventHandler<Event>, options?: any) =>
-      events.change(handler, options),
-    submit: (handler: EventHandler<SubmitEvent>, options?: any) =>
-      events.submit(handler, options),
+      handler: ContextualEventHandler<HTMLElementEventMap[K], El, T>,
+      options?: WatchEventListenerOptions,
+    ) =>
+      events.on(
+        event,
+        handler as unknown as EventHandler<HTMLElementEventMap[K]>,
+        options,
+      ),
+    click: <T extends EventTarget = El>(
+      handler: ContextualEventHandler<MouseEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ) => events.click(handler as unknown as EventHandler<MouseEvent>, options),
+    input: <T extends EventTarget = El>(
+      handler: ContextualEventHandler<InputEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ) => events.input(handler as unknown as EventHandler<InputEvent>, options),
+    change: <T extends EventTarget = El>(
+      handler: ContextualEventHandler<Event, El, T>,
+      options?: WatchEventListenerOptions,
+    ) => events.change(handler as unknown as EventHandler<Event>, options),
+    submit: <T extends EventTarget = El>(
+      handler: ContextualEventHandler<SubmitEvent, El, T>,
+      options?: WatchEventListenerOptions,
+    ) => events.submit(handler as unknown as EventHandler<SubmitEvent>, options),
 
     // Observer event functions
     onAttr: (
@@ -1930,29 +1973,54 @@ export function createEnhancedContext<El extends HTMLElement = HTMLElement>(
     // Explicit .gen functions for guaranteed Workflow behavior
     gen: {
       // Event .gen functions - directly access .gen properties
-      on: <K extends keyof HTMLElementEventMap>(
+      on: <K extends keyof HTMLElementEventMap, T extends EventTarget = El>(
         event: K,
-        handler: EventHandler<HTMLElementEventMap[K]>,
-        options?: any,
-      ) => events.on(event, handler, options),
+        handler: ContextualEventHandler<HTMLElementEventMap[K], El, T>,
+        options?: WatchEventListenerOptions,
+      ) =>
+        events.on(
+          event,
+          handler as unknown as EventHandler<HTMLElementEventMap[K]>,
+          options,
+        ),
 
-      click: (handler: EventHandler<MouseEvent>, options?: any) =>
-        events.click(handler, options),
+      click: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<MouseEvent, El, T>,
+        options?: WatchEventListenerOptions,
+      ) => events.click(handler as unknown as EventHandler<MouseEvent>, options),
 
-      input: (handler: EventHandler<InputEvent>, options?: any) =>
-        events.input(handler, options),
+      input: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<InputEvent, El, T>,
+        options?: WatchEventListenerOptions,
+      ) => events.input(handler as unknown as EventHandler<InputEvent>, options),
 
-      change: (handler: EventHandler<Event>, options?: any) =>
-        events.change(handler, options),
+      change: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<Event, El, T>,
+        options?: WatchEventListenerOptions,
+      ) => events.change(handler as unknown as EventHandler<Event>, options),
 
-      submit: (handler: EventHandler<SubmitEvent>, options?: any) =>
-        events.submit(handler, options),
+      submit: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<SubmitEvent, El, T>,
+        options?: WatchEventListenerOptions,
+      ) => events.submit(handler as unknown as EventHandler<SubmitEvent>, options),
 
-      onFocus: (handler: EventHandler<FocusEvent>, options?: any) =>
-        events.onFocus.gen(handler, options),
+      onFocus: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<FocusEvent, El, T>,
+        options?: WatchEventListenerOptions,
+      ) =>
+        events.onFocus.gen(
+          handler as unknown as EventHandler<FocusEvent>,
+          options,
+        ),
 
-      onBlur: (handler: EventHandler<FocusEvent>, options?: any) =>
-        events.onBlur.gen(handler, options),
+      onBlur: <T extends EventTarget = El>(
+        handler: ContextualEventHandler<FocusEvent, El, T>,
+        options?: WatchEventListenerOptions,
+      ) =>
+        events.onBlur.gen(
+          handler as unknown as EventHandler<FocusEvent>,
+          options,
+        ),
 
       // Core generator .gen functions - directly access .gen properties
       self: () => generatorFns.self.gen<El>(baseContext),
